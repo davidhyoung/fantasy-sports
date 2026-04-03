@@ -18,20 +18,23 @@ frontend/  React 18 + Vite 5 + TypeScript + Tailwind CSS + shadcn/ui + TanStack 
 **Backend layout:**
 - `cmd/api/main.go` — entry point; wires router, DB pool, sessions, oauth config, handlers
 - `cmd/import/main.go` — CLI tool to download nflverse CSV data and upsert into `nfl_players` / `nfl_player_stats`
-- `internal/handlers/` — one file per resource; all handlers are methods on `Handler{db, sessions, oauthConfig}`
+- `internal/handlers/` — one file per resource; all handlers are methods on `Handler{db, sessions, oauthConfig, config}`
+  - `handlers.go` — Handler struct definition + constructor
+  - `respond.go` — JSON response helpers
   - `auth.go` — Login, Callback, Me, Logout
   - `leagues.go` — ListLeagues, CreateLeague, GetLeague
   - `teams.go` — ListLeagueTeams, GetTeam, GetTeamRoster (with stat period support); includes gsis_id batch lookup for player detail links
   - `players.go` — ListPlayers, CreatePlayer, GetPlayer
-  - `scoring.go` — GetLeagueScoreboard, GetLeagueStandings; also defines `leagueYahooKey()` and `userTokens()` helpers used by other handlers
+  - `scoring.go` — GetLeagueScoreboard, GetLeagueStandings
+  - `yahoo_helpers.go` — `leagueYahooKey()`, `userTokens()`, `newYahooClient()` shared helpers used by multiple handlers
   - `sync.go` — Sync (Yahoo league+team upsert)
   - `league_players.go` — SearchLeaguePlayers, GetAvailablePlayers
-  - `keepers.go` — GetKeeperRules, UpdateKeeperRules, GetLeagueDraftResults, GetLeagueKeepers, ListTeamKeeperWishlist, AddKeeperWishlist, RemoveKeeperWishlist
+  - `keepers.go` — GetKeeperRules, UpdateKeeperRules, GetLeagueDraftResults, GetLeagueKeepers, GetKeeperSummary, ListTeamKeeperWishlist, AddKeeperWishlist, RemoveKeeperWishlist, SubmitKeepers, UnsubmitKeepers
   - `analysis.go` — GetLeagueRankings: weighted z-score rankings; category weights = CV × FA-scarcity (normalised); adds `position_score` (z-score within position group); includes gsis_id lookup for player detail links
   - `projections.go` — ListProjections, GetProjectionDetail; serves pre-computed comp-based NFL player projections from nfl_projections table
   - `nfl_players.go` — GetNFLPlayer (full player detail: metadata + YoY stats + projection); GetNFLPlayerByYahooID (resolves Yahoo key → gsis_id and redirects)
   - `draft_values.go` — GetDraftValues: league-specific auction values (VOR + $ value based on actual roster settings)
-  - `grades.go` — ListGrades, GetPlayerGrades: real-life player grades (0-100 percentile) from nfl_player_grades table
+  - `grades.go` — ListGrades, GetPlayerGrades: real-life player grades (0-100 percentile) from nfl_player_grades table; supports comma-separated position filter (e.g. `?position=RB,WR,TE`)
 - `internal/models/models.go` — shared domain types (User, League, Team, Player, RosterEntry)
 - `internal/middleware/auth.go` — RequireAuth: reads session, attaches *models.User to ctx
 - `internal/yahoo/` — Yahoo Fantasy API client, OAuth config, XML types
@@ -45,17 +48,20 @@ frontend/  React 18 + Vite 5 + TypeScript + Tailwind CSS + shadcn/ui + TanStack 
 - `src/api/client.ts` — all typed API functions + TypeScript interfaces
 - `src/api/queryKeys.ts` — all TanStack Query cache keys
 - `src/lib/queryClient.ts` — QueryClient config (staleTime: 30s, retry: 1)
-- `src/lib/utils.ts` — cn() utility (clsx + tailwind-merge)
+- `src/lib/utils.ts` — cn() utility (clsx + tailwind-merge), zScoreIndicator, zScoreColor
+- `src/lib/grades.ts` — shared grade display utilities: gradeColorClass, trendIndicator, phaseLabel, phaseColor
+- `src/lib/constants.ts` — CURRENT_SEASON (2025), PROJECTION_SEASON (2026)
 - `src/pages/` — pages by route; complex pages split into subdirectories:
   - `Home.tsx`, `Leagues.tsx` — simple single-file pages
-  - `league-detail/` — `index.tsx` + tab components (StandingsTab, ScoreboardTab, PlayersTab, KeepersTab, DraftTab [NFL only]) + hooks
+  - `league-detail/` — `index.tsx` + tab components (StandingsTab, ScoreboardTab, PlayersTab, KeepersTab, RankingsTab, DraftTab [NFL only]) + hooks
   - `team-detail/` — `index.tsx` + `components/` (RosterTable, MatchupCard) + `hooks/useTeamDetail.ts`
   - `matchup-detail/` — `index.tsx` + `components/` (CategoryTotalsTable, TeamRosterTable) + hook
-  - `player-detail/` — `index.tsx` + `components/GradeCard.tsx` — unified NFL player detail page (metadata, grade card, YoY stats table, projection + comps)
-  - `rankings/` — `index.tsx` + `hooks/useRankings.ts` — standalone real-life player grades page (top-level /rankings)
-  - `projections/` — `index.tsx` + `hooks/useProjections.ts` + `components/` — comp-based projection rankings
-- `src/components/ui/` — shadcn/ui components (badge, button, input, table, tabs, provider)
-- `src/App.tsx` — router + nav + auth check
+  - `player-detail/` — `index.tsx` + `components/GradeCard.tsx` — unified NFL player detail page (metadata, grade card, YoY stats table, projection with PPR/Half/Standard toggle + comps)
+  - `projection-detail/` — `index.tsx` + `components/` (CompCard, TrajectoryChart) + hook — legacy detail page (redirects to player-detail)
+  - `rankings/` — `index.tsx` + `hooks/useRankings.ts` — standalone real-life player grades page (top-level /rankings) with Flex/Superflex position filters
+  - `projections/` — `index.tsx` + `hooks/useProjections.ts` + `components/` (ProjectionTable, ConfidenceBadge, UniquenessBadge) — comp-based projection rankings with PPR/Half/Standard toggle
+- `src/components/ui/` — shadcn/ui components (badge, button, input, table, tabs, provider) + table-helpers (SortableHead, PlayerCell, ClickableRow, ZScoreCell, HeaderRow)
+- `src/App.tsx` — router + nav (with active page highlighting) + auth check
 - `src/main.tsx` — React root, QueryClientProvider, BrowserRouter
 - Vite proxies `/api` and `/auth` → `http://localhost:8080` in dev
 - HTTPS via `vite-plugin-basic-ssl` (required for Yahoo OAuth)
@@ -74,7 +80,7 @@ Public:
   GET  /api/projections/{gsisId}?season=
   GET  /api/nfl/players/{gsisId}              — full player detail (metadata + YoY stats + projection)
   GET  /api/nfl/players/by-yahoo/{yahooKey}   — resolves Yahoo key → HTTP redirect to /api/nfl/players/{gsisId}
-  GET  /api/grades?season=&position=&limit=&offset= — real-life player grades (0-100 percentile)
+  GET  /api/grades?season=&position=&limit=&offset= — real-life player grades; position supports comma-separated (e.g. RB,WR,TE)
   GET  /api/grades/{gsisId}                  — all seasons of grades for a player
 
 Protected (RequireAuth):
@@ -83,17 +89,20 @@ Protected (RequireAuth):
   GET  /api/leagues/{id}/scoreboard?week=N
   GET  /api/leagues/{id}/standings
   GET  /api/leagues/{id}/players?search=q
-  GET  /api/leagues/{id}/players/available?position=&start=
+  GET  /api/leagues/{id}/players/available?position=&start=&status=
   GET  /api/leagues/{id}/draftresults
   GET  /api/leagues/{id}/keepers
   GET  /api/leagues/{id}/keeper-rules
   PUT  /api/leagues/{id}/keeper-rules
+  GET  /api/leagues/{id}/keeper-summary
   GET  /api/leagues/{id}/rankings?stat_type=season
   GET  /api/leagues/{id}/draft-values?season=&format=ppr|half|standard&budget=200
   GET  /api/teams/{id}/roster?stat_type=lastweek|season|today  (or ?week=N)
   GET  /api/teams/{id}/keepers
   POST /api/teams/{id}/keepers/{playerKey}
   DELETE /api/teams/{id}/keepers/{playerKey}
+  POST /api/teams/{id}/keepers/submit
+  DELETE /api/teams/{id}/keepers/submit
 ```
 
 ## Commands
@@ -163,5 +172,5 @@ Copy `.env.example` → `.env`. Required:
 - **Player detail:** `GET /api/nfl/players/{gsisId}` returns metadata + year-over-year season stats + projection (if exists). Player rows in all tables (rosters, rankings, matchup, players tab, draft tab) are clickable and navigate to `/players/:gsisId`. Yahoo→GSIS lookup via `nfl_players.yahoo_id`; batch ANY() query for rosters, per-request map for rankings.
 - **Draft tab (NFL only):** League detail page shows a "Draft" tab (visible only when `league.sport === 'nfl'`). Uses `GET /api/leagues/{id}/draft-values` to fetch league-specific VOR + auction values based on actual roster settings (superflex-aware). Position filter + PPR/Half/Standard format toggle. `/projections/:gsisId` routes redirect to `/players/:gsisId`.
 - **Player Grades:** Three-layer separation: (1) Player Grade — real-life quality (0-100 percentile), computed in `cmd/projections/grades.go`; (2) Stat Projections — comp-based; (3) Fantasy League Value — VORP/z-scores. Grades use position-specific sub-score weights (production, efficiency, usage, durability). Computed via `make project-nfl ARGS="-grades"`. `nfl_player_grades` table stores results. Grade z-score (`overall_grade_z`) is injected into season profiles and used as a similarity dimension for comp matching (weight 1.25). Grade YoY trend applies a bounded ±5% adjustment to projected stats. Frontend: GradeCard on player detail, Grade column on projections/draft/players tabs, standalone `/rankings` page. Former Rankings tab absorbed into Players tab.
-- **Raw SQL:** handlers use raw pgx queries. Use `make generate` + sqlc when queries grow complex
+- **SQL approach:** handlers use raw pgx queries for all database access. This is the established pattern — do NOT introduce sqlc or an ORM. `sqlc.yaml` exists but is unused; raw queries are preferred for their directness and flexibility with pgx features (e.g. `ANY($1)` with slices). Keep queries in handler methods, not in a separate query layer.
 - **New resource checklist:** model → migration → handler → route → yahoo method (if needed) → TS interface → API function → query key → page → **update docs**

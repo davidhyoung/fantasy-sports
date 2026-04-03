@@ -4,6 +4,7 @@ import { getDraftValues, DraftPlayer, DraftReplacementLevel } from '@/api/client
 import { keys } from '@/api/queryKeys'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
 import { SortableHead, useTableSort, PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
+import { gradeColorClass } from '@/lib/grades'
 import ConfidenceBadge from '@/pages/projections/components/ConfidenceBadge'
 import UniquenessBadge from '@/pages/projections/components/UniquenessBadge'
 import { TrendSparkline } from './components/TrendSparkline'
@@ -11,13 +12,6 @@ import { useState } from 'react'
 
 const POSITIONS = ['All', 'QB', 'RB', 'WR', 'TE', 'K']
 const STRING_COLS = ['name', 'pos']
-
-function gradeColorClass(grade: number): string {
-  if (grade >= 90) return 'text-emerald-600 dark:text-emerald-400 font-semibold'
-  if (grade >= 70) return 'text-purple-600 dark:text-purple-400'
-  if (grade >= 50) return ''
-  return 'text-muted-foreground'
-}
 
 /** Shows when grade rank and fantasy rank diverge significantly. */
 function DeltaBadge({ gradeRank, fantasyRank }: { gradeRank: number; fantasyRank: number }) {

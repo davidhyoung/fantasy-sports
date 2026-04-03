@@ -3,49 +3,13 @@ import { useRankings } from './hooks/useRankings'
 import { GradePlayerItem } from '@/api/client'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
 import { PlayerCell, ClickableRow, HeaderRow, SortableHead, useTableSort } from '@/components/ui/table-helpers'
+import { gradeColorClass, trendIndicator, phaseLabel, phaseColor } from '@/lib/grades'
+import { CURRENT_SEASON } from '@/lib/constants'
 
 const POSITIONS = ['All', 'QB', 'RB', 'WR', 'TE', 'K', 'Flex', 'Superflex']
 const POSITION_FILTER: Record<string, string> = {
   'Flex': 'RB,WR,TE',
   'Superflex': 'QB,RB,WR,TE',
-}
-const CURRENT_SEASON = 2025
-
-function gradeColorClass(grade: number): string {
-  if (grade >= 90) return 'text-emerald-600 dark:text-emerald-400 font-semibold'
-  if (grade >= 70) return 'text-purple-600 dark:text-purple-400'
-  if (grade >= 50) return ''
-  return 'text-muted-foreground'
-}
-
-function trendIndicator(trend: number | null): { text: string; color: string } {
-  if (trend == null) return { text: '', color: '' }
-  const pct = Math.round(trend * 100)
-  if (trend > 0.05) return { text: `+${pct}`, color: 'text-emerald-600 dark:text-emerald-400' }
-  if (trend < -0.05) return { text: `${pct}`, color: 'text-red-600 dark:text-red-400' }
-  return { text: `${pct >= 0 ? '+' : ''}${pct}`, color: 'text-muted-foreground' }
-}
-
-function phaseLabel(phase: string): string {
-  switch (phase) {
-    case 'developing': return 'Dev'
-    case 'entering-prime': return 'Enter'
-    case 'prime': return 'Prime'
-    case 'post-prime': return 'Post'
-    case 'late-career': return 'Late'
-    default: return phase
-  }
-}
-
-function phaseColor(phase: string): string {
-  switch (phase) {
-    case 'developing': return 'text-sky-600 dark:text-sky-400'
-    case 'entering-prime': return 'text-emerald-600 dark:text-emerald-400'
-    case 'prime': return 'text-emerald-700 dark:text-emerald-300'
-    case 'post-prime': return 'text-amber-600 dark:text-amber-400'
-    case 'late-career': return 'text-red-600 dark:text-red-400'
-    default: return 'text-muted-foreground'
-  }
 }
 
 type SortKey = 'overall' | 'production' | 'efficiency' | 'usage' | 'durability' | 'name' | 'age' | 'trend'

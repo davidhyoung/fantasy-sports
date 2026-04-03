@@ -1,5 +1,8 @@
 # Go
 backend/bin/
+backend/api
+backend/import
+backend/projections
 *.exe
 
 # Node

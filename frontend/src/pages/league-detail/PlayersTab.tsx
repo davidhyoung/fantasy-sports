@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
 import { SortableHead, useTableSort, PlayerCell, ClickableRow, ZScoreCell, HeaderRow } from '@/components/ui/table-helpers'
+import { gradeColorClass, trendIndicator } from '@/lib/grades'
 import { usePlayers, STATUS_FILTERS } from './hooks/usePlayers'
 import type { PlayerRow } from './hooks/usePlayers'
 
@@ -27,21 +28,6 @@ function fmtStat(v: number): string {
 }
 
 const STRING_COLS = ['name', 'team', 'position']
-
-function gradeColorClass(grade: number): string {
-  if (grade >= 90) return 'text-emerald-600 dark:text-emerald-400 font-semibold'
-  if (grade >= 70) return 'text-purple-600 dark:text-purple-400'
-  if (grade >= 50) return ''
-  return 'text-muted-foreground'
-}
-
-function trendIndicator(trend: number | null | undefined): { text: string; color: string } {
-  if (trend == null) return { text: '', color: '' }
-  const pct = Math.round(trend * 100)
-  if (trend > 0.05) return { text: `+${pct}`, color: 'text-emerald-600 dark:text-emerald-400' }
-  if (trend < -0.05) return { text: `${pct}`, color: 'text-red-600 dark:text-red-400' }
-  return { text: `${pct >= 0 ? '+' : ''}${pct}`, color: 'text-muted-foreground' }
-}
 
 /** Player search and available-player browse with position filter, sortable columns, and stat columns.
  *

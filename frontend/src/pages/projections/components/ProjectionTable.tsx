@@ -1,15 +1,9 @@
 import { ProjPlayerListItem } from '@/api/client'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
 import { PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
+import { gradeColorClass } from '@/lib/grades'
 import ConfidenceBadge from './ConfidenceBadge'
 import UniquenessBadge from './UniquenessBadge'
-
-function gradeColorClass(grade: number): string {
-  if (grade >= 90) return 'text-emerald-600 dark:text-emerald-400 font-semibold'
-  if (grade >= 70) return 'text-purple-600 dark:text-purple-400'
-  if (grade >= 50) return ''
-  return 'text-muted-foreground'
-}
 
 interface ProjectionTableProps {
   players: ProjPlayerListItem[]
