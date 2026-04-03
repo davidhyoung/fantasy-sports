@@ -27,6 +27,30 @@
     --neon: 170 90% 50%;
     --nav-height: 53px;
     --tabs-height: 0px;
+
+    /* Semantic palette — teal (positive), purple (accent), orange (negative/warning) */
+    --positive: 170 90% 30%;
+    --positive-foreground: 170 90% 25%;
+    --positive-light: 170 60% 95%;
+    --positive-border: 170 50% 80%;
+
+    --highlight: 270 60% 50%;
+    --highlight-foreground: 270 60% 42%;
+    --highlight-light: 270 50% 96%;
+    --highlight-border: 270 40% 82%;
+
+    --warning: 30 90% 52%;
+    --warning-foreground: 30 90% 42%;
+    --warning-light: 30 70% 95%;
+    --warning-border: 30 60% 80%;
+
+    --negative: 16 90% 48%;
+    --negative-foreground: 16 85% 40%;
+    --negative-light: 16 70% 95%;
+    --negative-border: 16 60% 80%;
+
+    /* Chart line color (HSL string for inline SVG use) */
+    --chart-line: 270 60% 50%;
   }
 
   .dark {
@@ -51,6 +75,28 @@
     --input: 240 8% 16%;
     --ring: 170 90% 50%;
     --neon: 170 90% 50%;
+
+    --positive: 170 90% 55%;
+    --positive-foreground: 170 80% 60%;
+    --positive-light: 170 50% 12%;
+    --positive-border: 170 40% 20%;
+
+    --highlight: 270 80% 68%;
+    --highlight-foreground: 270 70% 72%;
+    --highlight-light: 270 40% 12%;
+    --highlight-border: 270 30% 22%;
+
+    --warning: 30 90% 58%;
+    --warning-foreground: 30 80% 62%;
+    --warning-light: 30 50% 12%;
+    --warning-border: 30 40% 20%;
+
+    --negative: 16 85% 55%;
+    --negative-foreground: 16 75% 60%;
+    --negative-light: 16 50% 12%;
+    --negative-border: 16 40% 20%;
+
+    --chart-line: 270 80% 68%;
   }
 }
 

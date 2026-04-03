@@ -137,7 +137,7 @@ export default function PlayerDetail() {
   if (isError || !data) {
     return (
       <div className="p-6 space-y-2">
-        <p className="text-red-600 dark:text-red-400 text-sm">Player not found.</p>
+        <p className="text-negative-foreground text-sm">Player not found.</p>
         <button
           onClick={() => navigate(-1)}
           className="text-sm text-primary hover:underline"
@@ -201,7 +201,7 @@ export default function PlayerDetail() {
               {tags.map(tag => (
                 <span
                   key={tag}
-                  className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-900/50"
+                  className="px-2 py-0.5 rounded-full text-xs font-medium bg-highlight-light text-highlight-foreground border border-highlight-border"
                 >
                   {tag}
                 </span>
@@ -249,21 +249,21 @@ export default function PlayerDetail() {
                   const projAge = projection.age + (projection.target_season - projection.base_season)
                   const ps = projectedSeasonRow(projection.projection, projection.target_season, projAge)
                   return (
-                    <tr className="border-b border-purple-200 dark:border-purple-900/50 bg-purple-50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300">
+                    <tr className="border-b border-highlight-border bg-highlight-light text-highlight-foreground">
                       <td className="py-1.5 pr-3 tabular-nums font-medium">{ps.season}*</td>
-                      <td className="py-1.5 pr-3 text-purple-500/70 dark:text-purple-300/60 italic text-[10px]">projected</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums text-purple-500/70 dark:text-purple-300/60">{projAge || '—'}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums text-purple-500/70 dark:text-purple-300/60">{ps.games}</td>
+                      <td className="py-1.5 pr-3 text-highlight-foreground/60 italic text-[10px]">projected</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums text-highlight-foreground/60">{projAge || '—'}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums text-highlight-foreground/60">{ps.games}</td>
                       {cols.map(c => (
                         <td key={c.key} className="py-1.5 pr-3 text-right tabular-nums font-mono">
-                          {(ps[c.key] as number) > 0 ? c.fmt(ps[c.key] as number) : <span className="text-purple-300/20 dark:text-purple-300/20">—</span>}
+                          {(ps[c.key] as number) > 0 ? c.fmt(ps[c.key] as number) : <span className="text-highlight-foreground/20">—</span>}
                         </td>
                       ))}
                       <td className="py-1.5 pr-3 text-right tabular-nums font-mono">
-                        {ps.fpts_ppr > 0 ? ps.fpts_ppr.toFixed(1) : <span className="text-purple-300/20">—</span>}
+                        {ps.fpts_ppr > 0 ? ps.fpts_ppr.toFixed(1) : <span className="text-highlight-foreground/20">—</span>}
                       </td>
                       <td className="py-1.5 text-right tabular-nums font-mono">
-                        {ps.fpts_ppr_pg > 0 ? ps.fpts_ppr_pg.toFixed(1) : <span className="text-purple-300/20">—</span>}
+                        {ps.fpts_ppr_pg > 0 ? ps.fpts_ppr_pg.toFixed(1) : <span className="text-highlight-foreground/20">—</span>}
                       </td>
                     </tr>
                   )
@@ -326,9 +326,9 @@ export default function PlayerDetail() {
               const formatLabel = scoringFormat === 'ppr' ? 'PPR' : scoringFormat === 'half' ? 'Half PPR' : 'Standard'
               return (
                 <div className="flex items-baseline gap-4">
-                  <div className="rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900/50 px-4 py-3 text-center">
+                  <div className="rounded-lg bg-highlight-light border border-highlight-border px-4 py-3 text-center">
                     <div className="text-xs text-muted-foreground">{formatLabel} Pts</div>
-                    <div className="text-2xl font-bold tabular-nums font-mono text-purple-700 dark:text-purple-300 mt-0.5">{pts.toFixed(1)}</div>
+                    <div className="text-2xl font-bold tabular-nums font-mono text-highlight-foreground mt-0.5">{pts.toFixed(1)}</div>
                   </div>
                   <div className="text-sm text-muted-foreground tabular-nums font-mono">
                     {ptsPg.toFixed(1)} <span className="text-xs">/G</span>
@@ -429,9 +429,9 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 
 function ConfBar({ label, value, weight }: { label: string; value: number; weight: number }) {
   const bar =
-    value >= 0.70 ? 'bg-purple-600 dark:bg-purple-400' :
-    value >= 0.45 ? 'bg-purple-400 dark:bg-purple-500/70' :
-                    'bg-purple-300 dark:bg-purple-600/50'
+    value >= 0.70 ? 'bg-highlight' :
+    value >= 0.45 ? 'bg-highlight/60' :
+                    'bg-highlight/30'
   return (
     <div className="flex items-center gap-3 text-xs">
       <div className="w-36 text-muted-foreground shrink-0">{label}</div>
@@ -512,7 +512,7 @@ function ProjectionNarrative({ projection }: { projection: ProjDetailResponse })
     : isDown
     ? `↓ ${Math.abs(changePct).toFixed(0)}% decline projected`
     : '→ Similar output projected'
-  const directionColor = isUp ? 'text-green-600 dark:text-green-400' : isDown ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'
+  const directionColor = isUp ? 'text-positive-foreground' : isDown ? 'text-negative-foreground' : 'text-muted-foreground'
 
   // Comp consensus sentence
   let compSentence = ''

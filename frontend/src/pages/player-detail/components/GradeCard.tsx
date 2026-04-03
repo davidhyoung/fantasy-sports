@@ -7,15 +7,15 @@ interface Props {
 }
 
 function gradeColor(grade: number): string {
-  if (grade >= 90) return 'text-emerald-600 dark:text-emerald-400'
-  if (grade >= 70) return 'text-purple-600 dark:text-purple-400'
+  if (grade >= 90) return 'text-positive-foreground'
+  if (grade >= 70) return 'text-highlight-foreground'
   if (grade >= 50) return 'text-foreground'
   return 'text-muted-foreground'
 }
 
 function gradeBg(grade: number): string {
-  if (grade >= 90) return 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/50'
-  if (grade >= 70) return 'bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-900/50'
+  if (grade >= 90) return 'bg-positive-light border-positive-border'
+  if (grade >= 70) return 'bg-highlight-light border-highlight-border'
   if (grade >= 50) return 'bg-muted/30 border-border'
   return 'bg-muted/20 border-border/50'
 }
@@ -30,10 +30,10 @@ function gradeLabel(grade: number): string {
 }
 
 function barColor(grade: number): string {
-  if (grade >= 90) return 'bg-emerald-500 dark:bg-emerald-400'
-  if (grade >= 70) return 'bg-purple-500 dark:bg-purple-400'
-  if (grade >= 50) return 'bg-slate-400 dark:bg-slate-500'
-  return 'bg-slate-300 dark:bg-slate-600'
+  if (grade >= 90) return 'bg-positive'
+  if (grade >= 70) return 'bg-highlight'
+  if (grade >= 50) return 'bg-muted-foreground/40'
+  return 'bg-muted-foreground/25'
 }
 
 function trendArrow(trend: number | null): string {
@@ -45,8 +45,8 @@ function trendArrow(trend: number | null): string {
 
 function trendColor(trend: number | null): string {
   if (trend == null) return 'text-muted-foreground'
-  if (trend > 0.05) return 'text-emerald-600 dark:text-emerald-400'
-  if (trend < -0.05) return 'text-red-600 dark:text-red-400'
+  if (trend > 0.05) return 'text-positive-foreground'
+  if (trend < -0.05) return 'text-negative-foreground'
   return 'text-muted-foreground'
 }
 
@@ -176,13 +176,13 @@ export default function GradeCard({ grades }: Props) {
                 )
               })}
               {/* line */}
-              <path d={line} fill="none" stroke="currentColor" className="text-purple-500 dark:text-purple-400" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+              <path d={line} fill="none" stroke="currentColor" className="text-highlight" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
               {/* dots + labels */}
               {pts.map((p, i) => {
                 const isSelected = p.g.season === selectedSeason
                 return (
                   <g key={p.g.season} className="cursor-pointer" onClick={() => setSelectedSeason(p.g.season)}>
-                    <circle cx={p.x} cy={p.y} r={isSelected ? 5 : 3.5} className={isSelected ? 'fill-purple-500 dark:fill-purple-400' : 'fill-card stroke-purple-500 dark:stroke-purple-400'} strokeWidth={isSelected ? 0 : 1.5} />
+                    <circle cx={p.x} cy={p.y} r={isSelected ? 5 : 3.5} className={isSelected ? 'fill-highlight' : 'fill-card stroke-highlight'} strokeWidth={isSelected ? 0 : 1.5} />
                     {isSelected && (
                       <text x={p.x} y={p.y - 8} textAnchor="middle" className="fill-foreground" fontSize={10} fontWeight={600} fontFamily="monospace">{p.g.overall.toFixed(0)}</text>
                     )}

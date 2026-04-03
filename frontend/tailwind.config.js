@@ -43,6 +43,30 @@ export default {
           DEFAULT: 'hsl(var(--accent))',
           foreground: 'hsl(var(--accent-foreground))',
         },
+        positive: {
+          DEFAULT: 'hsl(var(--positive))',
+          foreground: 'hsl(var(--positive-foreground))',
+          light: 'hsl(var(--positive-light))',
+          border: 'hsl(var(--positive-border))',
+        },
+        highlight: {
+          DEFAULT: 'hsl(var(--highlight))',
+          foreground: 'hsl(var(--highlight-foreground))',
+          light: 'hsl(var(--highlight-light))',
+          border: 'hsl(var(--highlight-border))',
+        },
+        warning: {
+          DEFAULT: 'hsl(var(--warning))',
+          foreground: 'hsl(var(--warning-foreground))',
+          light: 'hsl(var(--warning-light))',
+          border: 'hsl(var(--warning-border))',
+        },
+        negative: {
+          DEFAULT: 'hsl(var(--negative))',
+          foreground: 'hsl(var(--negative-foreground))',
+          light: 'hsl(var(--negative-light))',
+          border: 'hsl(var(--negative-border))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

@@ -60,13 +60,13 @@ export default function CompCard({ comp, rank }: CompCardProps) {
       <div className="flex items-center gap-1.5 flex-wrap">
         {(comp.matching_dims ?? []).map(dim => (
           <span key={dim}
-            className="inline-flex items-center rounded-full bg-green-100 dark:bg-green-500/15 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-400">
+            className="inline-flex items-center rounded-full bg-positive-light px-1.5 py-0.5 text-[10px] font-medium text-positive-foreground">
             {dim}
           </span>
         ))}
         {(comp.divergent_dims ?? []).map(dim => (
           <span key={dim}
-            className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+            className="inline-flex items-center rounded-full bg-warning-light px-1.5 py-0.5 text-[10px] font-medium text-warning-foreground">
             {dim}
           </span>
         ))}
@@ -152,7 +152,7 @@ function CompSparkline({
           width={highlightEnd - highlightStart + 8}
           height={H - PAD.top - PAD.bottom + 8}
           rx={3}
-          fill="hsl(217 91% 60%)" opacity="0.08"
+          fill="hsl(var(--chart-line))" opacity="0.08"
         />
       )}
 
@@ -160,14 +160,14 @@ function CompSparkline({
       {preMatch.length > 0 && (
         <polyline
           points={points.slice(0, matchIdx + 1).map((p, i) => `${xScale(i)},${yScale(p.value)}`).join(' ')}
-          fill="none" stroke="hsl(217 91% 60%)" strokeWidth="1.2" opacity="0.25"
+          fill="none" stroke="hsl(var(--chart-line))" strokeWidth="1.2" opacity="0.25"
         />
       )}
 
       {/* Match + post-match line (prominent) */}
       <polyline
         points={points.slice(matchIdx).map((_, i) => `${xScale(matchIdx + i)},${yScale(points[matchIdx + i].value)}`).join(' ')}
-        fill="none" stroke="hsl(217 91% 60%)" strokeWidth="1.8" opacity="0.85"
+        fill="none" stroke="hsl(var(--chart-line))" strokeWidth="1.8" opacity="0.85"
       />
 
       {/* Points + labels */}
@@ -176,13 +176,13 @@ function CompSparkline({
         const isMatch = p.phase === 'match'
         const pointOpacity = isPre ? 0.3 : 0.85
         const radius = isMatch ? 2.5 : 2
-        const labelColor = isPre ? 'fill-muted-foreground/30' : isMatch ? 'fill-primary' : p.value >= matchFptsPPRPG ? 'fill-green-400' : 'fill-red-400'
+        const labelColor = isPre ? 'fill-muted-foreground/30' : isMatch ? 'fill-primary' : p.value >= matchFptsPPRPG ? 'fill-positive' : 'fill-negative'
 
         return (
           <g key={i}>
             <circle
               cx={xScale(i)} cy={yScale(p.value)} r={radius}
-              fill="hsl(217 91% 60%)" opacity={pointOpacity}
+              fill="hsl(var(--chart-line))" opacity={pointOpacity}
             />
             {/* Value above — only show for match year and post-match, or first/last pre-match */}
             {(!isPre || i === 0) && (

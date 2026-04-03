@@ -20,12 +20,12 @@ export function zScoreIndicator(z: number): string {
   return ''
 }
 
-/** CSS class for z-score indicator color — darker purple for stronger signal,
+/** CSS class for z-score indicator color — darker highlight for stronger signal,
  *  neutral muted for zero/near-zero. */
 export function zScoreColor(z: number): string {
-  if (z >= 1.5) return 'text-purple-700 dark:text-purple-300'
-  if (z >= 0.5) return 'text-purple-500 dark:text-purple-400'
-  if (z <= -1.5) return 'text-purple-700/50 dark:text-purple-300/50'
-  if (z <= -0.5) return 'text-purple-500/50 dark:text-purple-400/50'
+  if (z >= 1.5) return 'text-highlight font-medium'
+  if (z >= 0.5) return 'text-highlight-foreground'
+  if (z <= -1.5) return 'text-highlight/50'
+  if (z <= -0.5) return 'text-highlight-foreground/50'
   return 'text-muted-foreground/40'
 }

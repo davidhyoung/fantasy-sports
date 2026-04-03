@@ -16,10 +16,10 @@ const labels: Record<Uniqueness, string> = {
 }
 
 const colors: Record<Uniqueness, string> = {
-  common:   'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/40 dark:text-purple-400 dark:border-purple-800',
-  moderate: 'bg-slate-200 text-slate-700 border-slate-300 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700',
-  rare:     'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/40 dark:text-orange-400 dark:border-orange-800',
-  unique:   'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/40 dark:text-purple-400 dark:border-purple-800',
+  common:   'bg-highlight-light text-highlight-foreground border-highlight-border',
+  moderate: 'bg-muted text-muted-foreground border-border',
+  rare:     'bg-warning-light text-warning-foreground border-warning-border',
+  unique:   'bg-highlight-light text-highlight-foreground border-highlight-border',
 }
 
 export default function UniquenessBadge({ value, compCount, className }: UniquenessBadgeProps) {

@@ -106,10 +106,10 @@ export default function TrajectoryChart({
       })}
 
       {/* Comp trajectory band */}
-      {bandPath && <path d={bandPath} fill="hsl(217 91% 60%)" opacity="0.08" />}
+      {bandPath && <path d={bandPath} fill="hsl(var(--chart-line))" opacity="0.08" />}
 
       {/* Area fill under historical */}
-      {areaPath && <path d={areaPath} fill="hsl(217 91% 60%)" opacity="0.12" />}
+      {areaPath && <path d={areaPath} fill="hsl(var(--chart-line))" opacity="0.12" />}
 
       {/* Dashed line: last historical → projection */}
       {(() => {
@@ -119,7 +119,7 @@ export default function TrajectoryChart({
           <line
             x1={xScale(lastHist)} y1={yScale(allPoints[lastHist].value)}
             x2={xScale(projIdx)} y2={yScale(allPoints[projIdx].value)}
-            stroke="hsl(217 91% 60%)" strokeWidth="2" strokeDasharray="5,3"
+            stroke="hsl(var(--chart-line))" strokeWidth="2" strokeDasharray="5,3"
           />
         )
       })()}
@@ -127,7 +127,7 @@ export default function TrajectoryChart({
       {/* Solid historical line */}
       <polyline
         points={histPoints.map((p, i) => `${xScale(i)},${yScale(p.value)}`).join(' ')}
-        fill="none" stroke="hsl(217 91% 60%)" strokeWidth="2"
+        fill="none" stroke="hsl(var(--chart-line))" strokeWidth="2"
       />
 
       {/* Points */}
@@ -151,8 +151,8 @@ export default function TrajectoryChart({
             <circle
               cx={cx} cy={cy}
               r={isHovered ? (p.projected ? 6 : 5) : (p.projected ? 5 : 3.5)}
-              fill="hsl(217 91% 60%)"
-              stroke="hsl(222 84% 5%)"
+              fill="hsl(var(--chart-line))"
+              stroke="hsl(var(--background))"
               strokeWidth={p.projected ? 2 : 1}
               opacity={p.projected ? 1 : 0.8}
               style={{ transition: 'r 100ms' }}
@@ -164,7 +164,7 @@ export default function TrajectoryChart({
                 {/* Bubble background */}
                 <rect
                   x={cx - 18} y={cy - 22} width={36} height={14}
-                  rx="3" fill="hsl(217 91% 60%)" opacity="0.9"
+                  rx="3" fill="hsl(var(--chart-line))" opacity="0.9"
                 />
                 <text x={cx} y={cy - 12} textAnchor="middle"
                   fontSize="8.5" fontWeight="bold" fill="white">
@@ -176,7 +176,7 @@ export default function TrajectoryChart({
             {/* Season label */}
             <text x={cx} y={H - 18} textAnchor="middle"
               fontSize="9"
-              className={p.projected ? 'fill-purple-400 font-bold' : 'fill-muted-foreground'}>
+              className={p.projected ? 'fill-highlight font-bold' : 'fill-muted-foreground'}>
               {p.season}{p.projected ? '*' : ''}
             </text>
             {/* Age label */}
