@@ -1,0 +1,2 @@
+ALTER TABLE leagues DROP COLUMN IF EXISTS logo_url;
+ALTER TABLE teams   DROP COLUMN IF EXISTS logo_url;

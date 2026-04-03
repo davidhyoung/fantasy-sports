@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 10% 92%;
+    --foreground: 240 10% 8%;
+    --card: 0 0% 99%;
+    --card-foreground: 240 10% 8%;
+    --popover: 0 0% 99%;
+    --popover-foreground: 240 10% 8%;
+    --primary: 170 90% 35%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 270 80% 58%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 220 12% 86%;
+    --muted-foreground: 220 10% 40%;
+    --accent: 270 80% 58%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 85% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 12% 82%;
+    --input: 220 12% 82%;
+    --ring: 170 90% 40%;
+    --radius: 0.5rem;
+    --neon: 170 90% 50%;
+    --nav-height: 53px;
+    --tabs-height: 0px;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --background: 240 15% 4%;
+    --foreground: 220 15% 90%;
+    --card: 240 12% 8%;
+    --card-foreground: 220 15% 90%;
+    --popover: 240 12% 8%;
+    --popover-foreground: 220 15% 90%;
+    --primary: 170 90% 50%;
+    --primary-foreground: 240 15% 4%;
+    --secondary: 270 80% 65%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 240 10% 14%;
+    --muted-foreground: 220 10% 55%;
+    --accent: 270 80% 65%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 80% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 8% 16%;
+    --input: 240 8% 16%;
+    --ring: 170 90% 50%;
+    --neon: 170 90% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
