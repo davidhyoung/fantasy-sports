@@ -30,10 +30,11 @@ frontend/  React 18 + Vite 5 + TypeScript + Tailwind CSS + shadcn/ui + TanStack 
   - `sync.go` — Sync (Yahoo league+team upsert)
   - `league_players.go` — SearchLeaguePlayers, GetAvailablePlayers
   - `keepers.go` — GetKeeperRules, UpdateKeeperRules, GetLeagueDraftResults, GetLeagueKeepers, GetKeeperSummary, ListTeamKeeperWishlist, AddKeeperWishlist, RemoveKeeperWishlist, SubmitKeepers, UnsubmitKeepers
-  - `analysis.go` — GetLeagueRankings: weighted z-score rankings; category weights = CV × FA-scarcity (normalised); adds `position_score` (z-score within position group); includes gsis_id lookup for player detail links
+  - `analysis.go` — GetLeagueRankings: weighted z-score rankings; category weights = CV × FA-scarcity (normalised); adds `position_score` (z-score within position group); includes gsis_id lookup for player detail links. NFL season stats source locally from `nfl_player_stats` via `services/nflstats` (Yahoo only returns ownership + league config); non-season stat types + NBA fall back to Yahoo stats
   - `projections.go` — ListProjections, GetProjectionDetail; serves pre-computed comp-based NFL player projections from nfl_projections table
+  - `rankings_public.go` — ListPublicRankings: no-auth projection-based rankings with PPR/Half/Standard format toggle (GET /api/rankings)
   - `nfl_players.go` — GetNFLPlayer (full player detail: metadata + YoY stats + projection); GetNFLPlayerByYahooID (resolves Yahoo key → gsis_id and redirects)
-  - `draft_values.go` — GetDraftValues: league-specific auction values (VOR + $ value based on actual roster settings)
+  - `draft_values.go` — GetDraftValues: league-specific auction values (VOR + $ value based on actual roster settings); uses `services/scoring` for canonical stat-ID translation and league-aware kicker scoring
   - `grades.go` — ListGrades, GetPlayerGrades: real-life player grades (0-100 percentile) from nfl_player_grades table; supports comma-separated position filter (e.g. `?position=RB,WR,TE`)
 - `internal/models/models.go` — shared domain types (User, League, Team, Player, RosterEntry)
 - `internal/middleware/auth.go` — RequireAuth: reads session, attaches *models.User to ctx
@@ -41,6 +42,8 @@ frontend/  React 18 + Vite 5 + TypeScript + Tailwind CSS + shadcn/ui + TanStack 
   - `client.go` — all API methods + dbTokenSource (auto-refreshes + persists tokens)
   - `oauth.go` — Yahoo OAuth2 endpoint + NewOAuthConfig
   - `types.go` — all XML response structs
+- `internal/services/scoring/` — canonical stat-ID vocabulary + Yahoo-stat-ID translation + projection→canonical-total helpers; the single place stat-ID knowledge lives
+- `internal/services/nflstats/` — season-level aggregation of `nfl_player_stats` keyed by gsis_id; replaces Yahoo as the NFL stats source for rankings
 - `internal/db/db.go` — pgxpool connect helper
 - `migrations/` — numbered SQL migration files
 
@@ -82,6 +85,7 @@ Public:
   GET  /api/nfl/players/by-yahoo/{yahooKey}   — resolves Yahoo key → HTTP redirect to /api/nfl/players/{gsisId}
   GET  /api/grades?season=&position=&limit=&offset= — real-life player grades; position supports comma-separated (e.g. RB,WR,TE)
   GET  /api/grades/{gsisId}                  — all seasons of grades for a player
+  GET  /api/rankings?season=&format=ppr|half|standard&position=&limit=&offset= — projection-based public rankings (no Yahoo, no login)
 
 Protected (RequireAuth):
   GET  /api/auth/me
@@ -172,5 +176,6 @@ Copy `.env.example` → `.env`. Required:
 - **Player detail:** `GET /api/nfl/players/{gsisId}` returns metadata + year-over-year season stats + projection (if exists). Player rows in all tables (rosters, rankings, matchup, players tab, draft tab) are clickable and navigate to `/players/:gsisId`. Yahoo→GSIS lookup via `nfl_players.yahoo_id`; batch ANY() query for rosters, per-request map for rankings.
 - **Draft tab (NFL only):** League detail page shows a "Draft" tab (visible only when `league.sport === 'nfl'`). Uses `GET /api/leagues/{id}/draft-values` to fetch league-specific VOR + auction values based on actual roster settings (superflex-aware). Position filter + PPR/Half/Standard format toggle. `/projections/:gsisId` routes redirect to `/players/:gsisId`.
 - **Player Grades:** Three-layer separation: (1) Player Grade — real-life quality (0-100 percentile), computed in `cmd/projections/grades.go`; (2) Stat Projections — comp-based; (3) Fantasy League Value — VORP/z-scores. Grades use position-specific sub-score weights (production, efficiency, usage, durability). Computed via `make project-nfl ARGS="-grades"`. `nfl_player_grades` table stores results. Grade z-score (`overall_grade_z`) is injected into season profiles and used as a similarity dimension for comp matching (weight 1.25). Grade YoY trend applies a bounded ±5% adjustment to projected stats. Frontend: GradeCard on player detail, Grade column on projections/draft/players tabs, standalone `/rankings` page. Former Rankings tab absorbed into Players tab.
+- **Yahoo decoupling:** Yahoo is the source of fantasy *context* (ownership, scoring categories, roster slots, FA status), not NFL *stats*. NFL season rankings pull raw stat values from `nfl_player_stats` via `services/nflstats.LoadSeasonStats` keyed on `gsis_id`, translating Yahoo stat IDs through `services/scoring.YahooToCanonical`. Yahoo-only fallbacks remain for: non-season stat types (lastweek, today), NBA leagues (no non-Yahoo stats feed yet), and live in-season keeper/roster views. See `.claude/plans/yahoo-decoupling.md`.
 - **SQL approach:** handlers use raw pgx queries for all database access. This is the established pattern — do NOT introduce sqlc or an ORM. `sqlc.yaml` exists but is unused; raw queries are preferred for their directness and flexibility with pgx features (e.g. `ANY($1)` with slices). Keep queries in handler methods, not in a separate query layer.
 - **New resource checklist:** model → migration → handler → route → yahoo method (if needed) → TS interface → API function → query key → page → **update docs**

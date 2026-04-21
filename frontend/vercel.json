@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://fantasy-sports-production-bdc1.up.railway.app/api/:path*"
+    },
+    {
+      "source": "/auth/:path*",
+      "destination": "https://fantasy-sports-production-bdc1.up.railway.app/auth/:path*"
+    },
+    {
+      "source": "/((?!assets/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

@@ -23,6 +23,8 @@ export const keys = {
   teamKeeperSubmission: (id: number) => ['team', id, 'keepers', 'submit'] as const,
   projections: (season: number, position: string, sort: string) =>
     ['projections', season, position, sort] as const,
+  publicRankings: (season: number, format: string, position: string) =>
+    ['rankings', season, format, position] as const,
   projectionDetail: (gsisId: string, season: number) =>
     ['projection', gsisId, season] as const,
   draftValues: (leagueId: number, season: number, format: string, budget: number) =>

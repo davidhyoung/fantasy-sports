@@ -543,6 +543,20 @@ func (c *Client) GetAvailablePlayersWithStats(ctx context.Context, leagueKey, st
 	return c.fetchLeaguePlayers(apiURL)
 }
 
+// GetAvailablePlayersLean returns available (FA + waiver) players without stats.
+// Use this when stats will be sourced locally (nfl_player_stats) — avoids the
+// expensive Yahoo stats subresource.
+func (c *Client) GetAvailablePlayersLean(ctx context.Context, leagueKey string, count int) ([]LeaguePlayer, error) {
+	if count <= 0 {
+		count = 25
+	}
+	apiURL := fmt.Sprintf(
+		"%s/league/%s/players;status=A;count=%d/ownership",
+		baseURL, leagueKey, count,
+	)
+	return c.fetchLeaguePlayers(apiURL)
+}
+
 // fetchLeaguePlayers is a shared helper that calls an already-built player list URL.
 func (c *Client) fetchLeaguePlayers(apiURL string) ([]LeaguePlayer, error) {
 	body, err := c.get(apiURL)

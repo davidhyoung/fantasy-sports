@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 
@@ -145,76 +146,96 @@ func importRosters(ctx context.Context, pool *pgxpool.Pool, year int) error {
 		}
 	}
 
-	count := 0
+	playerRows := make([]map[string]string, 0, len(latest))
 	for _, row := range latest {
-		_, err := pool.Exec(ctx, `
-			INSERT INTO nfl_players (
-				gsis_id, name, position, position_group, team,
-				birth_date, height, weight, college,
-				years_exp, entry_year, rookie_year,
-				draft_club, draft_number, jersey_number, headshot_url,
-				yahoo_id, espn_id, sportradar_id, rotowire_id, sleeper_id, pfr_id,
-				updated_at
-			) VALUES (
-				$1, $2, $3, $4, $5,
-				$6, $7, $8, $9,
-				$10, $11, $12,
-				$13, $14, $15, $16,
-				$17, $18, $19, $20, $21, $22,
-				NOW()
-			)
-			ON CONFLICT (gsis_id) DO UPDATE SET
-				name = EXCLUDED.name,
-				position = EXCLUDED.position,
-				position_group = EXCLUDED.position_group,
-				team = EXCLUDED.team,
-				birth_date = COALESCE(EXCLUDED.birth_date, nfl_players.birth_date),
-				height = COALESCE(EXCLUDED.height, nfl_players.height),
-				weight = COALESCE(EXCLUDED.weight, nfl_players.weight),
-				college = COALESCE(EXCLUDED.college, nfl_players.college),
-				years_exp = EXCLUDED.years_exp,
-				entry_year = COALESCE(EXCLUDED.entry_year, nfl_players.entry_year),
-				rookie_year = COALESCE(EXCLUDED.rookie_year, nfl_players.rookie_year),
-				draft_club = COALESCE(EXCLUDED.draft_club, nfl_players.draft_club),
-				draft_number = COALESCE(EXCLUDED.draft_number, nfl_players.draft_number),
-				jersey_number = EXCLUDED.jersey_number,
-				headshot_url = COALESCE(EXCLUDED.headshot_url, nfl_players.headshot_url),
-				yahoo_id = COALESCE(EXCLUDED.yahoo_id, nfl_players.yahoo_id),
-				espn_id = COALESCE(EXCLUDED.espn_id, nfl_players.espn_id),
-				sportradar_id = COALESCE(EXCLUDED.sportradar_id, nfl_players.sportradar_id),
-				rotowire_id = COALESCE(EXCLUDED.rotowire_id, nfl_players.rotowire_id),
-				sleeper_id = COALESCE(EXCLUDED.sleeper_id, nfl_players.sleeper_id),
-				pfr_id = COALESCE(EXCLUDED.pfr_id, nfl_players.pfr_id),
-				updated_at = NOW()
-		`,
-			row["gsis_id"],
-			row["full_name"],
-			nullIfEmpty(row["position"]),
-			nullIfEmpty(row["depth_chart_position"]),
-			nullIfEmpty(row["team"]),
-			parseDate(row["birth_date"]),
-			parseHeight(row["height"]),
-			atoi_ptr(row["weight"]),
-			nullIfEmpty(row["college"]),
-			atoi_ptr(row["years_exp"]),
-			atoi_ptr(row["entry_year"]),
-			atoi_ptr(row["rookie_year"]),
-			nullIfEmpty(row["draft_club"]),
-			atoi_ptr(row["draft_number"]),
-			atoi_ptr(row["jersey_number"]),
-			nullIfEmpty(row["headshot_url"]),
-			nullIfEmpty(row["yahoo_id"]),
-			nullIfEmpty(row["espn_id"]),
-			nullIfEmpty(row["sportradar_id"]),
-			nullIfEmpty(row["rotowire_id"]),
-			nullIfEmpty(row["sleeper_id"]),
-			nullIfEmpty(row["pfr_id"]),
-		)
-		if err != nil {
-			log.Printf("  roster upsert %s: %v", row["gsis_id"], err)
-			continue
+		playerRows = append(playerRows, row)
+	}
+
+	const rosterBatchSize = 200
+	count := 0
+	for i := 0; i < len(playerRows); i += rosterBatchSize {
+		end := i + rosterBatchSize
+		if end > len(playerRows) {
+			end = len(playerRows)
 		}
-		count++
+		chunk := playerRows[i:end]
+
+		batch := &pgx.Batch{}
+		for _, row := range chunk {
+			batch.Queue(`
+				INSERT INTO nfl_players (
+					gsis_id, name, position, position_group, team,
+					birth_date, height, weight, college,
+					years_exp, entry_year, rookie_year,
+					draft_club, draft_number, jersey_number, headshot_url,
+					yahoo_id, espn_id, sportradar_id, rotowire_id, sleeper_id, pfr_id,
+					updated_at
+				) VALUES (
+					$1, $2, $3, $4, $5,
+					$6, $7, $8, $9,
+					$10, $11, $12,
+					$13, $14, $15, $16,
+					$17, $18, $19, $20, $21, $22,
+					NOW()
+				)
+				ON CONFLICT (gsis_id) DO UPDATE SET
+					name = EXCLUDED.name,
+					position = EXCLUDED.position,
+					position_group = EXCLUDED.position_group,
+					team = EXCLUDED.team,
+					birth_date = COALESCE(EXCLUDED.birth_date, nfl_players.birth_date),
+					height = COALESCE(EXCLUDED.height, nfl_players.height),
+					weight = COALESCE(EXCLUDED.weight, nfl_players.weight),
+					college = COALESCE(EXCLUDED.college, nfl_players.college),
+					years_exp = EXCLUDED.years_exp,
+					entry_year = COALESCE(EXCLUDED.entry_year, nfl_players.entry_year),
+					rookie_year = COALESCE(EXCLUDED.rookie_year, nfl_players.rookie_year),
+					draft_club = COALESCE(EXCLUDED.draft_club, nfl_players.draft_club),
+					draft_number = COALESCE(EXCLUDED.draft_number, nfl_players.draft_number),
+					jersey_number = EXCLUDED.jersey_number,
+					headshot_url = COALESCE(EXCLUDED.headshot_url, nfl_players.headshot_url),
+					yahoo_id = COALESCE(EXCLUDED.yahoo_id, nfl_players.yahoo_id),
+					espn_id = COALESCE(EXCLUDED.espn_id, nfl_players.espn_id),
+					sportradar_id = COALESCE(EXCLUDED.sportradar_id, nfl_players.sportradar_id),
+					rotowire_id = COALESCE(EXCLUDED.rotowire_id, nfl_players.rotowire_id),
+					sleeper_id = COALESCE(EXCLUDED.sleeper_id, nfl_players.sleeper_id),
+					pfr_id = COALESCE(EXCLUDED.pfr_id, nfl_players.pfr_id),
+					updated_at = NOW()
+			`,
+				row["gsis_id"],
+				row["full_name"],
+				nullIfEmpty(row["position"]),
+				nullIfEmpty(row["depth_chart_position"]),
+				nullIfEmpty(row["team"]),
+				parseDate(row["birth_date"]),
+				parseHeight(row["height"]),
+				atoi_ptr(row["weight"]),
+				nullIfEmpty(row["college"]),
+				atoi_ptr(row["years_exp"]),
+				atoi_ptr(row["entry_year"]),
+				atoi_ptr(row["rookie_year"]),
+				nullIfEmpty(row["draft_club"]),
+				atoi_ptr(row["draft_number"]),
+				atoi_ptr(row["jersey_number"]),
+				nullIfEmpty(row["headshot_url"]),
+				nullIfEmpty(row["yahoo_id"]),
+				nullIfEmpty(row["espn_id"]),
+				nullIfEmpty(row["sportradar_id"]),
+				nullIfEmpty(row["rotowire_id"]),
+				nullIfEmpty(row["sleeper_id"]),
+				nullIfEmpty(row["pfr_id"]),
+			)
+		}
+
+		br := pool.SendBatch(ctx, batch)
+		for _, row := range chunk {
+			if _, err := br.Exec(); err != nil {
+				log.Printf("  roster upsert %s: %v", row["gsis_id"], err)
+			} else {
+				count++
+			}
+		}
+		br.Close()
 	}
 	log.Printf("  upserted %d players from %d roster", count, year)
 	return nil
@@ -226,37 +247,63 @@ func importStats(ctx context.Context, pool *pgxpool.Pool, year int) error {
 		return err
 	}
 
-	// Ensure all referenced players exist (some stats may reference players
-	// not in the roster file for that year, e.g. players cut mid-season).
+	// Filter to valid rows once, then reuse the slice for both passes.
+	valid := make([]map[string]string, 0, len(rows))
 	for _, row := range rows {
 		id := row["player_id"]
 		if id == "" || id == "NA" {
 			continue
 		}
-		_, err := pool.Exec(ctx, `
-			INSERT INTO nfl_players (gsis_id, name, position, position_group, team, updated_at)
-			VALUES ($1, $2, $3, $4, $5, NOW())
-			ON CONFLICT (gsis_id) DO NOTHING
-		`,
-			id,
-			row["player_display_name"],
-			nullIfEmpty(row["position"]),
-			nullIfEmpty(row["position_group"]),
-			nullIfEmpty(firstCol(row, "recent_team", "team")),
-		)
-		if err != nil {
-			log.Printf("  player ensure %s: %v", id, err)
+		valid = append(valid, row)
+	}
+
+	const statsBatchSize = 200
+
+	// Ensure all referenced players exist (some stats may reference players
+	// not in the roster file for that year, e.g. players cut mid-season).
+	for i := 0; i < len(valid); i += statsBatchSize {
+		end := i + statsBatchSize
+		if end > len(valid) {
+			end = len(valid)
 		}
+		chunk := valid[i:end]
+
+		batch := &pgx.Batch{}
+		for _, row := range chunk {
+			batch.Queue(`
+				INSERT INTO nfl_players (gsis_id, name, position, position_group, team, updated_at)
+				VALUES ($1, $2, $3, $4, $5, NOW())
+				ON CONFLICT (gsis_id) DO NOTHING
+			`,
+				row["player_id"],
+				row["player_display_name"],
+				nullIfEmpty(row["position"]),
+				nullIfEmpty(row["position_group"]),
+				nullIfEmpty(firstCol(row, "recent_team", "team")),
+			)
+		}
+
+		br := pool.SendBatch(ctx, batch)
+		for _, row := range chunk {
+			if _, err := br.Exec(); err != nil {
+				log.Printf("  player ensure %s: %v", row["player_id"], err)
+			}
+		}
+		br.Close()
 	}
 
 	count := 0
-	for _, row := range rows {
-		id := row["player_id"]
-		if id == "" || id == "NA" {
-			continue
+	for i := 0; i < len(valid); i += statsBatchSize {
+		end := i + statsBatchSize
+		if end > len(valid) {
+			end = len(valid)
 		}
-		_, err := pool.Exec(ctx, `
-			INSERT INTO nfl_player_stats (
+		chunk := valid[i:end]
+
+		batch := &pgx.Batch{}
+		for _, row := range chunk {
+			batch.Queue(`
+				INSERT INTO nfl_player_stats (
 				gsis_id, season, week, season_type, team, opponent_team,
 				completions, pass_attempts, passing_yards, passing_tds, interceptions,
 				sacks, sack_yards, passing_air_yards, passing_yac,
@@ -323,60 +370,66 @@ func importStats(ctx context.Context, pool *pgxpool.Pool, year int) error {
 				fantasy_points = EXCLUDED.fantasy_points,
 				fantasy_points_ppr = EXCLUDED.fantasy_points_ppr
 		`,
-			id,
-			atoi(row["season"]),
-			atoi(row["week"]),
-			defaultStr(row["season_type"], "REG"),
-			nullIfEmpty(firstCol(row, "recent_team", "team")),
-			nullIfEmpty(row["opponent_team"]),
-			atoi(row["completions"]),
-			atoi(row["attempts"]),
-			parseFloat(row["passing_yards"]),
-			atoi(row["passing_tds"]),
-			atoi(firstCol(row, "interceptions", "passing_interceptions")),
-			atoi(firstCol(row, "sacks", "sacks_suffered")),
-			parseFloat(firstCol(row, "sack_yards", "sack_yards_lost")),
-			parseFloat(row["passing_air_yards"]),
-			parseFloat(row["passing_yards_after_catch"]),
-			atoi(row["passing_first_downs"]),
-			parseFloat_ptr(row["passing_epa"]),
-			atoi(row["passing_2pt_conversions"]),
-			atoi(row["carries"]),
-			parseFloat(row["rushing_yards"]),
-			atoi(row["rushing_tds"]),
-			atoi(row["rushing_fumbles"]),
-			atoi(row["rushing_fumbles_lost"]),
-			atoi(row["rushing_first_downs"]),
-			parseFloat_ptr(row["rushing_epa"]),
-			atoi(row["rushing_2pt_conversions"]),
-			atoi(row["receptions"]),
-			atoi(row["targets"]),
-			parseFloat(row["receiving_yards"]),
-			atoi(row["receiving_tds"]),
-			atoi(row["receiving_fumbles"]),
-			atoi(row["receiving_fumbles_lost"]),
-			parseFloat(row["receiving_air_yards"]),
-			parseFloat(row["receiving_yards_after_catch"]),
-			atoi(row["receiving_first_downs"]),
-			parseFloat_ptr(row["receiving_epa"]),
-			atoi(row["receiving_2pt_conversions"]),
-			parseFloat_ptr(row["target_share"]),
-			parseFloat_ptr(row["wopr"]),
-			atoi(row["fg_made"]),
-			atoi(row["fg_att"]),
-			atoi(row["fg_missed"]),
-			atoi(row["fg_long"]),
-			atoi(row["pat_made"]),
-			atoi(row["pat_att"]),
-			atoi(row["special_teams_tds"]),
-			parseFloat(row["fantasy_points"]),
-			parseFloat(row["fantasy_points_ppr"]),
-		)
-		if err != nil {
-			log.Printf("  stat upsert %s wk%s: %v", id, row["week"], err)
-			continue
+				row["player_id"],
+				atoi(row["season"]),
+				atoi(row["week"]),
+				defaultStr(row["season_type"], "REG"),
+				nullIfEmpty(firstCol(row, "recent_team", "team")),
+				nullIfEmpty(row["opponent_team"]),
+				atoi(row["completions"]),
+				atoi(row["attempts"]),
+				parseFloat(row["passing_yards"]),
+				atoi(row["passing_tds"]),
+				atoi(firstCol(row, "interceptions", "passing_interceptions")),
+				atoi(firstCol(row, "sacks", "sacks_suffered")),
+				parseFloat(firstCol(row, "sack_yards", "sack_yards_lost")),
+				parseFloat(row["passing_air_yards"]),
+				parseFloat(row["passing_yards_after_catch"]),
+				atoi(row["passing_first_downs"]),
+				parseFloat_ptr(row["passing_epa"]),
+				atoi(row["passing_2pt_conversions"]),
+				atoi(row["carries"]),
+				parseFloat(row["rushing_yards"]),
+				atoi(row["rushing_tds"]),
+				atoi(row["rushing_fumbles"]),
+				atoi(row["rushing_fumbles_lost"]),
+				atoi(row["rushing_first_downs"]),
+				parseFloat_ptr(row["rushing_epa"]),
+				atoi(row["rushing_2pt_conversions"]),
+				atoi(row["receptions"]),
+				atoi(row["targets"]),
+				parseFloat(row["receiving_yards"]),
+				atoi(row["receiving_tds"]),
+				atoi(row["receiving_fumbles"]),
+				atoi(row["receiving_fumbles_lost"]),
+				parseFloat(row["receiving_air_yards"]),
+				parseFloat(row["receiving_yards_after_catch"]),
+				atoi(row["receiving_first_downs"]),
+				parseFloat_ptr(row["receiving_epa"]),
+				atoi(row["receiving_2pt_conversions"]),
+				parseFloat_ptr(row["target_share"]),
+				parseFloat_ptr(row["wopr"]),
+				atoi(row["fg_made"]),
+				atoi(row["fg_att"]),
+				atoi(row["fg_missed"]),
+				atoi(row["fg_long"]),
+				atoi(row["pat_made"]),
+				atoi(row["pat_att"]),
+				atoi(row["special_teams_tds"]),
+				parseFloat(row["fantasy_points"]),
+				parseFloat(row["fantasy_points_ppr"]),
+			)
 		}
-		count++
+
+		br := pool.SendBatch(ctx, batch)
+		for _, row := range chunk {
+			if _, err := br.Exec(); err != nil {
+				log.Printf("  stat upsert %s wk%s: %v", row["player_id"], row["week"], err)
+			} else {
+				count++
+			}
+		}
+		br.Close()
 	}
 	log.Printf("  upserted %d stat rows for %d", count, year)
 	return nil

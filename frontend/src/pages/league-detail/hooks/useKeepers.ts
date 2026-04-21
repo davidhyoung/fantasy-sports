@@ -126,7 +126,7 @@ export function useKeepers(leagueId: number, myTeam: Team | undefined, active: b
 
   // Map player name → auction value from draft values (name-based since draft picks use Yahoo keys, not gsis_id)
   const auctionByName = useMemo(() => {
-    if (!draftValuesData) return new Map<string, number>()
+    if (!draftValuesData?.players) return new Map<string, number>()
     return new Map(draftValuesData.players.map((p) => [p.name, p.auction_value]))
   }, [draftValuesData])
 

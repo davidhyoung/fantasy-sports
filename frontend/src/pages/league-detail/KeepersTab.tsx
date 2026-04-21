@@ -35,11 +35,11 @@ export function KeepersTab({ leagueId, active, teams, myTeam, season }: Props) {
   const wishlistCount = wishlist?.length ?? 0
   const isCommissioner = myTeam?.is_commissioner ?? false
 
-  // For non-commissioner team owners: check if they've already submitted.
+  // keeper-summary is commissioner-only; non-commissioners 403, so gate the fetch.
   const { data: summary } = useQuery({
     queryKey: keys.keeperSummary(leagueId),
     queryFn: () => getKeeperSummary(leagueId),
-    enabled: active && !!myTeam,
+    enabled: active && !!myTeam && isCommissioner,
   })
   const myEntry = myTeam ? summary?.find((t) => t.team_id === myTeam.id) : undefined
   const mySubmitted = myEntry?.submitted ?? false

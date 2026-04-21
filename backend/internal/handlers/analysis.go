@@ -10,8 +10,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/davidyoung/fantasy-sports/backend/internal/models"
+	"github.com/davidyoung/fantasy-sports/backend/internal/services/nflstats"
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/players"
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/ranking"
+	"github.com/davidyoung/fantasy-sports/backend/internal/services/scoring"
 	"github.com/davidyoung/fantasy-sports/backend/internal/yahoo"
 )
 
@@ -104,6 +109,16 @@ func (h *Handler) GetLeagueRankings(w http.ResponseWriter, r *http.Request) {
 	}
 	if statType == "today" {
 		statType = "date;date=" + time.Now().Format("2006-01-02")
+	}
+
+	// NFL + season stat type → source stats locally from nfl_player_stats rather
+	// than round-tripping through Yahoo. Other stat types (lastweek, date=...)
+	// still go through Yahoo until we wire per-week local aggregates.
+	if isPointsLeague && statType == "season" {
+		if h.rankNFLFromLocal(w, r, user, id, yahooKey, yc) {
+			return
+		}
+		// Fall through to Yahoo path on failure (logged by rankNFLFromLocal).
 	}
 
 	// Fetch rosters, scoring categories, roster positions, and FA stats concurrently.
@@ -489,3 +504,238 @@ func (h *Handler) writeRankingsResponse(
 		ReplacementLevels: replResp,
 	})
 }
+
+// rankNFLFromLocal handles an NFL season-type rankings request using stats from
+// nfl_player_stats instead of Yahoo. Yahoo still provides ownership, the FA
+// list, and league config.
+//
+// Returns true if the request was handled (response written). Returns false if
+// the local path couldn't complete and the caller should fall through to the
+// Yahoo-sourced path.
+func (h *Handler) rankNFLFromLocal(w http.ResponseWriter, r *http.Request, user *models.User, leagueID int64, yahooKey string, yc *yahoo.Client) bool {
+	ctx := r.Context()
+
+	type rostersResult struct {
+		teams []yahoo.Team
+		err   error
+	}
+	type catsResult struct {
+		cats map[string]yahoo.LeagueStat
+		err  error
+	}
+	type fasResult struct {
+		players []yahoo.LeaguePlayer
+		err     error
+	}
+	type rosterPosResult struct {
+		positions []yahoo.RosterPosition
+		err       error
+	}
+
+	rosterCh := make(chan rostersResult, 1)
+	catsCh := make(chan catsResult, 1)
+	faCh := make(chan fasResult, 1)
+	rosterPosCh := make(chan rosterPosResult, 1)
+
+	go func() {
+		teams, err := yc.GetLeagueRosters(ctx, yahooKey)
+		rosterCh <- rostersResult{teams, err}
+	}()
+	go func() {
+		cats, err := yc.GetLeagueScoringStats(ctx, yahooKey)
+		catsCh <- catsResult{cats, err}
+	}()
+	go func() {
+		fas, err := yc.GetAvailablePlayersLean(ctx, yahooKey, 100)
+		if err != nil {
+			log.Printf("[analysis-local] GetAvailablePlayersLean %s: %v (scarcity factor will be 1.0)", yahooKey, err)
+		}
+		faCh <- fasResult{fas, err}
+	}()
+	go func() {
+		pos, err := yc.GetLeagueRosterPositions(ctx, yahooKey)
+		rosterPosCh <- rosterPosResult{pos, err}
+	}()
+
+	rr := <-rosterCh
+	cr := <-catsCh
+	fr := <-faCh
+	rp := <-rosterPosCh
+
+	if rr.err != nil {
+		log.Printf("[analysis-local] GetLeagueRosters %s: %v — falling back to Yahoo stats path", yahooKey, rr.err)
+		return false
+	}
+	if cr.err != nil {
+		log.Printf("[analysis-local] GetLeagueScoringStats %s: %v — falling back to Yahoo stats path", yahooKey, cr.err)
+		return false
+	}
+	if rp.err != nil {
+		log.Printf("[analysis-local] GetLeagueRosterPositions %s: %v (VORP may degrade)", yahooKey, rp.err)
+	}
+
+	statCats := cr.cats
+	if len(statCats) == 0 {
+		respondError(w, http.StatusUnprocessableEntity, "no scoring categories found for this league")
+		return true
+	}
+	catMeta := buildCategoryMeta(statCats)
+
+	// Collect every player key (rostered + FA) so we can batch-resolve to gsis_id.
+	var allPlayerKeys []string
+	for _, team := range rr.teams {
+		if team.Roster == nil {
+			continue
+		}
+		for _, p := range team.Roster.Players.Player {
+			allPlayerKeys = append(allPlayerKeys, p.PlayerKey)
+		}
+	}
+	for _, fa := range fr.players {
+		allPlayerKeys = append(allPlayerKeys, fa.PlayerKey)
+	}
+	yahooToGsis := players.ResolveBatchYahooToGsis(ctx, h.db, allPlayerKeys)
+
+	// Target season: latest regular-season in nfl_player_stats.
+	season, err := latestNFLStatsSeason(ctx, h.db)
+	if err != nil || season == 0 {
+		log.Printf("[analysis-local] latestNFLStatsSeason: %v season=%d — falling back to Yahoo", err, season)
+		return false
+	}
+
+	gsisIDs := make([]string, 0, len(allPlayerKeys))
+	var missing int
+	for _, key := range allPlayerKeys {
+		num := players.YahooKeyToNumericID(key)
+		if g := yahooToGsis[num]; g != "" {
+			gsisIDs = append(gsisIDs, g)
+		} else {
+			missing++
+		}
+	}
+	if total := len(allPlayerKeys); total > 0 {
+		log.Printf("[analysis-local] league=%s season=%d coverage: %d/%d players resolved (%d missing gsis_id)",
+			yahooKey, season, total-missing, total, missing)
+	}
+	seasonStats, err := nflstats.LoadSeasonStats(ctx, h.db, season, gsisIDs)
+	if err != nil {
+		log.Printf("[analysis-local] LoadSeasonStats season=%d: %v — falling back to Yahoo", season, err)
+		return false
+	}
+
+	// Build PlayerData (rostered + FA) using local stats.
+	rosteredPlayers := yahooRostersToLocalPlayerData(rr.teams, yahooToGsis, seasonStats, statCats)
+	faPlayerData := yahooFAsToLocalPlayerData(fr.players, yahooToGsis, seasonStats, statCats)
+
+	rosterPositions := make([]ranking.RosterPosition, len(rp.positions))
+	for i, p := range rp.positions {
+		rosterPositions[i] = ranking.RosterPosition{Position: p.Position, Count: p.Count}
+	}
+
+	// Reuse the existing resolver for the shared response writer.
+	yahooKeyToGsis := func(key string) string {
+		return yahooToGsis[players.YahooKeyToNumericID(key)]
+	}
+
+	result := ranking.RankByPoints(rosteredPlayers, faPlayerData, catMeta, rosterPositions, len(rr.teams))
+	h.writeRankingsResponse(w, ctx, "season", "points", result.CategoryStats, result.Players, result.ReplacementLevels, yahooKeyToGsis)
+	_ = leagueID // reserved for future per-league overrides
+	_ = user
+	return true
+}
+
+// latestNFLStatsSeason returns the max season with REG-season rows in nfl_player_stats.
+func latestNFLStatsSeason(ctx context.Context, db *pgxpool.Pool) (int, error) {
+	var season int
+	err := db.QueryRow(ctx, `SELECT COALESCE(MAX(season), 0) FROM nfl_player_stats WHERE season_type = 'REG'`).Scan(&season)
+	if err != nil {
+		return 0, err
+	}
+	return season, nil
+}
+
+// yahooRostersToLocalPlayerData mirrors yahooTeamsToPlayerData but reads stat
+// values from the local nfl_player_stats aggregate instead of the Yahoo roster.
+func yahooRostersToLocalPlayerData(
+	teams []yahoo.Team,
+	yahooToGsis map[string]string,
+	seasonStats map[string]nflstats.PlayerSeason,
+	statCats map[string]yahoo.LeagueStat,
+) []ranking.PlayerData {
+	var out []ranking.PlayerData
+	for _, team := range teams {
+		if team.Roster == nil {
+			continue
+		}
+		for _, p := range team.Roster.Players.Player {
+			pd := buildLocalPlayerData(
+				p.PlayerKey, p.Name.Full, p.DisplayPosition, p.EditorialTeamAbbr,
+				team.TeamKey, true,
+				yahooToGsis, seasonStats, statCats,
+			)
+			out = append(out, pd)
+		}
+	}
+	return out
+}
+
+// yahooFAsToLocalPlayerData mirrors yahooFAToPlayerData but reads from local stats.
+func yahooFAsToLocalPlayerData(
+	faPlayers []yahoo.LeaguePlayer,
+	yahooToGsis map[string]string,
+	seasonStats map[string]nflstats.PlayerSeason,
+	statCats map[string]yahoo.LeagueStat,
+) []ranking.PlayerData {
+	var out []ranking.PlayerData
+	for _, fa := range faPlayers {
+		pd := buildLocalPlayerData(
+			fa.PlayerKey, fa.Name.Full, fa.DisplayPosition, fa.EditorialTeamAbbr,
+			"", false,
+			yahooToGsis, seasonStats, statCats,
+		)
+		out = append(out, pd)
+	}
+	return out
+}
+
+// buildLocalPlayerData assembles a ranking.PlayerData using locally-aggregated
+// season stats. Stat IDs are translated Yahoo → canonical on lookup.
+func buildLocalPlayerData(
+	playerKey, name, displayPos, teamAbbr, ownerTeamKey string,
+	isRostered bool,
+	yahooToGsis map[string]string,
+	seasonStats map[string]nflstats.PlayerSeason,
+	statCats map[string]yahoo.LeagueStat,
+) ranking.PlayerData {
+	vals := make(map[string]float64, len(statCats))
+	var total float64
+
+	gsis := yahooToGsis[players.YahooKeyToNumericID(playerKey)]
+	if ps, ok := seasonStats[gsis]; ok && gsis != "" {
+		for statID, cat := range statCats {
+			canon := scoring.YahooToCanonical(statID)
+			if canon == "" {
+				continue
+			}
+			v, ok := ps.Values[canon]
+			if !ok {
+				continue
+			}
+			vals[statID] = v
+			total += v * cat.Modifier
+		}
+	}
+	primaryPos := strings.SplitN(displayPos, ",", 2)[0]
+	return ranking.PlayerData{
+		PlayerKey:    playerKey,
+		Name:         name,
+		Position:     displayPos,
+		PrimaryPos:   primaryPos,
+		TeamAbbr:     teamAbbr,
+		OwnerTeamKey: ownerTeamKey,
+		StatValues:   vals,
+		TotalPoints:  math.Round(total*100) / 100,
+		IsRostered:   isRostered,
+	}
+}
+

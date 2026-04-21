@@ -10,78 +10,13 @@ import (
 
 	"github.com/davidyoung/fantasy-sports/backend/internal/aging"
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/ranking"
+	"github.com/davidyoung/fantasy-sports/backend/internal/services/scoring"
 	"github.com/davidyoung/fantasy-sports/backend/internal/yahoo"
 )
 
-// Yahoo NFL stat IDs for stats we can project from nfl_projections columns.
-// These are the standardized Yahoo Fantasy NFL stat IDs (verified from league settings).
-const (
-	statPassYds  = "4"
-	statPassTD   = "5"
-	statRushYds  = "9"
-	statRushTD   = "10"
-	statRec      = "11"
-	statRecYds   = "12"
-	statRecTD    = "13"
-	statFG0_19   = "19"
-	statFG20_29  = "20"
-	statFG30_39  = "21"
-	statFG40_49  = "22"
-	statFG50Plus = "23"
-	statPATMade  = "29"
-)
-
-// fgDistribution approximates the share of FG attempts by distance bucket,
-// based on recent NFL kicker patterns.
-var fgDistribution = map[string]float64{
-	statFG0_19:   0.01,
-	statFG20_29:  0.14,
-	statFG30_39:  0.28,
-	statFG40_49:  0.33,
-	statFG50Plus: 0.24,
-}
-
-// projToStatTotals converts per-game projected rates → season stat totals keyed
-// by Yahoo stat ID. This lets us multiply by each league's scoring modifiers.
-// Yahoo NFL uses distance-based FG scoring (stats 19-23); there is no flat
-// "FG made" stat, so we distribute proj_fg_made across distance buckets.
-func projToStatTotals(
-	games float64,
-	passYdsPG, passTdPG,
-	rushYdsPG, rushTdPG,
-	recPG, recYdsPG, recTdPG,
-	fgMadePG, patMadePG float64,
-) map[string]float64 {
-	fg := fgMadePG * games
-	m := map[string]float64{
-		statPassYds: passYdsPG * games,
-		statPassTD:  passTdPG * games,
-		statRushYds: rushYdsPG * games,
-		statRushTD:  rushTdPG * games,
-		statRec:     recPG * games,
-		statRecYds:  recYdsPG * games,
-		statRecTD:   recTdPG * games,
-		statPATMade: patMadePG * games,
-	}
-	for sid, pct := range fgDistribution {
-		m[sid] = fg * pct
-	}
-	return m
-}
-
-// computeLeagueFpts scores a player's projected stat totals using the league's
-// actual scoring modifiers, summing modifier × projected_total for each stat.
-func computeLeagueFpts(statTotals map[string]float64, scoringStats map[string]yahoo.LeagueStat) float64 {
-	var pts float64
-	for statID, ls := range scoringStats {
-		if ls.Modifier != 0 {
-			if total, ok := statTotals[statID]; ok {
-				pts += total * ls.Modifier
-			}
-		}
-	}
-	return pts
-}
+// Yahoo reception stat ID — still referenced directly to detect PPR/Half/Standard
+// from the league scoring modifier. Other stat-ID mappings live in services/scoring.
+const yahooStatIDRec = "11"
 
 // ── response types ────────────────────────────────────────────────────────────
 
@@ -254,7 +189,7 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	// rate columns can be inconsistent with them, so we use the generic total that
 	// most closely matches the league's actual scoring as the base for skill players.
 	// Kickers have no generic projection, so we compute theirs from per-stat rates.
-	recMod := scoringStats[statRec].Modifier // 1.0=PPR, 0.5=half, 0=standard
+	recMod := scoringStats[yahooStatIDRec].Modifier // 1.0=PPR, 0.5=half, 0=standard
 	var effectiveFormat string
 	switch {
 	case recMod >= 0.9:
@@ -271,6 +206,13 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		scoringFormat = "ppr"
 		effectiveFormat = "ppr"
 	}
+
+	// Translate Yahoo scoring → canonical-keyed modifiers once, for kicker scoring below.
+	yahooMods := make(map[string]float64, len(scoringStats))
+	for id, ls := range scoringStats {
+		yahooMods[id] = ls.Modifier
+	}
+	canonicalMods := scoring.CanonicalModifiersFromYahoo(yahooMods)
 
 	var players []draftPlayer
 	for rows.Next() {
@@ -303,14 +245,13 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 			// Kickers have no reliable generic projection total; compute from
 			// per-game rates × league modifiers. Cap unrealistic values (bad data).
 			if hasLeagueScoring {
-				statTotals := projToStatTotals(
-					float64(games),
-					passYdsPG, passTdPG,
-					rushYdsPG, rushTdPG,
-					recPG, recYdsPG, recTdPG,
-					fgMadePG, patMadePG,
-				)
-				dp.ProjLeagueFpts = computeLeagueFpts(statTotals, scoringStats)
+				totals := scoring.ProjectionToCanonicalTotals(scoring.ProjectionRates{
+					PassYdsPG: passYdsPG, PassTdPG: passTdPG,
+					RushYdsPG: rushYdsPG, RushTdPG: rushTdPG,
+					RecPG: recPG, RecYdsPG: recYdsPG, RecTdPG: recTdPG,
+					FgMadePG: fgMadePG, PatMadePG: patMadePG,
+				}, float64(games))
+				dp.ProjLeagueFpts = scoring.ScoreWithModifiers(totals, canonicalMods)
 				// Sanity cap: top kickers score ~150–175 pts in a normal season.
 				// If the computed value exceeds this, the per-game rate data is bad.
 				if dp.ProjLeagueFpts > 180 {

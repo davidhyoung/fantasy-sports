@@ -123,6 +123,9 @@ func main() {
 		r.Get("/{gsisId}", h.GetProjectionDetail)
 	})
 
+	// Public — projection-based rankings with scoring-format toggle (no Yahoo, no auth)
+	r.Get("/api/rankings", h.ListPublicRankings)
+
 	// Public — pre-computed player grades (real-life value)
 	r.Route("/api/grades", func(r chi.Router) {
 		r.Get("/", h.ListGrades)

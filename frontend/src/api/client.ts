@@ -461,6 +461,53 @@ export const getProjectionDetail = (gsisId: string, season?: number) => {
   return request<ProjDetailResponse>(`/projections/${encodeURIComponent(gsisId)}${qs}`)
 }
 
+// --- Public Rankings (projection + format-based, no league/Yahoo required) ---
+
+export type RankingsFormat = 'ppr' | 'half' | 'standard'
+
+export interface PublicRankedPlayer {
+  gsis_id: string
+  name: string
+  position: string
+  position_group: string
+  team: string
+  headshot_url: string
+  age: number
+  games: number
+  fpts: number
+  fpts_pg: number
+  confidence: number
+  comp_count: number
+  uniqueness: 'common' | 'moderate' | 'rare' | 'unique'
+  overall_rank: number
+  position_rank: number
+  player_grade: number | null
+}
+
+export interface PublicRankingsResponse {
+  season: number
+  format: RankingsFormat
+  players: PublicRankedPlayer[]
+  total: number
+}
+
+export const getPublicRankings = (params: {
+  season?: number
+  format?: RankingsFormat
+  position?: string
+  limit?: number
+  offset?: number
+}) => {
+  const qs = new URLSearchParams()
+  if (params.season) qs.set('season', String(params.season))
+  if (params.format) qs.set('format', params.format)
+  if (params.position) qs.set('position', params.position)
+  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.offset) qs.set('offset', String(params.offset))
+  const q = qs.toString()
+  return request<PublicRankingsResponse>(`/rankings${q ? `?${q}` : ''}`)
+}
+
 // --- Draft Values (league-specific auction values) ---
 
 export interface DraftReplacementLevel {
