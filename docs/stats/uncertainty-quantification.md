@@ -1,5 +1,17 @@
 # Uncertainty Quantification in Projections
 
+> **Status: implemented (June 2026)** in `computeWeightedProjection`
+> (`backend/cmd/projections/main.go`). Each comp's clamped year-1 growth implies a
+> next-season PPR/G outcome for the target (washed-out comps contribute zeros);
+> the similarity²-weighted stdev and P10/P50/P90 are stored in
+> `nfl_projections.proj_fpts_ppr_stdev/_p10/_p50/_p90` (migration 000012),
+> served by the projection-detail and player-detail endpoints, and rendered as a
+> floor/ceiling range on the player detail page. Calibration is tracked per
+> backtest in `nfl_backtest_results.p10_coverage/p90_coverage`. June 2026 reading:
+> P10 coverage ~2–6% (floor too pessimistic — washout zeros widen the low tail)
+> and P90 ~7–18%. Tightening the low tail (e.g. partial-credit washout outcomes)
+> is the known next step.
+
 ## Problem it solves
 
 The current projection system returns a single point estimate per stat (e.g. "1,240 rushing yards") plus a scalar `confidence` ∈ [0, 1]. But `confidence = 0.75` doesn't tell a drafter the **range** of plausible outcomes — is this player's 90th-percentile season 1,400 yards or 1,900? Two players with identical projections and identical confidence scores can have radically different downside risk. Draft decisions, trade evaluations, and keeper decisions all hinge on that spread, not just the mean.

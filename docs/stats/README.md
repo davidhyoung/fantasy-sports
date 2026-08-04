@@ -6,11 +6,14 @@ This library is **not** a one-shot rewrite of the algorithms. It is a catalog we
 
 ## When to reach for each entry
 
-| Problem you're facing | Entry |
-|---|---|
-| Small samples giving extreme z-scores; a player with 2 strong games ranked like a star | [bayesian-shrinkage.md](bayesian-shrinkage.md) |
-| Projection gives a point estimate but no sense of how wide the plausible range is | [uncertainty-quantification.md](uncertainty-quantification.md) |
-| Player ranked highly but their stats came against weak defenses | [strength-of-schedule.md](strength-of-schedule.md) |
+| Problem you're facing | Entry | Status |
+|---|---|---|
+| Small samples giving extreme z-scores; a player with 2 strong games ranked like a star | [bayesian-shrinkage.md](bayesian-shrinkage.md) | ✅ projections pipeline (June 2026); live rankings still raw |
+| Projection gives a point estimate but no sense of how wide the plausible range is | [uncertainty-quantification.md](uncertainty-quantification.md) | ✅ implemented (June 2026); P10 calibration needs tightening |
+| Player ranked highly but their stats came against weak defenses | [strength-of-schedule.md](strength-of-schedule.md) | ✅ simple form in profiles (June 2026); SRS form future |
+| Model can't see trades/injuries/camp battles or benchmark against expert consensus | [consensus-ensemble.md](consensus-ensemble.md) | 🚧 divergence-flag only (August 2026); not yet blended into projections |
+| A short/injury-shortened base season is the entire input to a player's comp search | [recency-weighted-profiles.md](recency-weighted-profiles.md) | ✅ implemented behind a no-op default (August 2026); pending autotune |
+| Projection swings on 1-2 comps for a statistically rare player profile | [bayesian-shrinkage.md](bayesian-shrinkage.md) (growth-rate extension) | ✅ implemented behind a no-op default (August 2026); pending autotune |
 
 ## Adding a new entry
 

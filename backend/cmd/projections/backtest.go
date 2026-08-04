@@ -43,7 +43,20 @@ type projConfig struct {
 	TunedAt             string             `json:"tuned_at,omitempty"`
 	TrainSeasons        string             `json:"train_seasons,omitempty"`
 	ValidateSeasons     string             `json:"validate_seasons,omitempty"`
-	ValidationRMSE      float64            `json:"validation_rmse,omitempty"`
+	ValidationRMSE      float64            `json:"validation_rmse,omitempty"` // legacy objective (pre rank-corr)
+	ObjectiveMetric     string             `json:"objective_metric,omitempty"`
+	ValidationScore     float64            `json:"validation_score,omitempty"`
+
+	// TargetBlendDecay (docs/stats/recency-weighted-profiles.md) weights the
+	// target's immediately preceding season into their base-season profile,
+	// discounted by this factor. 0 = exact no-op (today's single-season
+	// behavior); must stay in [0, 1) — sanitizeConfig resets bad values.
+	TargetBlendDecay float64 `json:"target_blend_decay"`
+	// GrowthShrinkageK (docs/stats/bayesian-shrinkage.md, growth-rate
+	// extension) shrinks the comp-derived growth rate toward an age/position
+	// baseline, weighted as if it were a comp with this much combined
+	// similarity² weight. 0 = exact no-op; must stay >= 0.
+	GrowthShrinkageK float64 `json:"growth_shrinkage_k"`
 }
 
 // defaultConfig returns the default projection parameters (matching constants
@@ -54,6 +67,8 @@ func defaultConfig() projConfig {
 		AgeWindow:           2,
 		MaxGrowth:           maxGrowthCap,
 		MinGrowth:           minGrowthFloor,
+		TargetBlendDecay:    0.0, // no-op until autotune finds a better value
+		GrowthShrinkageK:    0.0, // no-op until autotune finds a better value
 	}
 	// Populate weight maps from positionGroups — keyed by group name.
 	populateWeightMap := func(posGroup string) map[string]float64 {
@@ -94,6 +109,44 @@ func loadConfig() projConfig {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		log.Printf("warn: could not parse %s: %v — using defaults", configPath, err)
 		return defaultConfig()
+	}
+	return sanitizeConfig(cfg)
+}
+
+// sanitizeConfig repairs configs written by older tool versions. Weight maps
+// are keyed by dimension-group name ("passing", "value", …); older configs
+// keyed them by stat name ("rec_pg", "age", …), which groupsFromConfig would
+// silently ignore — falling back to defaults without telling anyone.
+func sanitizeConfig(cfg projConfig) projConfig {
+	def := defaultConfig()
+	fix := func(pos string, got, want map[string]float64) map[string]float64 {
+		if len(got) == 0 {
+			return want
+		}
+		for k := range got {
+			if _, ok := want[k]; !ok {
+				log.Printf("warn: %s weights in %s use a stale per-stat format — using default group weights (re-run -autotune to regenerate)", pos, configPath)
+				return want
+			}
+		}
+		return got
+	}
+	cfg.QBWeights = fix("QB", cfg.QBWeights, def.QBWeights)
+	cfg.RBWeights = fix("RB", cfg.RBWeights, def.RBWeights)
+	cfg.WRWeights = fix("WR", cfg.WRWeights, def.WRWeights)
+	cfg.TEWeights = fix("TE", cfg.TEWeights, def.TEWeights)
+	cfg.KWeights = fix("K", cfg.KWeights, def.KWeights)
+	if cfg.SimilarityThreshold <= 0 || cfg.SimilarityThreshold >= 1 {
+		cfg.SimilarityThreshold = def.SimilarityThreshold
+	}
+	if cfg.AgeWindow <= 0 {
+		cfg.AgeWindow = def.AgeWindow
+	}
+	if cfg.TargetBlendDecay < 0 || cfg.TargetBlendDecay >= 1 {
+		cfg.TargetBlendDecay = def.TargetBlendDecay
+	}
+	if cfg.GrowthShrinkageK < 0 {
+		cfg.GrowthShrinkageK = def.GrowthShrinkageK
 	}
 	return cfg
 }
@@ -145,12 +198,15 @@ func groupsFromConfig(cfg projConfig, posGroup string, yearsExp int) []dimGroup 
 type backtestResult struct {
 	TargetSeason  int
 	PositionGroup string // empty = overall
+	EvalBasis     string // "total" (season PPR points) or "per_game"
 	RMSE          float64
 	MAE           float64
 	Correlation   float64
 	RankCorr      float64
 	TierAccuracy  float64
 	PlayerCount   int
+	P10Coverage   *float64 // per_game only: fraction of actuals below projected P10 (calibrated ≈ 0.10)
+	P90Coverage   *float64 // per_game only: fraction of actuals above projected P90 (calibrated ≈ 0.10)
 }
 
 // computeBacktestMetrics compares projected vs actual PPR fantasy points.
@@ -284,174 +340,131 @@ func ranks(vals []float64) []float64 {
 
 // ── backtesting ───────────────────────────────────────────────────────────────
 
-// runBacktest runs projections for each target season in [fromYear, toYear]
-// using only data from prior seasons, then computes accuracy metrics.
-// Results are printed and stored in nfl_backtest_results.
-func runBacktest(ctx context.Context, pool *pgxpool.Pool, fromYear, toYear int, cfg projConfig) ([]backtestResult, error) {
-	log.Printf("=== Backtesting seasons %d–%d ===", fromYear, toYear)
-
-	// Load all profiles once
-	allProfiles, err := loadAllProfiles(ctx, pool)
-	if err != nil {
-		return nil, fmt.Errorf("load profiles: %w", err)
-	}
-	log.Printf("  loaded %d total profiles", len(allProfiles))
-
-	// Load actual fantasy points (PPR) per player per season from nfl_player_stats
-	actualFpts, err := loadActualFpts(ctx, pool)
-	if err != nil {
-		return nil, fmt.Errorf("load actuals: %w", err)
-	}
-	log.Printf("  loaded actuals for %d player-seasons", len(actualFpts))
-
-	metaMap, err := loadPlayerMeta(ctx, pool)
-	if err != nil {
-		return nil, fmt.Errorf("load meta: %w", err)
-	}
-
-	var allResults []backtestResult
-	for targetSeason := fromYear; targetSeason <= toYear; targetSeason++ {
-		baseSeason := targetSeason - 1
-		log.Printf("  backtesting %d (using data through %d)…", targetSeason, baseSeason)
-
-		// Filter profiles to those from seasons before targetSeason
-		var historicProfiles []seasonProfile
-		for _, p := range allProfiles {
-			if p.Season < targetSeason {
-				historicProfiles = append(historicProfiles, p)
-			}
-		}
-
-		// Recompute z-scores using only historic profiles
-		recomputeZScores(historicProfiles)
-
-		// Index by player+season and position group
-		byPlayerSeason := make(map[string]map[int]*seasonProfile, len(historicProfiles))
-		byGroup := make(map[string][]*seasonProfile)
-		for i := range historicProfiles {
-			p := &historicProfiles[i]
-			if byPlayerSeason[p.GsisID] == nil {
-				byPlayerSeason[p.GsisID] = make(map[int]*seasonProfile)
-			}
-			byPlayerSeason[p.GsisID][p.Season] = p
-			byGroup[p.PositionGroup] = append(byGroup[p.PositionGroup], p)
-		}
-
-		// Targets = players with a profile in baseSeason
-		var targets []*seasonProfile
-		for _, seasonMap := range byPlayerSeason {
-			if p, ok := seasonMap[baseSeason]; ok {
-				targets = append(targets, p)
-			}
-		}
-
-		// Project each target
-		projectedFpts := make(map[string]float64)
-		for _, target := range targets {
-			candidates := byGroup[target.PositionGroup]
-			var comps []compResult
-			for _, cand := range candidates {
-				if cand.GsisID == target.GsisID {
-					continue
-				}
-				if target.Age > 0 && cand.Age > 0 && abs(target.Age-cand.Age) > cfg.AgeWindow {
-					continue
-				}
-				groups := groupsFromConfig(cfg, target.PositionGroup, target.YearsExp)
-				sim := computeSimilarityWithConfig(target, cand, groups)
-				if sim < cfg.SimilarityThreshold {
-					continue
-				}
-				trajectory := buildTrajectory(cand, byPlayerSeason[cand.GsisID], baseSeason-target.Season+cand.Season)
-				headshotURL := ""
-				if cm, ok := metaMap[cand.GsisID]; ok && cm.HeadshotURL != nil {
-					headshotURL = *cm.HeadshotURL
-				}
-				compName := ""
-				if cm, ok := metaMap[cand.GsisID]; ok {
-					compName = cm.Name
-				}
-				comps = append(comps, compResult{
-					GsisID:       cand.GsisID,
-					Name:         compName,
-					MatchSeason:  cand.Season,
-					MatchAge:     cand.Age,
-					Similarity:   sim,
-					HeadshotURL:  headshotURL,
-					Trajectory:   trajectory,
-				})
-			}
-			sort.Slice(comps, func(i, j int) bool { return comps[i].Similarity > comps[j].Similarity })
-			var simSqSum float64
-			for _, c := range comps {
-				simSqSum += c.Similarity * c.Similarity
-			}
-			if simSqSum > 0 {
-				for i := range comps {
-					comps[i].Weight = (comps[i].Similarity * comps[i].Similarity) / simSqSum
-				}
-			}
-			projectedAge := target.Age + (targetSeason - target.Season)
-			agingMult := cfg.effectiveAgingMultipliers().Multiplier(target.PositionGroup, projectedAge)
-			proj := computeWeightedProjection(target, comps, targetSeason, agingMult)
-			projectedFpts[target.GsisID] = proj.ProjFptsPPRPG * defaultProjGames
-		}
-
-		// Get actuals for this target season
-		suffix := fmt.Sprintf("|%d", targetSeason)
-		actualForSeason := make(map[string]float64)
-		for key, val := range actualFpts {
-			if strings.HasSuffix(key, suffix) {
-				gsisID := key[:len(key)-len(suffix)]
-				actualForSeason[gsisID] = val
-			}
-		}
-
-		// Compute overall metrics
-		overall := computeBacktestMetrics(projectedFpts, actualForSeason, "", targetSeason)
-		allResults = append(allResults, overall)
-		log.Printf("    overall: n=%d  RMSE=%.1f  MAE=%.1f  r=%.3f  ρ=%.3f  tier=%.0f%%",
-			overall.PlayerCount, overall.RMSE, overall.MAE, overall.Correlation, overall.RankCorr,
-			overall.TierAccuracy*100)
-
-		// Per-position metrics
-		posGroups := []string{"QB", "RB", "WR", "TE"}
-		for _, pos := range posGroups {
-			posProj := make(map[string]float64)
-			posAct := make(map[string]float64)
-			for _, t := range targets {
-				if t.PositionGroup == pos {
-					if v, ok := projectedFpts[t.GsisID]; ok {
-						posProj[t.GsisID] = v
-					}
-					if v, ok := actualForSeason[t.GsisID]; ok {
-						posAct[t.GsisID] = v
-					}
-				}
-			}
-			posResult := computeBacktestMetrics(posProj, posAct, pos, targetSeason)
-			allResults = append(allResults, posResult)
-			if posResult.PlayerCount >= 3 {
-				log.Printf("    %-3s:     n=%d  RMSE=%.1f  MAE=%.1f  r=%.3f  tier=%.0f%%",
-					pos, posResult.PlayerCount, posResult.RMSE, posResult.MAE, posResult.Correlation,
-					posResult.TierAccuracy*100)
-			}
-		}
-
-		// Store in DB
-		if err := storeBacktestResults(ctx, pool, allResults, cfg); err != nil {
-			log.Printf("  warn: could not store backtest results: %v", err)
-		}
-	}
-
-	return allResults, nil
+// projOutcome is one player's backtest projection on both evaluation bases,
+// plus per-game outcome quantiles for calibration checks.
+type projOutcome struct {
+	Pos     string
+	PerGame float64
+	Total   float64
+	P10PG   float64
+	P90PG   float64
 }
 
-// loadActualFpts loads actual PPR fantasy points per player per season
-// from nfl_player_stats. Returns map keyed as "gsis_id|season".
-func loadActualFpts(ctx context.Context, pool *pgxpool.Pool) (map[string]float64, error) {
+// projectSeasonBacktest projects every player with a (targetSeason-1) profile
+// using only profiles from seasons < targetSeason (temporal integrity: z-scores
+// and shrinkage priors are recomputed from the restricted pool). This is the
+// single projection path shared by runBacktest and the autotuner, and mirrors
+// the production path in computeProjections.
+func projectSeasonBacktest(cfg projConfig, allProfiles []seasonProfile, targetSeason int) map[string]projOutcome {
+	baseSeason := targetSeason - 1
+
+	var historicProfiles []seasonProfile
+	for _, p := range allProfiles {
+		if p.Season < targetSeason {
+			historicProfiles = append(historicProfiles, p)
+		}
+	}
+	recomputeZScores(historicProfiles)
+
+	byPlayerSeason := make(map[string]map[int]*seasonProfile, len(historicProfiles))
+	byGroup := make(map[string][]*seasonProfile)
+	maxDataSeason := 0
+	for i := range historicProfiles {
+		p := &historicProfiles[i]
+		if byPlayerSeason[p.GsisID] == nil {
+			byPlayerSeason[p.GsisID] = make(map[int]*seasonProfile)
+		}
+		byPlayerSeason[p.GsisID][p.Season] = p
+		byGroup[p.PositionGroup] = append(byGroup[p.PositionGroup], p)
+		if p.Season > maxDataSeason {
+			maxDataSeason = p.Season
+		}
+	}
+	groupMeans := computeGroupMeans(byGroup)
+	growthBaselines := computeGrowthBaselines(historicProfiles)
+
+	var targets []*seasonProfile
+	for _, seasonMap := range byPlayerSeason {
+		if _, ok := seasonMap[baseSeason]; ok {
+			targets = append(targets, blendTargetProfile(seasonMap, baseSeason, cfg.TargetBlendDecay))
+		}
+	}
+
+	out := make(map[string]projOutcome, len(targets))
+	for _, target := range targets {
+		candidates := byGroup[target.PositionGroup]
+		groups := groupsFromConfig(cfg, target.PositionGroup, target.YearsExp)
+		var comps []compResult
+		for _, cand := range candidates {
+			if cand.GsisID == target.GsisID {
+				continue
+			}
+			if target.Age > 0 && cand.Age > 0 && abs(target.Age-cand.Age) > cfg.AgeWindow {
+				continue
+			}
+			sim := computeSimilarity(target, cand, groups)
+			if sim < cfg.SimilarityThreshold {
+				continue
+			}
+			candMatchSeason := baseSeason - target.Season + cand.Season
+			trajectory := buildTrajectory(cand, byPlayerSeason[cand.GsisID], candMatchSeason)
+			comps = append(comps, compResult{
+				GsisID:      cand.GsisID,
+				MatchSeason: cand.Season,
+				MatchAge:    cand.Age,
+				Similarity:  sim,
+				WashedOut:   len(trajectory) == 0 && candMatchSeason+1 <= maxDataSeason,
+				// MatchProfile is required by getGrowth — without it every
+				// comp's growth silently defaults to 1.0 and the backtest
+				// measures a "repeat last season" baseline instead of the
+				// comp engine (this was a real bug).
+				MatchProfile: map[string]float64{
+					"fpts_pg":     cand.FptsPG,
+					"fpts_ppr_pg": cand.FptsPPRPG,
+				},
+				Trajectory: trajectory,
+			})
+		}
+		var simSqSum float64
+		for _, c := range comps {
+			simSqSum += c.Similarity * c.Similarity
+		}
+		if simSqSum > 0 {
+			for i := range comps {
+				comps[i].Weight = (comps[i].Similarity * comps[i].Similarity) / simSqSum
+			}
+		}
+		projectedAge := target.Age + (targetSeason - target.Season)
+		agingMult := cfg.effectiveAgingMultipliers().Multiplier(target.PositionGroup, projectedAge)
+		proj := computeWeightedProjection(target, comps, targetSeason, agingMult, groupMeans[target.PositionGroup], cfg.GrowthShrinkageK, growthBaselines)
+		out[target.GsisID] = projOutcome{
+			Pos:     target.PositionGroup,
+			PerGame: proj.ProjFptsPPRPG,
+			Total:   proj.ProjFptsPPRPG * defaultProjGames,
+			P10PG:   proj.ProjFptsPPRP10, // per-game at this point (totals conversion happens in computeProjections)
+			P90PG:   proj.ProjFptsPPRP90,
+		}
+	}
+	return out
+}
+
+// actualSeason holds a player's realized season: total PPR points and games played.
+type actualSeason struct {
+	Total float64
+	Games int
+}
+
+// minEvalGames is the games floor for per-game evaluation — fewer games make
+// the per-game rate too noisy to judge a projection against.
+const minEvalGames = 4
+
+// loadActuals loads actual PPR fantasy points and games played per player per
+// season from nfl_player_stats. Returns map keyed as "gsis_id|season".
+// Games counts use the same activity definition as profile building.
+func loadActuals(ctx context.Context, pool *pgxpool.Pool) (map[string]actualSeason, error) {
 	rows, err := pool.Query(ctx, `
-		SELECT gsis_id, season, SUM(fantasy_points_ppr) AS fpts
+		SELECT gsis_id, season, SUM(fantasy_points_ppr) AS fpts,
+		       COUNT(*) FILTER (WHERE (passing_yards + rushing_yards + receiving_yards + targets + fg_made) > 0) AS games
 		FROM nfl_player_stats
 		WHERE season_type = 'REG'
 		GROUP BY gsis_id, season
@@ -461,31 +474,159 @@ func loadActualFpts(ctx context.Context, pool *pgxpool.Pool) (map[string]float64
 	}
 	defer rows.Close()
 
-	result := make(map[string]float64)
+	result := make(map[string]actualSeason)
 	for rows.Next() {
 		var gsisID string
-		var season int
+		var season, games int
 		var fpts float64
-		if err := rows.Scan(&gsisID, &season, &fpts); err != nil {
+		if err := rows.Scan(&gsisID, &season, &fpts, &games); err != nil {
 			return nil, err
 		}
-		result[fmt.Sprintf("%s|%d", gsisID, season)] = fpts
+		result[fmt.Sprintf("%s|%d", gsisID, season)] = actualSeason{Total: fpts, Games: games}
 	}
 	return result, rows.Err()
 }
 
+// actualsForSeason extracts gsis_id → actualSeason for one target season.
+func actualsForSeason(actuals map[string]actualSeason, targetSeason int) map[string]actualSeason {
+	suffix := fmt.Sprintf("|%d", targetSeason)
+	out := make(map[string]actualSeason)
+	for key, val := range actuals {
+		if strings.HasSuffix(key, suffix) {
+			out[key[:len(key)-len(suffix)]] = val
+		}
+	}
+	return out
+}
+
+// evaluateSeason computes metrics for one target season on both evaluation
+// bases ("total" and "per_game"), overall and per position group, including
+// quantile calibration coverage on the per_game basis.
+func evaluateSeason(outcomes map[string]projOutcome, actuals map[string]actualSeason, targetSeason int) []backtestResult {
+	bases := []string{"total", "per_game"}
+	posSets := []string{"", "QB", "RB", "WR", "TE"}
+
+	var results []backtestResult
+	for _, basis := range bases {
+		for _, pos := range posSets {
+			proj := make(map[string]float64)
+			act := make(map[string]float64)
+			for gsis, o := range outcomes {
+				if pos != "" && o.Pos != pos {
+					continue
+				}
+				a, ok := actuals[gsis]
+				if !ok {
+					continue
+				}
+				if basis == "per_game" {
+					if a.Games < minEvalGames {
+						continue
+					}
+					proj[gsis] = o.PerGame
+					act[gsis] = a.Total / float64(a.Games)
+				} else {
+					proj[gsis] = o.Total
+					act[gsis] = a.Total
+				}
+			}
+			r := computeBacktestMetrics(proj, act, pos, targetSeason)
+			r.EvalBasis = basis
+
+			// Quantile calibration: only meaningful on the per-game basis,
+			// and only for players whose comp distribution is non-degenerate.
+			if basis == "per_game" {
+				var below, above, n int
+				for gsis := range proj {
+					o := outcomes[gsis]
+					if o.P90PG <= o.P10PG {
+						continue
+					}
+					n++
+					if act[gsis] < o.P10PG {
+						below++
+					}
+					if act[gsis] > o.P90PG {
+						above++
+					}
+				}
+				if n >= 10 {
+					p10 := float64(below) / float64(n)
+					p90 := float64(above) / float64(n)
+					r.P10Coverage = &p10
+					r.P90Coverage = &p90
+				}
+			}
+			results = append(results, r)
+		}
+	}
+	return results
+}
+
+// runBacktest runs projections for each target season in [fromYear, toYear]
+// using only data from prior seasons, then computes accuracy metrics.
+// Results are printed and stored in nfl_backtest_results.
+func runBacktest(ctx context.Context, pool *pgxpool.Pool, fromYear, toYear int, cfg projConfig) ([]backtestResult, error) {
+	log.Printf("=== Backtesting seasons %d–%d ===", fromYear, toYear)
+
+	allProfiles, err := loadAllProfiles(ctx, pool)
+	if err != nil {
+		return nil, fmt.Errorf("load profiles: %w", err)
+	}
+	log.Printf("  loaded %d total profiles", len(allProfiles))
+
+	actuals, err := loadActuals(ctx, pool)
+	if err != nil {
+		return nil, fmt.Errorf("load actuals: %w", err)
+	}
+	log.Printf("  loaded actuals for %d player-seasons", len(actuals))
+
+	var allResults []backtestResult
+	for targetSeason := fromYear; targetSeason <= toYear; targetSeason++ {
+		log.Printf("  backtesting %d (using data through %d)…", targetSeason, targetSeason-1)
+		outcomes := projectSeasonBacktest(cfg, allProfiles, targetSeason)
+		seasonResults := evaluateSeason(outcomes, actualsForSeason(actuals, targetSeason), targetSeason)
+		allResults = append(allResults, seasonResults...)
+
+		for _, r := range seasonResults {
+			if r.PlayerCount < 3 {
+				continue
+			}
+			label := r.PositionGroup
+			if label == "" {
+				label = "ALL"
+			}
+			cal := ""
+			if r.P10Coverage != nil && r.P90Coverage != nil {
+				cal = fmt.Sprintf("  cal=[%.0f%%|%.0f%%]", *r.P10Coverage*100, *r.P90Coverage*100)
+			}
+			log.Printf("    %-8s %-3s n=%-3d RMSE=%.1f  MAE=%.1f  r=%.3f  ρ=%.3f  tier=%.0f%%%s",
+				r.EvalBasis, label, r.PlayerCount, r.RMSE, r.MAE, r.Correlation, r.RankCorr,
+				r.TierAccuracy*100, cal)
+		}
+	}
+
+	// Store once, after the loop — storing inside the loop with the
+	// accumulated slice previously re-inserted every prior season's rows.
+	if err := storeBacktestResults(ctx, pool, allResults, cfg); err != nil {
+		log.Printf("  warn: could not store backtest results: %v", err)
+	}
+
+	return allResults, nil
+}
+
 // recomputeZScores computes z-scores for the given profiles in place,
 // grouping only by position_group (no season grouping, for temporal integrity).
+// Small-sample rates are shrunk toward the group mean first; shrinkage priors
+// come from the same (historical-only) pool, so no future data leaks in.
 func recomputeZScores(profiles []seasonProfile) {
-	type stats struct {
-		vals []float64
-	}
 	// Fields to z-score
 	fields := []string{
-		"pass_yds_pg", "pass_td_pg", "pass_ypa", "comp_pct", "int_pg", "pass_epa_play",
+		"pass_att_pg", "pass_yds_pg", "pass_td_pg", "pass_ypa", "comp_pct", "int_pg", "pass_epa_play",
 		"rush_yds_pg", "rush_td_pg", "rush_ypc", "rush_att_pg", "rush_epa_play", "rush_yard_share",
 		"rec_pg", "rec_yds_pg", "rec_td_pg", "targets_pg", "target_share", "wopr", "rec_ypr",
 		"rec_epa_play", "air_yards_share", "fpts_pg", "fpts_ppr_pg",
+		"fg_made_pg", "pat_made_pg", "fg_pct",
 		"age", "height", "weight", "draft_number",
 		"team_pass_yds_pg", "team_rush_yds_pg", "team_fpts_pg",
 		"sacks_pg", "passing_air_yards_pg", "passing_yac_pg",
@@ -493,20 +634,38 @@ func recomputeZScores(profiles []seasonProfile) {
 		"receiving_first_downs_pg", "fumbles_pg",
 	}
 
+	// Materialise per-profile value maps so shrinkage can adjust rates in place.
+	valsList := make([]map[string]float64, len(profiles))
+	games := make([]float64, len(profiles))
+	posGroups := make([]string, len(profiles))
+	for i := range profiles {
+		p := &profiles[i]
+		m := make(map[string]float64, len(fields))
+		for _, f := range fields {
+			if v := profileField(p, f); v != nil {
+				m[f] = *v
+			}
+		}
+		valsList[i] = m
+		games[i] = float64(p.GamesPlayed)
+		posGroups[i] = p.PositionGroup
+	}
+	applyShrinkage(valsList, games, posGroups)
+
 	// Collect values per (posGroup, field)
 	type pgField struct {
 		posGroup string
 		field    string
 	}
 	vals := make(map[pgField][]float64)
-	for _, p := range profiles {
+	for i := range profiles {
 		for _, f := range fields {
-			v := profileField(&p, f)
-			if v == nil {
+			v, ok := valsList[i][f]
+			if !ok {
 				continue
 			}
-			k := pgField{p.PositionGroup, f}
-			vals[k] = append(vals[k], *v)
+			k := pgField{posGroups[i], f}
+			vals[k] = append(vals[k], v)
 		}
 	}
 
@@ -524,14 +683,14 @@ func recomputeZScores(profiles []seasonProfile) {
 		p := &profiles[i]
 		p.ZScores = make(map[string]float64)
 		for _, f := range fields {
-			v := profileField(p, f)
-			if v == nil {
+			v, ok := valsList[i][f]
+			if !ok {
 				continue
 			}
 			k := pgField{p.PositionGroup, f}
 			st := stats2[k]
 			if st.s > 0 {
-				p.ZScores[f] = (*v - st.m) / st.s
+				p.ZScores[f] = (v - st.m) / st.s
 			}
 		}
 	}
@@ -554,6 +713,12 @@ func profileField(p *seasonProfile, field string) *float64 {
 	var v float64
 	switch field {
 	// Plain float64 fields
+	case "pass_att_pg":
+		v = p.PassAttPG
+	case "fg_made_pg":
+		v = p.FgMadePG
+	case "pat_made_pg":
+		v = p.PatMadePG
 	case "pass_yds_pg":
 		v = p.PassYdsPG
 	case "pass_td_pg":
@@ -619,6 +784,8 @@ func profileField(p *seasonProfile, field string) *float64 {
 		return derefF64(p.RecEPAPlay)
 	case "air_yards_share":
 		return derefF64(p.AirYardsShare)
+	case "fg_pct":
+		return derefF64(p.FgPct)
 	case "team_pass_yds_pg":
 		return derefF64(p.TeamPassYdsPG)
 	case "team_rush_yds_pg":
@@ -647,12 +814,7 @@ func profileField(p *seasonProfile, field string) *float64 {
 	return &v
 }
 
-// computeSimilarityWithConfig uses cfg growth settings (max/min) but same formula.
-func computeSimilarityWithConfig(target, cand *seasonProfile, groups []dimGroup) float64 {
-	return computeSimilarity(target, cand, groups)
-}
-
-// storeBacktestResults upserts backtest results into nfl_backtest_results.
+// storeBacktestResults inserts backtest results into nfl_backtest_results.
 func storeBacktestResults(ctx context.Context, pool *pgxpool.Pool, results []backtestResult, cfg projConfig) error {
 	cfgJSON, err := json.Marshal(cfg)
 	if err != nil {
@@ -666,12 +828,12 @@ func storeBacktestResults(ctx context.Context, pool *pgxpool.Pool, results []bac
 		}
 		_, err := pool.Exec(ctx, `
 			INSERT INTO nfl_backtest_results
-				(target_season, position_group, rmse, mae, correlation, rank_correlation,
-				 tier_accuracy, player_count, config_used, computed_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+				(target_season, position_group, eval_basis, rmse, mae, correlation, rank_correlation,
+				 tier_accuracy, player_count, p10_coverage, p90_coverage, config_used, computed_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 		`,
-			r.TargetSeason, posGroup, r.RMSE, r.MAE, r.Correlation, r.RankCorr,
-			r.TierAccuracy, r.PlayerCount, cfgJSON, time.Now(),
+			r.TargetSeason, posGroup, r.EvalBasis, r.RMSE, r.MAE, r.Correlation, r.RankCorr,
+			r.TierAccuracy, r.PlayerCount, r.P10Coverage, r.P90Coverage, cfgJSON, time.Now(),
 		)
 		if err != nil {
 			return err
@@ -682,137 +844,74 @@ func storeBacktestResults(ctx context.Context, pool *pgxpool.Pool, results []bac
 
 // ── auto-tuner ────────────────────────────────────────────────────────────────
 
-// runAutotune uses coordinate descent to find the projConfig that minimises
-// validation RMSE, then saves it to projection_config.json.
+// runAutotune uses coordinate ascent to find the projConfig that maximises
+// per-game Spearman rank correlation (the draft-prep objective: getting the
+// player *order* right matters more than exact point totals), then saves the
+// winner to projection_config.json.
 //
-// trainYears:    seasons used to tune weights (measure RMSE)
-// validateYears: seasons used to pick the best config (prevent overfitting)
+// trainYears:    seasons used to tune parameters
+// validateYears: held-out seasons; the tuned config must beat the default
+//                config here or the default is kept (overfitting guard)
 func runAutotune(ctx context.Context, pool *pgxpool.Pool, trainFrom, trainTo, valFrom, valTo int) error {
-	log.Printf("=== Auto-tuning (train %d–%d, validate %d–%d) ===", trainFrom, trainTo, valFrom, valTo)
+	log.Printf("=== Auto-tuning (train %d–%d, validate %d–%d, objective: per-game rank correlation) ===",
+		trainFrom, trainTo, valFrom, valTo)
 
 	allProfiles, err := loadAllProfiles(ctx, pool)
 	if err != nil {
 		return fmt.Errorf("load profiles: %w", err)
 	}
-	actualFpts, err := loadActualFpts(ctx, pool)
+	actuals, err := loadActuals(ctx, pool)
 	if err != nil {
 		return fmt.Errorf("load actuals: %w", err)
 	}
-	metaMap, err := loadPlayerMeta(ctx, pool)
-	if err != nil {
-		return fmt.Errorf("load meta: %w", err)
-	}
 
-	// scoreConfig evaluates a config on a range of seasons, returns mean RMSE.
+	// scoreConfig returns the mean per-game Spearman rank correlation across
+	// seasons (higher = better).
 	scoreConfig := func(cfg projConfig, fromYear, toYear int) float64 {
-		var totalRMSE float64
+		var total float64
 		count := 0
 		for targetSeason := fromYear; targetSeason <= toYear; targetSeason++ {
-			baseSeason := targetSeason - 1
-			var historicProfiles []seasonProfile
-			for _, p := range allProfiles {
-				if p.Season < targetSeason {
-					historicProfiles = append(historicProfiles, p)
+			outcomes := projectSeasonBacktest(cfg, allProfiles, targetSeason)
+			seasonActs := actualsForSeason(actuals, targetSeason)
+			proj := make(map[string]float64)
+			act := make(map[string]float64)
+			for gsis, o := range outcomes {
+				a, ok := seasonActs[gsis]
+				if !ok || a.Games < minEvalGames {
+					continue
 				}
+				proj[gsis] = o.PerGame
+				act[gsis] = a.Total / float64(a.Games)
 			}
-			recomputeZScores(historicProfiles)
-			byPlayerSeason := make(map[string]map[int]*seasonProfile)
-			byGroup := make(map[string][]*seasonProfile)
-			for i := range historicProfiles {
-				p := &historicProfiles[i]
-				if byPlayerSeason[p.GsisID] == nil {
-					byPlayerSeason[p.GsisID] = make(map[int]*seasonProfile)
-				}
-				byPlayerSeason[p.GsisID][p.Season] = p
-				byGroup[p.PositionGroup] = append(byGroup[p.PositionGroup], p)
-			}
-			var targets []*seasonProfile
-			for _, sm := range byPlayerSeason {
-				if p, ok := sm[baseSeason]; ok {
-					targets = append(targets, p)
-				}
-			}
-			projectedFpts := make(map[string]float64)
-			for _, target := range targets {
-				candidates := byGroup[target.PositionGroup]
-				var comps []compResult
-				for _, cand := range candidates {
-					if cand.GsisID == target.GsisID {
-						continue
-					}
-					if target.Age > 0 && cand.Age > 0 && abs(target.Age-cand.Age) > cfg.AgeWindow {
-						continue
-					}
-					groups := groupsFromConfig(cfg, target.PositionGroup, target.YearsExp)
-					sim := computeSimilarity(target, cand, groups)
-					if sim < cfg.SimilarityThreshold {
-						continue
-					}
-					trajectory := buildTrajectory(cand, byPlayerSeason[cand.GsisID], baseSeason-target.Season+cand.Season)
-					headshotURL := ""
-					if cm, ok := metaMap[cand.GsisID]; ok && cm.HeadshotURL != nil {
-						headshotURL = *cm.HeadshotURL
-					}
-					compName := ""
-					if cm, ok := metaMap[cand.GsisID]; ok {
-						compName = cm.Name
-					}
-					comps = append(comps, compResult{
-						GsisID:      cand.GsisID,
-						Name:        compName,
-						MatchSeason: cand.Season,
-						Similarity:  sim,
-						HeadshotURL: headshotURL,
-						Trajectory:  trajectory,
-					})
-				}
-				sort.Slice(comps, func(i, j int) bool { return comps[i].Similarity > comps[j].Similarity })
-				var simSqSum float64
-				for _, c := range comps {
-					simSqSum += c.Similarity * c.Similarity
-				}
-				if simSqSum > 0 {
-					for i := range comps {
-						comps[i].Weight = (comps[i].Similarity * comps[i].Similarity) / simSqSum
-					}
-				}
-				projectedAge := target.Age + (targetSeason - target.Season)
-				agingMult := cfg.effectiveAgingMultipliers().Multiplier(target.PositionGroup, projectedAge)
-				proj := computeWeightedProjection(target, comps, targetSeason, agingMult)
-				projectedFpts[target.GsisID] = proj.ProjFptsPPRPG * defaultProjGames
-			}
-			sfx := fmt.Sprintf("|%d", targetSeason)
-			actualForSeason := make(map[string]float64)
-			for key, val := range actualFpts {
-				if strings.HasSuffix(key, sfx) {
-					actualForSeason[key[:len(key)-len(sfx)]] = val
-				}
-			}
-			r := computeBacktestMetrics(projectedFpts, actualForSeason, "", targetSeason)
+			r := computeBacktestMetrics(proj, act, "", targetSeason)
 			if r.PlayerCount >= 5 {
-				totalRMSE += r.RMSE
+				total += r.RankCorr
 				count++
 			}
 		}
 		if count == 0 {
-			return math.MaxFloat64
+			return -1
 		}
-		return totalRMSE / float64(count)
+		return total / float64(count)
 	}
 
-	bestCfg := defaultConfig()
-	bestTrainRMSE := scoreConfig(bestCfg, trainFrom, trainTo)
-	log.Printf("  baseline train RMSE: %.2f", bestTrainRMSE)
+	// Minimum improvement to accept a coordinate move — guards against
+	// chasing noise in the objective.
+	const minGain = 0.002
 
-	// Coordinate descent: tune similarity threshold
+	bestCfg := defaultConfig()
+	bestTrainScore := scoreConfig(bestCfg, trainFrom, trainTo)
+	log.Printf("  baseline train ρ: %.4f", bestTrainScore)
+
+	// Coordinate ascent: tune similarity threshold
 	log.Println("  tuning similarity threshold…")
 	for _, thresh := range []float64{0.50, 0.55, 0.60, 0.65, 0.70} {
 		candidate := bestCfg
 		candidate.SimilarityThreshold = thresh
-		rmse := scoreConfig(candidate, trainFrom, trainTo)
-		log.Printf("    threshold=%.2f → RMSE=%.2f", thresh, rmse)
-		if rmse < bestTrainRMSE {
-			bestTrainRMSE = rmse
+		score := scoreConfig(candidate, trainFrom, trainTo)
+		log.Printf("    threshold=%.2f → ρ=%.4f", thresh, score)
+		if score > bestTrainScore+minGain {
+			bestTrainScore = score
 			bestCfg = candidate
 		}
 	}
@@ -822,16 +921,61 @@ func runAutotune(ctx context.Context, pool *pgxpool.Pool, trainFrom, trainTo, va
 	for _, aw := range []int{1, 2, 3} {
 		candidate := bestCfg
 		candidate.AgeWindow = aw
-		rmse := scoreConfig(candidate, trainFrom, trainTo)
-		log.Printf("    age_window=%d → RMSE=%.2f", aw, rmse)
-		if rmse < bestTrainRMSE {
-			bestTrainRMSE = rmse
+		score := scoreConfig(candidate, trainFrom, trainTo)
+		log.Printf("    age_window=%d → ρ=%.4f", aw, score)
+		if score > bestTrainScore+minGain {
+			bestTrainScore = score
 			bestCfg = candidate
 		}
 	}
 
-	// Tune per-position weights: scale individual weights up/down by 25%
-	log.Println("  tuning dimension weights (coordinate descent)…")
+	// Tune target-blend decay (docs/stats/recency-weighted-profiles.md)
+	log.Println("  tuning target-blend decay…")
+	for _, decay := range []float64{0.0, 0.25, 0.5, 0.75} {
+		candidate := bestCfg
+		candidate.TargetBlendDecay = decay
+		score := scoreConfig(candidate, trainFrom, trainTo)
+		log.Printf("    target_blend_decay=%.2f → ρ=%.4f", decay, score)
+		if score > bestTrainScore+minGain {
+			bestTrainScore = score
+			bestCfg = candidate
+		}
+	}
+
+	// Tune growth-shrinkage k (docs/stats/bayesian-shrinkage.md, growth-rate extension)
+	log.Println("  tuning growth-shrinkage k…")
+	for _, k := range []float64{0.0, 5.0, 10.0, 20.0} {
+		candidate := bestCfg
+		candidate.GrowthShrinkageK = k
+		score := scoreConfig(candidate, trainFrom, trainTo)
+		log.Printf("    growth_shrinkage_k=%.1f → ρ=%.4f", k, score)
+		if score > bestTrainScore+minGain {
+			bestTrainScore = score
+			bestCfg = candidate
+		}
+	}
+
+	// Tune aging multipliers
+	log.Println("  tuning aging multipliers…")
+	agingCandidates := []aging.AgingMultipliers{
+		{Developing: 1.00, Prime: 1.00, PostPrime: 1.00, LateCareer: 1.00}, // off
+		{Developing: 1.02, Prime: 1.00, PostPrime: 0.97, LateCareer: 0.93}, // default
+		{Developing: 1.05, Prime: 1.00, PostPrime: 0.95, LateCareer: 0.88}, // aggressive
+	}
+	for _, am := range agingCandidates {
+		am := am
+		candidate := bestCfg
+		candidate.AgingMultipliers = &am
+		score := scoreConfig(candidate, trainFrom, trainTo)
+		log.Printf("    aging={%.2f %.2f %.2f %.2f} → ρ=%.4f", am.Developing, am.Prime, am.PostPrime, am.LateCareer, score)
+		if score > bestTrainScore+minGain {
+			bestTrainScore = score
+			bestCfg = candidate
+		}
+	}
+
+	// Tune per-position group weights: scale individual weights up/down by 25%
+	log.Println("  tuning dimension-group weights (coordinate ascent)…")
 	posWeightMaps := []struct {
 		name string
 		get  func(*projConfig) map[string]float64
@@ -843,37 +987,50 @@ func runAutotune(ctx context.Context, pool *pgxpool.Pool, trainFrom, trainTo, va
 		{"TE", func(c *projConfig) map[string]float64 { return c.TEWeights }, func(c *projConfig, m map[string]float64) { c.TEWeights = m }},
 	}
 	for _, pg := range posWeightMaps {
-		wm := pg.get(&bestCfg)
+		// Deterministic field order (map iteration is randomised in Go).
+		fieldNames := make([]string, 0)
+		for field := range pg.get(&bestCfg) {
+			fieldNames = append(fieldNames, field)
+		}
+		sort.Strings(fieldNames)
+
 		improved := true
 		for improved {
 			improved = false
-			for field := range wm {
+			for _, field := range fieldNames {
 				for _, multiplier := range []float64{0.75, 1.25} {
 					candidate := bestCfg
 					newWM := copyMap(pg.get(&bestCfg))
 					newWM[field] = math.Max(0.1, newWM[field]*multiplier)
 					pg.set(&candidate, newWM)
-					rmse := scoreConfig(candidate, trainFrom, trainTo)
-					if rmse < bestTrainRMSE-0.01 { // require meaningful improvement
-						bestTrainRMSE = rmse
+					score := scoreConfig(candidate, trainFrom, trainTo)
+					if score > bestTrainScore+minGain {
+						bestTrainScore = score
 						bestCfg = candidate
 						improved = true
-						log.Printf("    %s.%s ×%.2f → RMSE=%.2f", pg.name, field, multiplier, rmse)
+						log.Printf("    %s.%s ×%.2f → ρ=%.4f", pg.name, field, multiplier, score)
 					}
 				}
 			}
 		}
 	}
 
-	// Evaluate best config on validation years
-	valRMSE := scoreConfig(bestCfg, valFrom, valTo)
-	log.Printf("  best train RMSE: %.2f  validation RMSE: %.2f", bestTrainRMSE, valRMSE)
+	// Overfitting guard: the tuned config must beat the default on held-out
+	// validation seasons, otherwise keep the default.
+	defaultVal := scoreConfig(defaultConfig(), valFrom, valTo)
+	tunedVal := scoreConfig(bestCfg, valFrom, valTo)
+	log.Printf("  validation ρ: default=%.4f  tuned=%.4f", defaultVal, tunedVal)
+	if tunedVal < defaultVal {
+		log.Printf("  tuned config does NOT beat default on validation — keeping defaults")
+		bestCfg = defaultConfig()
+		tunedVal = defaultVal
+	}
 
-	// Save config
 	bestCfg.TunedAt = time.Now().Format("2006-01-02")
 	bestCfg.TrainSeasons = fmt.Sprintf("%d-%d", trainFrom, trainTo)
 	bestCfg.ValidateSeasons = fmt.Sprintf("%d-%d", valFrom, valTo)
-	bestCfg.ValidationRMSE = valRMSE
+	bestCfg.ObjectiveMetric = "per_game_rank_correlation"
+	bestCfg.ValidationScore = tunedVal
 	if err := saveConfig(bestCfg); err != nil {
 		return fmt.Errorf("save config: %w", err)
 	}

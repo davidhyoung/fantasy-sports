@@ -5,6 +5,9 @@
 //	go run ./cmd/projections -profiles               # step 1: build season profiles
 //	go run ./cmd/projections -project -season 2025   # step 2: compute projections
 //	go run ./cmd/projections -all -season 2025       # both steps
+//	go run ./cmd/projections -import-consensus f.json -season 2026   # load external rankings/ADP
+//	go run ./cmd/projections -import-notes f.json -season 2026       # load situational news
+//	go run ./cmd/projections -consensus-diff -season 2026 -format ppr # diff our rank vs consensus
 package main
 
 import (
@@ -18,6 +21,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/davidyoung/fantasy-sports/backend/internal/aging"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
@@ -294,6 +298,7 @@ type compResult struct {
 	MatchAge      int                `json:"match_age"`
 	Similarity    float64            `json:"similarity"`
 	Weight        float64            `json:"weight"`
+	WashedOut     bool               `json:"washed_out,omitempty"` // no season after match despite data existing → contributes zero growth
 	HeadshotURL   string             `json:"headshot_url"`
 	MatchProfile  map[string]float64 `json:"match_profile"`
 	PreMatch      []trajPoint        `json:"pre_match"`
@@ -325,6 +330,13 @@ type projection struct {
 	ProjFptsPPR  float64
 	ProjFptsHalf float64
 
+	// Outcome distribution (see docs/stats/uncertainty-quantification.md).
+	// Stdev is per-game; quantiles are season totals (PPR).
+	ProjFptsPPRStdev float64
+	ProjFptsPPRP10   float64
+	ProjFptsPPRP50   float64
+	ProjFptsPPRP90   float64
+
 	Confidence     float64
 	ConfSimilarity float64
 	ConfCompCount  float64
@@ -348,6 +360,10 @@ func main() {
 	doAll := flag.Bool("all", false, "build profiles then compute projections")
 	doBacktest := flag.Bool("backtest", false, "backtest projections against historical actuals")
 	doAutotune := flag.Bool("autotune", false, "auto-tune dimension weights via coordinate descent")
+	doConsensusDiff := flag.Bool("consensus-diff", false, "diff our projection rank against imported consensus rankings")
+	importConsensus := flag.String("import-consensus", "", "path to a consensus rankings/ADP JSON file to import")
+	importNotes := flag.String("import-notes", "", "path to a situational news JSON file to import")
+	consensusFormat := flag.String("format", "ppr", "scoring format for -consensus-diff (standard|half_ppr|ppr)")
 	targetSeason := flag.Int("season", 2026, "target projection season")
 	baseSeason := flag.Int("base", 0, "base season for input (defaults to target-1)")
 	simThresh := flag.Float64("threshold", similarityThresh, "similarity threshold (0-1)")
@@ -356,8 +372,9 @@ func main() {
 	trainTo := flag.Int("train-to", 2021, "last training season for autotune (rest used for validation)")
 	flag.Parse()
 
-	if !*doProfiles && !*doProject && !*doGrades && !*doAll && !*doBacktest && !*doAutotune {
-		fmt.Fprintln(os.Stderr, "usage: go run ./cmd/projections [-profiles] [-project -season N] [-grades] [-all -season N] [-backtest -from N -to N] [-autotune -from N -to N -train-to N]")
+	if !*doProfiles && !*doProject && !*doGrades && !*doAll && !*doBacktest && !*doAutotune &&
+		!*doConsensusDiff && *importConsensus == "" && *importNotes == "" {
+		fmt.Fprintln(os.Stderr, "usage: go run ./cmd/projections [-profiles] [-project -season N] [-grades] [-all -season N] [-backtest -from N -to N] [-autotune -from N -to N -train-to N] [-import-consensus FILE -season N] [-import-notes FILE -season N] [-consensus-diff -season N -format ppr]")
 		os.Exit(1)
 	}
 
@@ -428,6 +445,27 @@ func main() {
 		}
 	}
 
+	if *importConsensus != "" {
+		log.Printf("=== Importing consensus rankings from %s ===", *importConsensus)
+		if err := importConsensusRankings(ctx, pool, *importConsensus, *targetSeason); err != nil {
+			log.Fatalf("import consensus: %v", err)
+		}
+	}
+
+	if *importNotes != "" {
+		log.Printf("=== Importing situational notes from %s ===", *importNotes)
+		if err := importSituationalNotes(ctx, pool, *importNotes, *targetSeason); err != nil {
+			log.Fatalf("import notes: %v", err)
+		}
+	}
+
+	if *doConsensusDiff {
+		log.Printf("=== Diffing our projections vs consensus: season=%d format=%s ===", *targetSeason, *consensusFormat)
+		if err := computeConsensusDivergences(ctx, pool, *targetSeason, *consensusFormat); err != nil {
+			log.Fatalf("consensus diff: %v", err)
+		}
+	}
+
 	log.Println("done")
 }
 
@@ -473,46 +511,75 @@ func buildProfiles(ctx context.Context, pool *pgxpool.Pool) error {
 		FgAtt        float64
 	}
 
+	// Production stats are schedule-adjusted per game before aggregation
+	// (docs/stats/strength-of-schedule.md): each weekly stat line is scaled by
+	// league_avg_PPR_allowed / opponent_PPR_allowed for the player's position
+	// group that season, capped to [0.75, 1.25]. Volume (attempts, targets),
+	// turnovers, kicking, and EPA averages stay raw. Adjustment uses only
+	// same-season data, so backtest temporal integrity is preserved.
 	rows, err := pool.Query(ctx, `
+		WITH def AS (
+			SELECT s.opponent_team AS defense, s.season, p.position_group AS pos,
+			       SUM(s.fantasy_points_ppr)::float8 / NULLIF(COUNT(DISTINCT s.week), 0) AS ppr_allowed_pg
+			FROM nfl_player_stats s
+			JOIN nfl_players p ON p.gsis_id = s.gsis_id
+			WHERE s.season_type = 'REG'
+			  AND s.opponent_team IS NOT NULL AND s.opponent_team != ''
+			  AND p.position_group IN ('QB','RB','WR','TE')
+			GROUP BY 1, 2, 3
+		),
+		lg AS (
+			SELECT season, pos, AVG(ppr_allowed_pg) AS lg_avg
+			FROM def
+			GROUP BY 1, 2
+		),
+		factor AS (
+			SELECT d.defense, d.season, d.pos,
+			       GREATEST(0.75, LEAST(1.25, l.lg_avg / NULLIF(d.ppr_allowed_pg, 0))) AS f
+			FROM def d
+			JOIN lg l ON l.season = d.season AND l.pos = d.pos
+		)
 		SELECT
-			gsis_id,
-			season,
-			COUNT(*) FILTER (WHERE (passing_yards + rushing_yards + receiving_yards + targets + fg_made) > 0) AS games,
-			SUM(pass_attempts)::float8,
-			SUM(passing_yards)::float8,
-			SUM(passing_tds)::float8,
-			SUM(interceptions)::float8,
-			SUM(carries)::float8,
-			SUM(rushing_yards)::float8,
-			SUM(rushing_tds)::float8,
-			SUM(targets)::float8,
-			SUM(receptions)::float8,
-			SUM(receiving_yards)::float8,
-			SUM(receiving_tds)::float8,
-			SUM(fantasy_points)::float8,
-			SUM(fantasy_points_ppr)::float8,
-			SUM(fg_made)::float8,
-			SUM(pat_made)::float8,
-			SUM(completions)::float8,
-			AVG(passing_epa) FILTER (WHERE passing_epa IS NOT NULL),
-			AVG(rushing_epa) FILTER (WHERE rushing_epa IS NOT NULL),
-			AVG(receiving_epa) FILTER (WHERE receiving_epa IS NOT NULL),
-			AVG(target_share) FILTER (WHERE target_share IS NOT NULL),
-			AVG(wopr) FILTER (WHERE wopr IS NOT NULL),
-			MODE() WITHIN GROUP (ORDER BY team) AS team,
-			SUM(sacks)::float8,
-			SUM(passing_air_yards)::float8,
-			SUM(passing_yac)::float8,
-			SUM(rushing_first_downs)::float8,
-			SUM(receiving_air_yards)::float8,
-			SUM(receiving_yac)::float8,
-			SUM(receiving_first_downs)::float8,
-			SUM(COALESCE(rushing_fumbles, 0) + COALESCE(receiving_fumbles, 0))::float8,
-			SUM(fg_att)::float8
-		FROM nfl_player_stats
-		WHERE season_type = 'REG'
-		GROUP BY gsis_id, season
-		HAVING COUNT(*) FILTER (WHERE (passing_yards + rushing_yards + receiving_yards + targets + fg_made) > 0) >= $1
+			s.gsis_id,
+			s.season,
+			COUNT(*) FILTER (WHERE (s.passing_yards + s.rushing_yards + s.receiving_yards + s.targets + s.fg_made) > 0) AS games,
+			SUM(s.pass_attempts)::float8,
+			SUM(s.passing_yards * COALESCE(fa.f, 1.0))::float8,
+			SUM(s.passing_tds * COALESCE(fa.f, 1.0))::float8,
+			SUM(s.interceptions)::float8,
+			SUM(s.carries)::float8,
+			SUM(s.rushing_yards * COALESCE(fa.f, 1.0))::float8,
+			SUM(s.rushing_tds * COALESCE(fa.f, 1.0))::float8,
+			SUM(s.targets)::float8,
+			SUM(s.receptions)::float8,
+			SUM(s.receiving_yards * COALESCE(fa.f, 1.0))::float8,
+			SUM(s.receiving_tds * COALESCE(fa.f, 1.0))::float8,
+			SUM(s.fantasy_points * COALESCE(fa.f, 1.0))::float8,
+			SUM(s.fantasy_points_ppr * COALESCE(fa.f, 1.0))::float8,
+			SUM(s.fg_made)::float8,
+			SUM(s.pat_made)::float8,
+			SUM(s.completions)::float8,
+			AVG(s.passing_epa) FILTER (WHERE s.passing_epa IS NOT NULL),
+			AVG(s.rushing_epa) FILTER (WHERE s.rushing_epa IS NOT NULL),
+			AVG(s.receiving_epa) FILTER (WHERE s.receiving_epa IS NOT NULL),
+			AVG(s.target_share) FILTER (WHERE s.target_share IS NOT NULL),
+			AVG(s.wopr) FILTER (WHERE s.wopr IS NOT NULL),
+			MODE() WITHIN GROUP (ORDER BY s.team) AS team,
+			SUM(s.sacks)::float8,
+			SUM(s.passing_air_yards * COALESCE(fa.f, 1.0))::float8,
+			SUM(s.passing_yac * COALESCE(fa.f, 1.0))::float8,
+			SUM(s.rushing_first_downs * COALESCE(fa.f, 1.0))::float8,
+			SUM(s.receiving_air_yards * COALESCE(fa.f, 1.0))::float8,
+			SUM(s.receiving_yac * COALESCE(fa.f, 1.0))::float8,
+			SUM(s.receiving_first_downs * COALESCE(fa.f, 1.0))::float8,
+			SUM(COALESCE(s.rushing_fumbles, 0) + COALESCE(s.receiving_fumbles, 0))::float8,
+			SUM(s.fg_att)::float8
+		FROM nfl_player_stats s
+		LEFT JOIN nfl_players pl ON pl.gsis_id = s.gsis_id
+		LEFT JOIN factor fa ON fa.defense = s.opponent_team AND fa.season = s.season AND fa.pos = pl.position_group
+		WHERE s.season_type = 'REG'
+		GROUP BY s.gsis_id, s.season
+		HAVING COUNT(*) FILTER (WHERE (s.passing_yards + s.rushing_yards + s.receiving_yards + s.targets + s.fg_made) > 0) >= $1
 	`, minGames)
 	if err != nil {
 		return fmt.Errorf("query player-seasons: %w", err)
@@ -892,7 +959,7 @@ func computeZScores(ctx context.Context, pool *pgxpool.Pool) error {
 		"team_fpts_pg", "team_pass_yds_pg", "team_rush_yds_pg",
 	}
 
-	query := `SELECT id, gsis_id, season, position_group, age, height, weight, draft_number, ` +
+	query := `SELECT id, gsis_id, season, position_group, games_played, age, height, weight, draft_number, ` +
 		strings.Join(dbFloatFields, ", ") +
 		` FROM nfl_player_season_profiles`
 
@@ -907,6 +974,7 @@ func computeZScores(ctx context.Context, pool *pgxpool.Pool) error {
 		gsisID        string
 		season        int
 		positionGroup string
+		gamesPlayed   int
 		vals          map[string]float64 // field → value (0 if NULL)
 	}
 
@@ -915,11 +983,11 @@ func computeZScores(ctx context.Context, pool *pgxpool.Pool) error {
 	for rows.Next() {
 		var id int64
 		var gsisID, posGroup string
-		var season int
+		var season, gamesPlayed int
 		var age, height, weight, draftNumber *int
 		nums := make([]*float64, numFloatFields)
 
-		dest := []any{&id, &gsisID, &season, &posGroup, &age, &height, &weight, &draftNumber}
+		dest := []any{&id, &gsisID, &season, &posGroup, &gamesPlayed, &age, &height, &weight, &draftNumber}
 		for i := range nums {
 			dest = append(dest, &nums[i])
 		}
@@ -939,11 +1007,23 @@ func computeZScores(ctx context.Context, pool *pgxpool.Pool) error {
 		if weight != nil { vals["weight"] = float64(*weight) }
 		if draftNumber != nil { vals["draft_number"] = float64(*draftNumber) }
 
-		profiles = append(profiles, profileRow{id, gsisID, season, posGroup, vals})
+		profiles = append(profiles, profileRow{id, gsisID, season, posGroup, gamesPlayed, vals})
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
+
+	// Shrink small-sample rates toward the position-group mean before
+	// computing z-scores (docs/stats/bayesian-shrinkage.md).
+	shrinkVals := make([]map[string]float64, len(profiles))
+	shrinkGames := make([]float64, len(profiles))
+	shrinkGroups := make([]string, len(profiles))
+	for i := range profiles {
+		shrinkVals[i] = profiles[i].vals
+		shrinkGames[i] = float64(profiles[i].gamesPlayed)
+		shrinkGroups[i] = profiles[i].positionGroup
+	}
+	applyShrinkage(shrinkVals, shrinkGames, shrinkGroups)
 
 	// Group by position_group only (global normalization across all seasons).
 	// This makes z-scores comparable across seasons — a z-score of 1.0 always
@@ -1255,17 +1335,33 @@ func computeProjections(ctx context.Context, pool *pgxpool.Pool, baseSeason, tar
 	// Also build a flat index by position_group for comp searching:
 	// key = positionGroup, value = all profiles (all seasons) in that group
 	byGroup := make(map[string][]*seasonProfile)
+	maxDataSeason := 0
 	for i := range profiles {
 		p := &profiles[i]
 		byGroup[p.PositionGroup] = append(byGroup[p.PositionGroup], p)
+		if p.Season > maxDataSeason {
+			maxDataSeason = p.Season
+		}
 	}
 
-	// 4. Identify target players: those with a profile in baseSeason.
+	// Position-group mean fantasy points — the regression target for players
+	// with zero comps (unique profiles get pulled halfway to the mean rather
+	// than projected to repeat their season verbatim).
+	groupMeans := computeGroupMeans(byGroup)
+
+	// Age/position-conditioned growth-rate baselines, for shrinking thin-comp
+	// projections (docs/stats/bayesian-shrinkage.md, growth-rate extension).
+	growthBaselines := computeGrowthBaselines(profiles)
+
+	// 4. Identify target players: those with a profile in baseSeason. Each
+	// target profile is recency-blended with the immediately preceding season
+	// (docs/stats/recency-weighted-profiles.md) — cfg.TargetBlendDecay == 0
+	// (the seeded default) makes this an exact no-op.
 	log.Println("  identifying target players…")
 	var targets []*seasonProfile
 	for _, seasonMap := range byPlayerSeason {
-		if p, ok := seasonMap[baseSeason]; ok {
-			targets = append(targets, p)
+		if _, ok := seasonMap[baseSeason]; ok {
+			targets = append(targets, blendTargetProfile(seasonMap, baseSeason, cfg.TargetBlendDecay))
 		}
 	}
 	log.Printf("  found %d players with %d base-season profiles", len(targets), baseSeason)
@@ -1304,6 +1400,13 @@ func computeProjections(ctx context.Context, pool *pgxpool.Pool, baseSeason, tar
 			preMatch := buildPreMatch(cand, byPlayerSeason[cand.GsisID], candMatchSeason)
 			trajectory := buildTrajectory(cand, byPlayerSeason[cand.GsisID], candMatchSeason)
 
+			// A comp with no qualifying season after the match, despite the data
+			// extending past the match season, washed out of the league (retired,
+			// cut, or never again met the minimum games). They contribute zero
+			// growth rather than being skipped — skipping them was survivorship
+			// bias that inflated projections for high-washout archetypes.
+			washedOut := len(trajectory) == 0 && candMatchSeason+1 <= maxDataSeason
+
 			matchProfile := map[string]float64{
 				"fpts_pg":     cand.FptsPG,
 				"fpts_ppr_pg": cand.FptsPPRPG,
@@ -1333,6 +1436,7 @@ func computeProjections(ctx context.Context, pool *pgxpool.Pool, baseSeason, tar
 				MatchSeason:   cand.Season,
 				MatchAge:      cand.Age,
 				Similarity:    sim,
+				WashedOut:     washedOut,
 				HeadshotURL:   headshotURL,
 				MatchProfile:  matchProfile,
 				PreMatch:      preMatch,
@@ -1361,7 +1465,7 @@ func computeProjections(ctx context.Context, pool *pgxpool.Pool, baseSeason, tar
 		// Compute weighted average growth rates for year 1 (next season)
 		projectedAge := target.Age + (targetSeason - target.Season)
 		agingMult := cfg.effectiveAgingMultipliers().Multiplier(target.PositionGroup, projectedAge)
-		proj := computeWeightedProjection(target, comps, targetSeason, agingMult)
+		proj := computeWeightedProjection(target, comps, targetSeason, agingMult, groupMeans[target.PositionGroup], cfg.GrowthShrinkageK, growthBaselines)
 
 		// Grade trend adjustment: small bounded nudge (+/- 5%) based on grade trajectory.
 		// Player trending up in grade but stats haven't caught up → slight upward nudge.
@@ -1380,6 +1484,9 @@ func computeProjections(ctx context.Context, pool *pgxpool.Pool, baseSeason, tar
 			proj.ProjRecTdPG *= adj
 			proj.ProjFgMadePG *= adj
 			proj.ProjPatMadePG *= adj
+			proj.ProjFptsPPRP10 *= adj
+			proj.ProjFptsPPRP50 *= adj
+			proj.ProjFptsPPRP90 *= adj
 		}
 
 		proj.GsisID = target.GsisID
@@ -1413,11 +1520,14 @@ func computeProjections(ctx context.Context, pool *pgxpool.Pool, baseSeason, tar
 		proj.Confidence = 0.25*proj.ConfSimilarity + 0.20*proj.ConfCompCount +
 			0.25*proj.ConfAgreement + 0.15*proj.ConfSampleDepth + 0.15*proj.ConfDataQuality
 
-		// Season totals
+		// Season totals (quantiles are per-game until here)
 		proj.ProjGames = defaultProjGames
 		proj.ProjFpts = proj.ProjFptsPG * float64(proj.ProjGames)
 		proj.ProjFptsPPR = proj.ProjFptsPPRPG * float64(proj.ProjGames)
 		proj.ProjFptsHalf = (proj.ProjFptsPPR + proj.ProjFpts) / 2.0
+		proj.ProjFptsPPRP10 *= float64(proj.ProjGames)
+		proj.ProjFptsPPRP50 *= float64(proj.ProjGames)
+		proj.ProjFptsPPRP90 *= float64(proj.ProjGames)
 
 		// Attach meta
 		_ = meta
@@ -1446,6 +1556,7 @@ func computeProjections(ctx context.Context, pool *pgxpool.Pool, baseSeason, tar
 				proj_rec_pg, proj_rec_yds_pg, proj_rec_td_pg,
 				proj_fg_made_pg, proj_pat_made_pg,
 				proj_games, proj_fpts, proj_fpts_ppr, proj_fpts_half,
+				proj_fpts_ppr_stdev, proj_fpts_ppr_p10, proj_fpts_ppr_p50, proj_fpts_ppr_p90,
 				confidence, conf_similarity, conf_comp_count, conf_agreement,
 				conf_sample_depth, conf_data_quality,
 				comp_count, avg_similarity, uniqueness,
@@ -1459,9 +1570,10 @@ func computeProjections(ctx context.Context, pool *pgxpool.Pool, baseSeason, tar
 				$13,$14,
 				$15,$16,$17,$18,
 				$19,$20,$21,$22,
-				$23,$24,
-				$25,$26,$27,
-				$28, NOW()
+				$23,$24,$25,$26,
+				$27,$28,
+				$29,$30,$31,
+				$32, NOW()
 			)
 			ON CONFLICT (gsis_id, base_season, target_season) DO UPDATE SET
 				proj_fpts_pg = EXCLUDED.proj_fpts_pg,
@@ -1479,6 +1591,10 @@ func computeProjections(ctx context.Context, pool *pgxpool.Pool, baseSeason, tar
 				proj_fpts = EXCLUDED.proj_fpts,
 				proj_fpts_ppr = EXCLUDED.proj_fpts_ppr,
 				proj_fpts_half = EXCLUDED.proj_fpts_half,
+				proj_fpts_ppr_stdev = EXCLUDED.proj_fpts_ppr_stdev,
+				proj_fpts_ppr_p10 = EXCLUDED.proj_fpts_ppr_p10,
+				proj_fpts_ppr_p50 = EXCLUDED.proj_fpts_ppr_p50,
+				proj_fpts_ppr_p90 = EXCLUDED.proj_fpts_ppr_p90,
 				confidence = EXCLUDED.confidence,
 				conf_similarity = EXCLUDED.conf_similarity,
 				conf_comp_count = EXCLUDED.conf_comp_count,
@@ -1498,6 +1614,7 @@ func computeProjections(ctx context.Context, pool *pgxpool.Pool, baseSeason, tar
 			p.ProjRecPG, p.ProjRecYdsPG, p.ProjRecTdPG,
 			p.ProjFgMadePG, p.ProjPatMadePG,
 			p.ProjGames, p.ProjFpts, p.ProjFptsPPR, p.ProjFptsHalf,
+			p.ProjFptsPPRStdev, p.ProjFptsPPRP10, p.ProjFptsPPRP50, p.ProjFptsPPRP90,
 			p.Confidence, p.ConfSimilarity, p.ConfCompCount, p.ConfAgreement,
 			p.ConfSampleDepth, p.ConfDataQuality,
 			p.CompCount, p.AvgSimilarity, p.Uniqueness,
@@ -1683,46 +1800,63 @@ func buildTrajectory(cand *seasonProfile, candSeasons map[int]*seasonProfile, ma
 	return points
 }
 
+// groupMeansFpts holds the position-group mean fantasy points per game, used as
+// the regression target for zero-comp projections.
+type groupMeansFpts struct {
+	FptsPPRPG float64
+	FptsPG    float64
+}
+
+// computeGroupMeans returns mean fpts per game per position group across all profiles.
+func computeGroupMeans(byGroup map[string][]*seasonProfile) map[string]groupMeansFpts {
+	out := make(map[string]groupMeansFpts, len(byGroup))
+	for g, ps := range byGroup {
+		var sumPPR, sumStd float64
+		for _, p := range ps {
+			sumPPR += p.FptsPPRPG
+			sumStd += p.FptsPG
+		}
+		if n := float64(len(ps)); n > 0 {
+			out[g] = groupMeansFpts{FptsPPRPG: sumPPR / n, FptsPG: sumStd / n}
+		}
+	}
+	return out
+}
+
 // computeWeightedProjection projects the target's next-season stats using comp trajectories.
 // agingMult is applied as a post-hoc adjustment based on position-specific career phase.
-func computeWeightedProjection(target *seasonProfile, comps []compResult, targetSeason int, agingMult float64) projection {
+// groupMean is the regression target when no comps qualify.
+//
+// Growth semantics per comp:
+//   - has a year-1 trajectory point → growth = next-season value / match-season value (clamped)
+//   - washed out (no subsequent season despite data existing) → growth = 0, bypassing
+//     the floor: washing out is a real outcome, not a measurement outlier
+//   - match season is the newest data season (no chance of a next season) → skipped
+func computeWeightedProjection(target *seasonProfile, comps []compResult, targetSeason int, agingMult float64, groupMean groupMeansFpts, growthShrinkK float64, growthBaselines map[growthBaselineKey]float64) projection {
 	var proj projection
 
-	// For each stat, compute weighted average growth rate from year-1 trajectory
-	type statGetter func(c *compResult) (growth float64, hasData bool)
+	// Empirical-Bayes shrinkage target for the growth rate (docs/stats/bayesian-shrinkage.md,
+	// "Extension: shrinking derived growth rates"): pull the comp-derived growth
+	// rate toward the population's age/position-conditioned average growth when
+	// comps are scarce. growthShrinkK == 0 (the seeded default) makes this an
+	// exact no-op — see the pseudo-observation additions in applyGrowth and the
+	// outcome-distribution block below. Baselines are computed from fpts_ppr_pg
+	// pairs only; the same baseline is used as a reasonable approximation for the
+	// standard (non-PPR) growth rate too, since the two move together for a given
+	// player's volume changes.
+	projectedAge := target.Age + (targetSeason - target.Season)
+	growthBaseline := growthBaselines[growthBaselineKey{target.PositionGroup, aging.Phase(target.PositionGroup, projectedAge)}]
 
-	applyGrowth := func(currentVal float64, getter func(c *compResult) (float64, bool)) float64 {
-		if len(comps) == 0 {
-			return currentVal // no comps: no change
-		}
-		var weightedGrowth float64
-		var totalWeight float64
-		for i := range comps {
-			g, ok := getter(&comps[i])
-			if !ok {
-				continue
-			}
-			// Cap/floor growth rate
-			if g > maxGrowthCap { g = maxGrowthCap }
-			if g < minGrowthFloor { g = minGrowthFloor }
-			weightedGrowth += comps[i].Weight * g
-			totalWeight += comps[i].Weight
-		}
-		if totalWeight == 0 {
-			return currentVal
-		}
-		// Renormalise weight
-		growthRate := weightedGrowth / totalWeight
-		return currentVal * growthRate
-	}
-
-	// Year-1 growth from trajectory (first point)
+	// Year-1 growth from trajectory (first point).
+	// statIdx: 0=fpts_ppr_pg, 1=fpts_pg
 	getGrowth := func(c *compResult, statIdx int) (float64, bool) {
 		if len(c.Trajectory) == 0 {
+			if c.WashedOut {
+				return 0, true
+			}
 			return 0, false
 		}
 		pt := c.Trajectory[0]
-		// statIdx: 0=fpts_ppr_pg, 1=fpts_pg
 		switch statIdx {
 		case 0:
 			if c.MatchProfile["fpts_ppr_pg"] == 0 { return 1.0, true }
@@ -1731,19 +1865,102 @@ func computeWeightedProjection(target *seasonProfile, comps []compResult, target
 			if c.MatchProfile["fpts_pg"] == 0 { return 1.0, true }
 			return clampGrowth(pt.FptsPG / c.MatchProfile["fpts_pg"]), true
 		}
-		return pt.Growth, true
+		return clampGrowth(pt.Growth), true
 	}
 
-	proj.ProjFptsPPRPG = applyGrowth(target.FptsPPRPG, func(c *compResult) (float64, bool) {
-		return getGrowth(c, 0)
-	})
-	proj.ProjFptsPG = applyGrowth(target.FptsPG, func(c *compResult) (float64, bool) {
-		return getGrowth(c, 1)
-	})
+	applyGrowth := func(currentVal, meanVal float64, statIdx int) float64 {
+		var weightedGrowth float64
+		var totalWeight float64
+		for i := range comps {
+			g, ok := getGrowth(&comps[i], statIdx)
+			if !ok {
+				continue
+			}
+			weightedGrowth += comps[i].Weight * g
+			totalWeight += comps[i].Weight
+		}
+		// Shrinkage pseudo-observation: one extra weighted term pulling toward
+		// the population baseline, weight growthShrinkK. With few real comps
+		// (small totalWeight), this dominates; with many, it barely matters.
+		if growthShrinkK > 0 && growthBaseline > 0 {
+			weightedGrowth += growthShrinkK * growthBaseline
+			totalWeight += growthShrinkK
+		}
+		if totalWeight == 0 {
+			// No usable comps: regress halfway to the position-group mean
+			// rather than projecting an exact repeat of last season.
+			return 0.5*currentVal + 0.5*meanVal
+		}
+		growthRate := weightedGrowth / totalWeight
+		return currentVal * growthRate
+	}
+
+	proj.ProjFptsPPRPG = applyGrowth(target.FptsPPRPG, groupMean.FptsPPRPG, 0)
+	proj.ProjFptsPG = applyGrowth(target.FptsPG, groupMean.FptsPG, 1)
 
 	// Apply position-specific aging curve adjustment
 	proj.ProjFptsPPRPG *= agingMult
 	proj.ProjFptsPG *= agingMult
+
+	// Outcome distribution: each comp's year-1 growth implies a next-season
+	// PPR/G outcome for the target. The similarity²-weighted spread of those
+	// outcomes is the projection's uncertainty (per-game quantiles; converted
+	// to season totals by the caller). See docs/stats/uncertainty-quantification.md.
+	type outcome struct {
+		val float64
+		w   float64
+	}
+	var outcomes []outcome
+	var wSum float64
+	for i := range comps {
+		g, ok := getGrowth(&comps[i], 0)
+		if !ok {
+			continue
+		}
+		outcomes = append(outcomes, outcome{val: target.FptsPPRPG * g * agingMult, w: comps[i].Weight})
+		wSum += comps[i].Weight
+	}
+	// Same shrinkage pseudo-observation as applyGrowth, so the uncertainty band
+	// stays consistent with the point estimate — a large growthShrinkK relative
+	// to the real comps' weight correctly narrows the band toward the baseline
+	// too (thin-comp players should get a tighter, more conservative
+	// distribution, not a wider one built from 1-2 noisy points).
+	if growthShrinkK > 0 && growthBaseline > 0 {
+		outcomes = append(outcomes, outcome{val: target.FptsPPRPG * growthBaseline * agingMult, w: growthShrinkK})
+		wSum += growthShrinkK
+	}
+	if len(outcomes) >= 2 && wSum > 0 {
+		var mu float64
+		for _, o := range outcomes {
+			mu += (o.w / wSum) * o.val
+		}
+		var variance float64
+		for _, o := range outcomes {
+			d := o.val - mu
+			variance += (o.w / wSum) * d * d
+		}
+		proj.ProjFptsPPRStdev = math.Sqrt(variance)
+
+		sort.Slice(outcomes, func(i, j int) bool { return outcomes[i].val < outcomes[j].val })
+		quantile := func(q float64) float64 {
+			cum := 0.0
+			for _, o := range outcomes {
+				cum += o.w / wSum
+				if cum >= q {
+					return o.val
+				}
+			}
+			return outcomes[len(outcomes)-1].val
+		}
+		proj.ProjFptsPPRP10 = quantile(0.10)
+		proj.ProjFptsPPRP50 = quantile(0.50)
+		proj.ProjFptsPPRP90 = quantile(0.90)
+	} else {
+		// Too few comps for a meaningful distribution: collapse to the point estimate.
+		proj.ProjFptsPPRP10 = proj.ProjFptsPPRPG
+		proj.ProjFptsPPRP50 = proj.ProjFptsPPRPG
+		proj.ProjFptsPPRP90 = proj.ProjFptsPPRPG
+	}
 
 	// For position-specific stats, derive from fpts growth ratio
 	growthRatioPPR := 1.0
@@ -1784,6 +2001,9 @@ func computeCompAgreement(comps []compResult) float64 {
 	var growths []float64
 	for _, c := range comps {
 		if len(c.Trajectory) == 0 {
+			if c.WashedOut {
+				growths = append(growths, 0)
+			}
 			continue
 		}
 		growths = append(growths, c.Trajectory[0].Growth)
@@ -1802,7 +2022,7 @@ func computeSampleDepth(comps []compResult) float64 {
 	}
 	withData := 0
 	for _, c := range comps {
-		if len(c.Trajectory) > 0 {
+		if len(c.Trajectory) > 0 || c.WashedOut {
 			withData++
 		}
 	}
