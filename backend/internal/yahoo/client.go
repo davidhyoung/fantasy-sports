@@ -45,6 +45,7 @@ func (ts *dbTokenSource) Token() (*oauth2.Token, error) {
 
 	tok, err := ts.inner.Token()
 	if err != nil {
+		log.Printf("[yahoo/client] token source refresh failed for user %d: %v", ts.userID, err)
 		return nil, err
 	}
 

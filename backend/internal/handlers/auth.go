@@ -5,13 +5,17 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/xml"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"strings"
 
 	"golang.org/x/oauth2"
 
 	"github.com/davidyoung/fantasy-sports/backend/internal/models"
+	"github.com/davidyoung/fantasy-sports/backend/internal/yahoo"
 )
 
 const sessionName = "fantasy-session"
@@ -103,34 +107,47 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// --- Fetch the user's profile from Yahoo's OpenID Connect userinfo endpoint ---
+	// Yahoo omits the scope field even when the grant matches the request
+	// (RFC 6749 §5.1 makes it optional), so an empty granted_scope proves
+	// nothing on its own — but it's still the fastest signal when debugging
+	// authorization failures.
+	grantedScope, _ := token.Extra("scope").(string)
+	if grantedScope != "" && !strings.Contains(grantedScope, "fspt-r") {
+		log.Printf("[auth/callback] Yahoo granted a scope set without fspt-r (%q) — Fantasy API calls will fail", grantedScope)
+	}
+
 	// oauthConfig.Client returns an *http.Client that automatically attaches
 	// the access token to every request it makes.
 	yahooClient := h.oauthConfig.Client(r.Context(), token)
-	resp, err := yahooClient.Get("https://api.login.yahoo.com/openid/v1/userinfo")
-	if err != nil {
-		http.Error(w, "failed to fetch user info", http.StatusInternalServerError)
-		return
-	}
-	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		http.Error(w, "failed to read user info", http.StatusInternalServerError)
-		return
-	}
-	log.Printf("[auth/callback] userinfo response: %s", string(body))
-
+	// --- Resolve the user's GUID from the Fantasy API ---
+	// We ask Fantasy (not OIDC /userinfo) because we no longer request the
+	// openid scope — see yahoo.NewOAuthConfig for why. This doubles as a live
+	// check that the token actually carries Fantasy access.
 	var info yahooUserInfo
-	if err := json.Unmarshal(body, &info); err != nil {
-		http.Error(w, "failed to parse user info", http.StatusInternalServerError)
+	guid, err := fetchFantasyGUID(yahooClient)
+	if err != nil {
+		log.Printf("[auth/callback] failed to resolve Yahoo GUID from Fantasy API: %v", err)
+		http.Error(w, "could not reach Yahoo Fantasy API: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	info.Sub = guid
+	log.Printf("[auth/callback] resolved Yahoo GUID from Fantasy API: %s", guid)
 
-	if info.Sub == "" {
-		log.Printf("[auth/callback] userinfo sub (GUID) is empty")
-		http.Error(w, "could not get Yahoo user ID", http.StatusInternalServerError)
-		return
+	// --- Best-effort profile enrichment ---
+	// Only succeeds if the token happens to carry OIDC scopes. Failure is
+	// expected and non-fatal: name/email are cosmetic, and the upsert below
+	// preserves any values already stored for an existing user.
+	if resp, err := yahooClient.Get("https://api.login.yahoo.com/openid/v1/userinfo"); err == nil {
+		defer resp.Body.Close()
+		if body, err := io.ReadAll(resp.Body); err == nil && resp.StatusCode == http.StatusOK {
+			var oidc yahooUserInfo
+			if err := json.Unmarshal(body, &oidc); err == nil {
+				info.Name, info.Email = oidc.Name, oidc.Email
+			}
+		} else {
+			log.Printf("[auth/callback] userinfo unavailable (expected without openid scope): status=%d", resp.StatusCode)
+		}
 	}
 
 	// --- Save / update user in our database ---
@@ -150,6 +167,34 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	// Redirect to the frontend root. Because we're running dev through Vite's
 	// proxy, "/" resolves back to the React app on :5173.
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+}
+
+// fetchFantasyGUID resolves the authenticated user's Yahoo GUID via the
+// Fantasy Sports API. Used instead of the OIDC /userinfo endpoint because we
+// only request the fspt-r scope (see yahoo.NewOAuthConfig).
+func fetchFantasyGUID(client *http.Client) (string, error) {
+	resp, err := client.Get("https://fantasysports.yahooapis.com/fantasy/v2/users;use_login=1")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("yahoo returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var fc yahoo.FantasyContent
+	if err := xml.Unmarshal(body, &fc); err != nil {
+		return "", fmt.Errorf("parsing users response: %w", err)
+	}
+	if fc.Users == nil || len(fc.Users.User) == 0 || fc.Users.User[0].GUID == "" {
+		return "", fmt.Errorf("no guid in response: %s", string(body))
+	}
+	return fc.Users.User[0].GUID, nil
 }
 
 // Me returns the profile of the currently logged-in user as JSON.
@@ -172,18 +217,28 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 // they've logged in before. "ON CONFLICT ... DO UPDATE" is Postgres's way of
 // saying "insert, but if the yahoo_guid already exists, update instead."
 func (h *Handler) upsertUser(ctx context.Context, info yahooUserInfo, token *oauth2.Token) (*models.User, error) {
+	// display_name is NOT NULL, so fall back to a placeholder for brand-new
+	// users when OIDC profile data isn't available.
+	displayName := info.Name
+	if displayName == "" {
+		displayName = "Yahoo User"
+	}
+
 	var user models.User
+	// COALESCE/NULLIF on update: never overwrite a previously-stored name or
+	// email with an empty value, since name/email are best-effort now that we
+	// only request the fspt-r scope.
 	err := h.db.QueryRow(ctx, `
 		INSERT INTO users (yahoo_guid, display_name, email, access_token, refresh_token, token_expiry)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (yahoo_guid) DO UPDATE
-		SET display_name  = EXCLUDED.display_name,
-		    email         = EXCLUDED.email,
+		SET display_name  = COALESCE(NULLIF(EXCLUDED.display_name, 'Yahoo User'), users.display_name),
+		    email         = COALESCE(NULLIF(EXCLUDED.email, ''), users.email),
 		    access_token  = EXCLUDED.access_token,
 		    refresh_token = EXCLUDED.refresh_token,
 		    token_expiry  = EXCLUDED.token_expiry
 		RETURNING id, yahoo_guid, display_name, email, created_at
-	`, info.Sub, info.Name, info.Email,
+	`, info.Sub, displayName, info.Email,
 		token.AccessToken, token.RefreshToken, token.Expiry,
 	).Scan(&user.ID, &user.YahooGUID, &user.DisplayName, &user.Email, &user.CreatedAt)
 
