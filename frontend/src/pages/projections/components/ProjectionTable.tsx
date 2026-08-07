@@ -1,23 +1,75 @@
+import { useCallback, useMemo } from 'react'
 import { ProjPlayerListItem } from '@/api/client'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
-import { PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
+import { SortableHead, useTableSort, PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
 import { gradeColorClass } from '@/lib/grades'
 import ConfidenceBadge from './ConfidenceBadge'
 import UniquenessBadge from './UniquenessBadge'
+import DeltaBadge from '../../divergences/components/DeltaBadge'
+
+const STRING_COLS = ['name', 'pos']
 
 interface ProjectionTableProps {
   players: ProjPlayerListItem[]
   scoringFormat: 'ppr' | 'half' | 'standard'
+  /**
+   * Consensus context keyed by gsis_id. Partial by design — only players
+   * present in the imported consensus data appear here.
+   */
+  divergences?: Map<string, { consensusRank: number; delta: number }>
 }
 
-export default function ProjectionTable({ players, scoringFormat }: ProjectionTableProps) {
-  const projPts = (p: ProjPlayerListItem) => {
+export default function ProjectionTable({
+  players,
+  scoringFormat,
+  divergences,
+}: ProjectionTableProps) {
+  const { sortCol, sortDir, handleSort } = useTableSort('rank', 'asc', STRING_COLS)
+
+  const projPts = useCallback((p: ProjPlayerListItem) => {
     switch (scoringFormat) {
       case 'ppr':      return p.proj_fpts_ppr
       case 'half':     return p.proj_fpts_half
       case 'standard': return p.proj_fpts
     }
-  }
+  }, [scoringFormat])
+
+  const sorted = useMemo(() => {
+    return [...players].sort((a, b) => {
+      let aVal: string | number
+      let bVal: string | number
+
+      switch (sortCol) {
+        case 'rank':       aVal = a.overall_rank; bVal = b.overall_rank; break
+        case 'name':       aVal = a.name; bVal = b.name; break
+        case 'pos':        aVal = a.position_group; bVal = b.position_group; break
+        case 'age':        aVal = a.age || 0; bVal = b.age || 0; break
+        case 'grade':      aVal = a.player_grade ?? -1; bVal = b.player_grade ?? -1; break
+        case 'pts':        aVal = projPts(a); bVal = projPts(b); break
+        case 'ppg':        aVal = a.proj_fpts_ppr_pg; bVal = b.proj_fpts_ppr_pg; break
+        case 'confidence': aVal = a.confidence; bVal = b.confidence; break
+        // Players with no consensus data sort last in either direction rather
+        // than clustering at one end as if they were rank 0.
+        case 'consensus':
+          aVal = divergences?.get(a.gsis_id)?.consensusRank ?? Number.MAX_SAFE_INTEGER
+          bVal = divergences?.get(b.gsis_id)?.consensusRank ?? Number.MAX_SAFE_INTEGER
+          break
+        case 'delta':
+          aVal = Math.abs(divergences?.get(a.gsis_id)?.delta ?? -1)
+          bVal = Math.abs(divergences?.get(b.gsis_id)?.delta ?? -1)
+          break
+        default:           aVal = a.overall_rank; bVal = b.overall_rank; break
+      }
+
+      if (typeof aVal === 'string') {
+        const cmp = aVal.localeCompare(bVal as string)
+        return sortDir === 'asc' ? cmp : -cmp
+      }
+      return sortDir === 'asc'
+        ? (aVal as number) - (bVal as number)
+        : (bVal as number) - (aVal as number)
+    })
+  }, [players, sortCol, sortDir, projPts, divergences])
 
   if (players.length === 0) {
     return <p className="text-muted-foreground text-sm mt-6">No projections found.</p>
@@ -28,19 +80,21 @@ export default function ProjectionTable({ players, scoringFormat }: ProjectionTa
       <Table>
         <TableHeader>
           <HeaderRow>
-            <TableHead className="w-10 text-center">#</TableHead>
-            <TableHead>Player</TableHead>
-            <TableHead className="text-center">Pos</TableHead>
-            <TableHead className="text-center">Age</TableHead>
-            <TableHead className="text-right">Grade</TableHead>
-            <TableHead className="text-right">Proj Pts</TableHead>
-            <TableHead className="text-right">Pts/G</TableHead>
-            <TableHead className="text-center">Confidence</TableHead>
+            <SortableHead col="rank" current={sortCol} dir={sortDir} onSort={handleSort} className="w-10 text-center">#</SortableHead>
+            <SortableHead col="name" current={sortCol} dir={sortDir} onSort={handleSort}>Player</SortableHead>
+            <SortableHead col="pos" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Pos</SortableHead>
+            <SortableHead col="age" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Age</SortableHead>
+            <SortableHead col="grade" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Grade</SortableHead>
+            <SortableHead col="pts" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Proj Pts</SortableHead>
+            <SortableHead col="ppg" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Pts/G</SortableHead>
+            <SortableHead col="confidence" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Confidence</SortableHead>
+            <SortableHead col="consensus" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right whitespace-nowrap">Cons.</SortableHead>
+            <SortableHead col="delta" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Δ</SortableHead>
             <TableHead>Profile</TableHead>
           </HeaderRow>
         </TableHeader>
         <TableBody>
-          {players.map((p) => (
+          {sorted.map((p) => (
             <ClickableRow key={p.gsis_id} href={`/projections/${p.gsis_id}`}>
               <TableCell className="text-center text-muted-foreground tabular-nums">
                 {p.overall_rank}
@@ -63,6 +117,16 @@ export default function ProjectionTable({ players, scoringFormat }: ProjectionTa
               </TableCell>
               <TableCell className="text-center">
                 <ConfidenceBadge value={p.confidence} />
+              </TableCell>
+              <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
+                {divergences?.get(p.gsis_id)
+                  ? divergences.get(p.gsis_id)!.consensusRank.toFixed(1)
+                  : <span className="text-muted-foreground/40">—</span>}
+              </TableCell>
+              <TableCell className="text-right">
+                {divergences?.get(p.gsis_id)
+                  ? <DeltaBadge delta={divergences.get(p.gsis_id)!.delta} />
+                  : <span className="text-muted-foreground/40">—</span>}
               </TableCell>
               <TableCell>
                 <UniquenessBadge value={p.uniqueness} compCount={p.comp_count} />

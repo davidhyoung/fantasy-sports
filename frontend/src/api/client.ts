@@ -410,6 +410,12 @@ export interface ProjStats {
   fpts: number
   fpts_ppr: number
   fpts_half: number
+  // Outcome distribution from the comp set (season-total PPR points).
+  // p10 ≈ floor, p90 ≈ ceiling; p10 === p90 means too few comps to estimate.
+  fpts_ppr_stdev_pg: number
+  fpts_ppr_p10: number
+  fpts_ppr_p50: number
+  fpts_ppr_p90: number
 }
 
 export interface HistoricalSeason {
@@ -631,6 +637,8 @@ export interface NFLPlayerDetailResponse {
   seasons: NFLSeasonStats[]
   projection: ProjDetailResponse | null
   grades: NFLPlayerGradeSeason[]
+  /** External context the stats-based projection can't see. See SituationalNote. */
+  notes: SituationalNote[]
 }
 
 export const getNFLPlayer = (gsisId: string) =>
@@ -690,3 +698,68 @@ export const getGrades = (params: {
 
 export const getPlayerGrades = (gsisId: string) =>
   request<GradePlayerDetailResponse>(`/grades/${encodeURIComponent(gsisId)}`)
+
+// --- Consensus divergences ---
+// Compares our comp-based projection rank against the median rank/ADP from
+// external expert sources, within position group. A divergence is a prompt to
+// look, not a verdict — nothing here feeds back into the projections.
+
+export interface SituationalNote {
+  category: string
+  summary: string
+  impact_direction: 'positive' | 'negative' | 'neutral'
+  impact_magnitude: 'major' | 'moderate' | 'minor'
+  confidence: string
+  source: string
+  reported_date: string
+  /** 'player' = about this player; 'team' = team-wide context affecting them. */
+  scope: 'player' | 'team'
+}
+
+export interface DivergenceItem {
+  gsis_id: string
+  name: string
+  position: string
+  position_group: string
+  team: string
+  headshot_url: string
+  our_rank: number
+  consensus_rank_median: number
+  source_count: number
+  /** our_rank - consensus_rank_median. Positive = we rank them lower than consensus. */
+  rank_delta: number
+  proj_fpts_ppr: number
+  notes: SituationalNote[]
+}
+
+export interface DivergenceListResponse {
+  season: number
+  format: string
+  players: DivergenceItem[]
+  total: number
+}
+
+/**
+ * The divergence API uses the DB's format vocabulary ('half_ppr'), while the
+ * projections/rankings UI uses 'half'. Map at this boundary so neither side
+ * has to change.
+ */
+export const toDivergenceFormat = (f: RankingsFormat): string =>
+  f === 'half' ? 'half_ppr' : f
+
+export const getDivergences = (params: {
+  season?: number
+  format?: RankingsFormat
+  position?: string
+  limit?: number
+  offset?: number
+}) => {
+  const qs = new URLSearchParams()
+  if (params.season) qs.set('season', String(params.season))
+  if (params.format) qs.set('format', toDivergenceFormat(params.format))
+  if (params.position) qs.set('position', params.position)
+  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.offset) qs.set('offset', String(params.offset))
+  const q = qs.toString()
+  return request<DivergenceListResponse>(`/divergences${q ? `?${q}` : ''}`)
+}

@@ -33,4 +33,6 @@ export const keys = {
   grades: (season: number, position: string) =>
     ['grades', season, position] as const,
   playerGrades: (gsisId: string) => ['player-grades', gsisId] as const,
+  divergences: (season: number, format: string, position: string) =>
+    ['divergences', season, format, position] as const,
 }

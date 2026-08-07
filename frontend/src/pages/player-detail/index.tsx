@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getNFLPlayer, NFLSeasonStats, ProjStats, ProjDetailResponse } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 import GradeCard from './components/GradeCard'
+import SituationalNotes from './components/SituationalNotes'
 import CompCard from '@/pages/projection-detail/components/CompCard'
 import TrajectoryChart from '@/pages/projection-detail/components/TrajectoryChart'
 import ConfidenceBadge from '@/pages/projections/components/ConfidenceBadge'
@@ -148,7 +149,7 @@ export default function PlayerDetail() {
     )
   }
 
-  const { player, seasons, projection, grades } = data
+  const { player, seasons, projection, grades, notes } = data
   const tags = seasons.length > 0 ? (seasons[0].tags ?? []) : []
   const cols = visibleCols(player.position_group, seasons)
 
@@ -221,6 +222,9 @@ export default function PlayerDetail() {
 
       {/* ── Player Grade ── */}
       <GradeCard grades={grades} positionGroup={player.position_group} />
+
+      {/* ── Situational context (renders nothing when there are no notes) ── */}
+      <SituationalNotes notes={notes ?? []} />
 
       {/* ── Year-over-year stats ── */}
       {seasons.length > 0 && (
@@ -324,15 +328,29 @@ export default function PlayerDetail() {
               const pts = scoringFormat === 'ppr' ? proj.fpts_ppr : scoringFormat === 'half' ? proj.fpts_half : proj.fpts
               const ptsPg = scoringFormat === 'ppr' ? proj.fpts_ppr_pg : scoringFormat === 'half' ? (proj.games > 0 ? proj.fpts_half / proj.games : 0) : proj.fpts_pg
               const formatLabel = scoringFormat === 'ppr' ? 'PPR' : scoringFormat === 'half' ? 'Half PPR' : 'Standard'
+              const hasRange = proj.fpts_ppr_p90 > proj.fpts_ppr_p10
               return (
-                <div className="flex items-baseline gap-4">
-                  <div className="rounded-lg bg-highlight-light border border-highlight-border px-4 py-3 text-center">
-                    <div className="text-xs text-muted-foreground">{formatLabel} Pts</div>
-                    <div className="text-2xl font-bold tabular-nums font-mono text-highlight-foreground mt-0.5">{pts.toFixed(1)}</div>
+                <div className="space-y-2">
+                  <div className="flex items-baseline gap-4">
+                    <div className="rounded-lg bg-highlight-light border border-highlight-border px-4 py-3 text-center">
+                      <div className="text-xs text-muted-foreground">{formatLabel} Pts</div>
+                      <div className="text-2xl font-bold tabular-nums font-mono text-highlight-foreground mt-0.5">{pts.toFixed(1)}</div>
+                    </div>
+                    <div className="text-sm text-muted-foreground tabular-nums font-mono">
+                      {ptsPg.toFixed(1)} <span className="text-xs">/G</span>
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground tabular-nums font-mono">
-                    {ptsPg.toFixed(1)} <span className="text-xs">/G</span>
-                  </div>
+                  {hasRange && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>Range (PPR):</span>
+                      <span className="tabular-nums font-mono">
+                        <span title="10th percentile of comp outcomes (floor)">{proj.fpts_ppr_p10.toFixed(0)}</span>
+                        {' – '}
+                        <span title="90th percentile of comp outcomes (ceiling)">{proj.fpts_ppr_p90.toFixed(0)}</span>
+                      </span>
+                      <span className="text-[10px]">floor / ceiling from comp outcomes</span>
+                    </div>
+                  )}
                 </div>
               )
             })()}

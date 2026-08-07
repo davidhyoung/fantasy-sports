@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useProjections } from './hooks/useProjections'
+import { useDivergences } from '../divergences/hooks/useDivergences'
 import ProjectionTable from './components/ProjectionTable'
 
 const POSITIONS = ['All', 'QB', 'RB', 'WR', 'TE', 'K']
@@ -20,6 +21,18 @@ export default function Projections() {
     position,
     sort: sortField,
   })
+
+  // Consensus context, shown alongside each projection where we have it.
+  // Coverage is partial (only players present in the imported consensus data),
+  // so the table renders a placeholder for the rest.
+  const { data: divergenceData } = useDivergences({ format, position })
+  const divergenceByGsisID = useMemo(() => {
+    const map = new Map<string, { consensusRank: number; delta: number }>()
+    for (const d of divergenceData?.players ?? []) {
+      map.set(d.gsis_id, { consensusRank: d.consensus_rank_median, delta: d.rank_delta })
+    }
+    return map
+  }, [divergenceData])
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
@@ -78,7 +91,11 @@ export default function Projections() {
             {data.total} player{data.total !== 1 ? 's' : ''} projected for {data.season}
             {position ? ` · ${position}s only` : ''}
           </p>
-          <ProjectionTable players={data.players} scoringFormat={format} />
+          <ProjectionTable
+            players={data.players}
+            scoringFormat={format}
+            divergences={divergenceByGsisID}
+          />
         </>
       ) : null}
     </div>

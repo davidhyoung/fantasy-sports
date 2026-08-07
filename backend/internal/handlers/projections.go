@@ -58,6 +58,12 @@ type projStats struct {
 	Fpts      float64 `json:"fpts"`
 	FptsPPR   float64 `json:"fpts_ppr"`
 	FptsHalf  float64 `json:"fpts_half"`
+	// Outcome distribution from the comp set (season-total PPR). P10≈floor,
+	// P90≈ceiling. Zero spread (p10 == p90) means too few comps to estimate.
+	FptsPPRStdevPG float64 `json:"fpts_ppr_stdev_pg"`
+	FptsPPRP10     float64 `json:"fpts_ppr_p10"`
+	FptsPPRP50     float64 `json:"fpts_ppr_p50"`
+	FptsPPRP90     float64 `json:"fpts_ppr_p90"`
 }
 
 type projPlayerListItem struct {
@@ -309,6 +315,10 @@ func (h *Handler) GetProjectionDetail(w http.ResponseWriter, r *http.Request) {
 		ProjFpts        float64
 		ProjFptsPPR     float64
 		ProjFptsHalf    float64
+		ProjStdevPG     float64
+		ProjP10         float64
+		ProjP50         float64
+		ProjP90         float64
 		Confidence      float64
 		ConfSimilarity  float64
 		ConfCompCount   float64
@@ -330,6 +340,7 @@ func (h *Handler) GetProjectionDetail(w http.ResponseWriter, r *http.Request) {
 			proj_rec_pg, proj_rec_yds_pg, proj_rec_td_pg,
 			proj_fg_made_pg, proj_pat_made_pg,
 			proj_games, proj_fpts, proj_fpts_ppr, proj_fpts_half,
+			proj_fpts_ppr_stdev, proj_fpts_ppr_p10, proj_fpts_ppr_p50, proj_fpts_ppr_p90,
 			confidence, conf_similarity, conf_comp_count, conf_agreement,
 			conf_sample_depth, conf_data_quality,
 			comp_count, avg_similarity, uniqueness,
@@ -344,6 +355,7 @@ func (h *Handler) GetProjectionDetail(w http.ResponseWriter, r *http.Request) {
 		&pr.ProjRecPG, &pr.ProjRecYdsPG, &pr.ProjRecTdPG,
 		&pr.ProjFgMadePG, &pr.ProjPatMadePG,
 		&pr.ProjGames, &pr.ProjFpts, &pr.ProjFptsPPR, &pr.ProjFptsHalf,
+		&pr.ProjStdevPG, &pr.ProjP10, &pr.ProjP50, &pr.ProjP90,
 		&pr.Confidence, &pr.ConfSimilarity, &pr.ConfCompCount, &pr.ConfAgreement,
 		&pr.ConfSampleDepth, &pr.ConfDataQuality,
 		&pr.CompCount, &pr.AvgSimilarity, &pr.Uniqueness,
@@ -426,6 +438,10 @@ func (h *Handler) GetProjectionDetail(w http.ResponseWriter, r *http.Request) {
 			Fpts:      pr.ProjFpts,
 			FptsPPR:   pr.ProjFptsPPR,
 			FptsHalf:  pr.ProjFptsHalf,
+			FptsPPRStdevPG: pr.ProjStdevPG,
+			FptsPPRP10:     pr.ProjP10,
+			FptsPPRP50:     pr.ProjP50,
+			FptsPPRP90:     pr.ProjP90,
 		},
 		Confidence: projConfidence{
 			Overall:     pr.Confidence,

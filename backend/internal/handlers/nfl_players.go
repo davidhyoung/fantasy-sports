@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 
@@ -82,6 +83,10 @@ type nflPlayerDetailResp struct {
 	Seasons    []nflSeasonStats      `json:"seasons"`
 	Projection *projDetailResp       `json:"projection"` // nil if no projection exists
 	Grades     []nflPlayerGradeSeason `json:"grades"`
+	// Notes carries external situational context (injuries, depth-chart
+	// battles, scheme changes) that the stats-based projection can't see —
+	// both player-specific and team-wide. Empty when none exist.
+	Notes []situationalNote `json:"notes"`
 }
 
 // ── handler ─────────────────────────────────────────────────────────────────
@@ -257,6 +262,10 @@ func (h *Handler) GetNFLPlayer(w http.ResponseWriter, r *http.Request) {
 		ProjFpts        float64
 		ProjFptsPPR     float64
 		ProjFptsHalf    float64
+		ProjStdevPG     float64
+		ProjP10         float64
+		ProjP50         float64
+		ProjP90         float64
 		Confidence      float64
 		ConfSimilarity  float64
 		ConfCompCount   float64
@@ -277,6 +286,7 @@ func (h *Handler) GetNFLPlayer(w http.ResponseWriter, r *http.Request) {
 			proj_rec_pg, proj_rec_yds_pg, proj_rec_td_pg,
 			proj_fg_made_pg, proj_pat_made_pg,
 			proj_games, proj_fpts, proj_fpts_ppr, proj_fpts_half,
+			proj_fpts_ppr_stdev, proj_fpts_ppr_p10, proj_fpts_ppr_p50, proj_fpts_ppr_p90,
 			confidence, conf_similarity, conf_comp_count, conf_agreement,
 			conf_sample_depth, conf_data_quality,
 			comp_count, avg_similarity, uniqueness,
@@ -293,6 +303,7 @@ func (h *Handler) GetNFLPlayer(w http.ResponseWriter, r *http.Request) {
 		&projRow.ProjRecPG, &projRow.ProjRecYdsPG, &projRow.ProjRecTdPG,
 		&projRow.ProjFgMadePG, &projRow.ProjPatMadePG,
 		&projRow.ProjGames, &projRow.ProjFpts, &projRow.ProjFptsPPR, &projRow.ProjFptsHalf,
+		&projRow.ProjStdevPG, &projRow.ProjP10, &projRow.ProjP50, &projRow.ProjP90,
 		&projRow.Confidence, &projRow.ConfSimilarity, &projRow.ConfCompCount, &projRow.ConfAgreement,
 		&projRow.ConfSampleDepth, &projRow.ConfDataQuality,
 		&projRow.CompCount, &projRow.AvgSimilarity, &projRow.Uniqueness,
@@ -351,6 +362,10 @@ func (h *Handler) GetNFLPlayer(w http.ResponseWriter, r *http.Request) {
 				Fpts:      projRow.ProjFpts,
 				FptsPPR:   projRow.ProjFptsPPR,
 				FptsHalf:  projRow.ProjFptsHalf,
+				FptsPPRStdevPG: projRow.ProjStdevPG,
+				FptsPPRP10:     projRow.ProjP10,
+				FptsPPRP50:     projRow.ProjP50,
+				FptsPPRP90:     projRow.ProjP90,
 			},
 			Confidence: projConfidence{
 				Overall:     projRow.Confidence,
@@ -393,11 +408,22 @@ func (h *Handler) GetNFLPlayer(w http.ResponseWriter, r *http.Request) {
 		grades = []nflPlayerGradeSeason{}
 	}
 
+	// Situational notes for the projection season — the player's own plus any
+	// team-wide context. Non-fatal: notes are supplementary, so a failure here
+	// shouldn't take down the whole player page.
+	notes := []situationalNote{}
+	if noteMap, err := h.loadNotesForPlayers(ctx, h.config.DefaultSeason, []string{gsisID}); err != nil {
+		log.Printf("[nfl_players] could not load situational notes for %s: %v", gsisID, err)
+	} else if n, ok := noteMap[gsisID]; ok {
+		notes = n
+	}
+
 	json.NewEncoder(w).Encode(nflPlayerDetailResp{
 		Player:     meta,
 		Seasons:    seasons,
 		Projection: proj,
 		Grades:     grades,
+		Notes:      notes,
 	})
 }
 

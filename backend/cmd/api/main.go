@@ -126,6 +126,9 @@ func main() {
 	// Public — projection-based rankings with scoring-format toggle (no Yahoo, no auth)
 	r.Get("/api/rankings", h.ListPublicRankings)
 
+	// Public — projection vs external-consensus divergences (no Yahoo, no auth)
+	r.Get("/api/divergences", h.ListDivergences)
+
 	// Public — pre-computed player grades (real-life value)
 	r.Route("/api/grades", func(r chi.Router) {
 		r.Get("/", h.ListGrades)

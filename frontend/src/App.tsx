@@ -10,6 +10,7 @@ import TeamDetail from './pages/team-detail'
 import MatchupDetail from './pages/matchup-detail'
 import PlayerDetail from './pages/player-detail'
 import Projections from './pages/projections'
+import Divergences from './pages/divergences'
 import Rankings from './pages/rankings'
 import { getMe } from './api/client'
 import { keys } from './api/queryKeys'
@@ -48,6 +49,7 @@ export default function App() {
           { to: '/leagues', label: 'Leagues' },
           { to: '/rankings', label: 'Rankings' },
           { to: '/projections', label: 'Projections' },
+          { to: '/divergences', label: 'Divergences' },
         ].map(({ to, label }) => (
           <RouterLink
             key={to}
@@ -96,6 +98,7 @@ export default function App() {
           <Route path="/leagues/:leagueId/matchup/:week/:t1/:t2" element={<MatchupDetail />} />
           <Route path="/rankings" element={<Rankings />} />
           <Route path="/projections" element={<Projections />} />
+          <Route path="/divergences" element={<Divergences />} />
           <Route path="/players/:gsisId" element={<PlayerDetail />} />
           {/* Legacy redirect — old /projections/:gsisId links now go to /players/:gsisId */}
           <Route path="/projections/:gsisId" element={<ProjectionRedirect />} />
