@@ -31,6 +31,14 @@ func generateState() string {
 
 // Login starts the OAuth 2.0 flow by redirecting the user to Yahoo's login page.
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
+	// In mock mode there is no Yahoo to redirect to. Sending the user to the
+	// dev login here means the existing UI login button works unchanged, with
+	// no frontend branching on a backend flag.
+	if h.config.MockYahoo {
+		http.Redirect(w, r, "/auth/mock-login", http.StatusTemporaryRedirect)
+		return
+	}
+
 	state := generateState()
 
 	session, err := h.sessions.Get(r, sessionName)
@@ -166,6 +174,50 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	// Redirect to the frontend root. Because we're running dev through Vite's
 	// proxy, "/" resolves back to the React app on :5173.
+	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+}
+
+// MockLogin creates a session for a fixed local development user without any
+// Yahoo round-trip.
+//
+// This is a development affordance and a deliberate authentication bypass: it
+// hands out a valid session to anyone who can reach the route. Two guards keep
+// that safe — cmd/api/main.go only registers it when MockYahoo is set, and the
+// handler re-checks the flag below. Both must hold; neither alone is sufficient
+// if the other is later refactored away.
+//
+// GET /auth/mock-login
+func (h *Handler) MockLogin(w http.ResponseWriter, r *http.Request) {
+	if !h.config.MockYahoo {
+		http.NotFound(w, r)
+		return
+	}
+
+	var user models.User
+	err := h.db.QueryRow(r.Context(), `
+		INSERT INTO users (yahoo_guid, display_name, email, access_token, refresh_token, token_expiry)
+		VALUES ('mock-user-0001', 'Mock User', 'mock@example.invalid', 'mock', 'mock', NOW() + INTERVAL '10 years')
+		ON CONFLICT (yahoo_guid) DO UPDATE SET display_name = EXCLUDED.display_name
+		RETURNING id, yahoo_guid, display_name, email, created_at
+	`).Scan(&user.ID, &user.YahooGUID, &user.DisplayName, &user.Email, &user.CreatedAt)
+	if err != nil {
+		log.Printf("[auth/mock-login] failed to upsert mock user: %v", err)
+		http.Error(w, "failed to create mock user", http.StatusInternalServerError)
+		return
+	}
+
+	session, err := h.sessions.Get(r, sessionName)
+	if err != nil {
+		http.Error(w, "session error", http.StatusInternalServerError)
+		return
+	}
+	session.Values["user_id"] = user.ID
+	if err := session.Save(r, w); err != nil {
+		http.Error(w, "failed to save session", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("[auth/mock-login] signed in mock user id=%d", user.ID)
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
 

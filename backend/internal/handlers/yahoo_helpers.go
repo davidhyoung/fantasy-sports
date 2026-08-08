@@ -38,6 +38,12 @@ func (h *Handler) userTokens(r *http.Request, userID int64) (string, string, tim
 
 // newYahooClient loads the user's tokens from the DB and creates an authenticated Yahoo client.
 func (h *Handler) newYahooClient(r *http.Request, user *models.User) (*yahoo.Client, error) {
+	// Mock mode short-circuits before touching tokens, so a dev session with no
+	// valid Yahoo credentials still works.
+	if h.config.MockYahoo {
+		return yahoo.NewMockClient(), nil
+	}
+
 	accessToken, refreshToken, expiry, err := h.userTokens(r, user.ID)
 	if err != nil {
 		log.Printf("[yahoo] failed to load tokens for user %d: %v", user.ID, err)

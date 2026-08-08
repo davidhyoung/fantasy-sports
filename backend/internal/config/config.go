@@ -12,6 +12,12 @@ type Config struct {
 	MaxKeepersPerTeam int // default 3
 	DefaultSeason     int // default 2026
 	DefaultBudget     int // default 200
+
+	// MockYahoo (YAHOO_MOCK=1) serves synthetic Yahoo Fantasy data instead of
+	// calling the real API, and enables a password-less dev login. Development
+	// only — it makes every league route reachable without authenticating
+	// against Yahoo, so it must never be set in a deployed environment.
+	MockYahoo bool
 }
 
 // Load reads configuration from environment variables, falling back to defaults.
@@ -21,6 +27,7 @@ func Load() Config {
 		MaxKeepersPerTeam: envInt("MAX_KEEPERS", 3),
 		DefaultSeason:     envInt("DEFAULT_SEASON", 2026),
 		DefaultBudget:     envInt("DEFAULT_BUDGET", 200),
+		MockYahoo:         envInt("YAHOO_MOCK", 0) == 1,
 	}
 }
 

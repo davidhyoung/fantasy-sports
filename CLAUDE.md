@@ -167,10 +167,14 @@ Copy `.env.example` → `.env`. Required:
 - `YAHOO_CLIENT_ID`, `YAHOO_CLIENT_SECRET`, `YAHOO_REDIRECT_URL`
 - `SESSION_SECRET` — random 32+ char string
 
+Optional (development only):
+- `YAHOO_MOCK=1` — serve synthetic Yahoo data instead of calling the real API, and expose `/auth/mock-login` (a session with no authentication). See the Mock Yahoo mode pattern below. **Never set in a deployed environment.**
+
 ## Key Patterns
 
 - **Handler pattern:** all handlers are methods on `*Handler`; use `r.Context().Value(models.UserContextKey)` for current user in protected routes
 - **Yahoo client:** instantiate per-request via `yahoo.NewClient(ctx, db, oauthConfig, userID, accessToken, refreshToken, expiry)`; tokens auto-refresh and persist to DB
+- **Mock Yahoo mode (`YAHOO_MOCK=1`, dev only):** Yahoo's API has rejected this app since ~March 2026 (`403 This application is not authorized` — an app-registration problem outside this repo), which blocks every league route *and* login itself, since `Callback` resolves the user GUID via the Fantasy API. Mock mode swaps the `http.RoundTripper` inside `yahoo.NewMockClient()` (`internal/yahoo/mock.go`) rather than stubbing the 18 client methods — one interception point covers every endpoint, and the real `decode()` path still runs, so the fixtures are continuously validated against the production XML types. Fixtures are Go structs marshalled with `xml.Marshal` (`internal/yahoo/mockdata.go`), never hand-written XML, so they can't drift from `types.go`. The league is a deterministic fixed-seed 12-team snake draft over a committed static player pool (`internal/yahoo/mockplayers.go`, generated from the top ~200 by 2026 projected PPR) — package `yahoo` deliberately has no DB dependency, so mock mode works against an empty database. `/auth/mock-login` is registered **only** when the flag is set (not merely guarded inside the handler) and re-checks the flag; `/auth/login` redirects to it so the existing UI button works with no frontend change. The mock league seeds itself into `leagues`/`teams` through the normal `POST /api/sync` path — no migration, no fixture rows in schema. Mock leagues are identifiable by their `mock.l.` key prefix.
 - **Stat type:** GetTeamRoster passes statType directly to Yahoo's semicolon-path syntax (`type=week`, `type=lastweek`, `type=date;date=YYYY-MM-DD`, etc.)
 - **Concurrent fetching:** use buffered channels to fan-out Yahoo API calls in GetTeamRoster, GetLeagueDraftResults, GetLeagueRankings
 - **Dynamic stat columns:** frontend derives column headers from `roster[].stats[].label` — no hardcoded stat IDs

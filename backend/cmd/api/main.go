@@ -45,6 +45,11 @@ func main() {
 	store := sessions.NewCookieStore([]byte(sessionSecret))
 	// --- App config ---
 	cfg := config.Load()
+	if cfg.MockYahoo {
+		log.Println("*** YAHOO_MOCK=1 — serving synthetic Yahoo data and exposing " +
+			"/auth/mock-login, which grants a session with no authentication. " +
+			"Development only; never enable this in a deployed environment. ***")
+	}
 
 	store.Options = &sessions.Options{
 		Path:     "/",
@@ -73,6 +78,12 @@ func main() {
 	r.Get("/auth/login", h.Login)
 	r.Get("/auth/callback", h.Callback)
 	r.Get("/auth/logout", h.Logout)
+
+	// Registered only in mock mode — the route must not exist at all in a
+	// normal build, since it issues a session without authenticating anyone.
+	if cfg.MockYahoo {
+		r.Get("/auth/mock-login", h.MockLogin)
+	}
 
 	// Public API routes
 	r.Get("/api/health", h.Health)
