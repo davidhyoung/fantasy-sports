@@ -1,18 +1,20 @@
 import { useMemo } from 'react'
-import type { DraftPlayer, DraftPrepEntry, DraftPrepTag } from '@/api/client'
+import type { DraftPlayer, DraftPrepEntry, InterestLevel } from '@/api/client'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
 import { SortableHead, useTableSort, PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
 import { gradeColorClass } from '@/lib/grades'
 import ConfidenceBadge from '@/pages/projections/components/ConfidenceBadge'
 import UniquenessBadge from '@/pages/projections/components/UniquenessBadge'
 import { TrendSparkline } from '@/pages/league-detail/components/TrendSparkline'
+import { INTEREST_LEVELS, SCALE_ORDER, interestClass } from '../lib/interest'
 
 const STRING_COLS = ['name', 'pos']
 
 /** Prep controls turn the read-only board into your editable one. */
 export interface PrepControls {
   entry: (gsisId: string) => DraftPrepEntry
-  toggleTag: (gsisId: string, tag: Exclude<DraftPrepTag, ''>) => void
+  /** Re-picking the current level clears it. */
+  setInterest: (gsisId: string, level: InterestLevel) => void
   /** Sets the price you plan to pay; null takes the player out of the plan. */
   setPlannedCost: (gsisId: string, cost: number | null) => void
   /**
@@ -47,14 +49,6 @@ function DeltaBadge({ gradeRank, fantasyRank }: { gradeRank: number; fantasyRank
   }
   return <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-negative-light text-negative-foreground">OV</span>
 }
-
-/** Ordered by level of interest: must > target > sleeper, then the one negative. */
-const TAGS: { value: Exclude<DraftPrepTag, ''>; short: string; title: string; on: string }[] = [
-  { value: 'must',    short: 'M', title: 'Must draft', on: 'bg-primary text-primary-foreground font-bold' },
-  { value: 'target',  short: 'T', title: 'Target',     on: 'bg-primary/70 text-primary-foreground' },
-  { value: 'sleeper', short: 'S', title: 'Sleeper',    on: 'bg-positive text-background' },
-  { value: 'avoid',   short: 'A', title: 'Avoid',      on: 'bg-secondary text-background' },
-]
 
 /**
  * Board order: your ranked players first in your order, then everyone else in
@@ -101,6 +95,11 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
           aVal = edgeOf(a) ?? (sortDir === 'asc' ? Infinity : -Infinity)
           bVal = edgeOf(b) ?? (sortDir === 'asc' ? Infinity : -Infinity)
           break
+        // Unrated players sit between like and dislike, where "no opinion" belongs.
+        case 'interest':
+          aVal = prep?.entry(a.gsis_id).interest ?? 0
+          bVal = prep?.entry(b.gsis_id).interest ?? 0
+          break
         default:          aVal = a.overall_rank; bVal = b.overall_rank; break
       }
 
@@ -138,7 +137,11 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
             )}
             <SortableHead col="rank" current={sortCol} dir={sortDir} onSort={handleSort} className="w-10 text-center">#</SortableHead>
             <SortableHead col="name" current={sortCol} dir={sortDir} onSort={handleSort}>Player</SortableHead>
-            {prep && <TableHead className="text-center">Tag</TableHead>}
+            {prep && (
+              <SortableHead col="interest" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">
+                Interest
+              </SortableHead>
+            )}
             {prep && <TableHead className="text-center">Plan</TableHead>}
             <TableHead>Trend</TableHead>
             <SortableHead col="pos" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Pos</SortableHead>
@@ -198,22 +201,29 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                 <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} linked />
                 {prep && (
                   <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-center gap-0.5">
-                      {TAGS.map((t) => (
-                        <button
-                          key={t.value}
-                          onClick={() => prep.toggleTag(p.gsis_id, t.value)}
-                          title={t.title}
-                          aria-pressed={mine?.tag === t.value}
-                          className={`h-5 w-5 rounded font-display text-[10px] font-semibold ${
-                            mine?.tag === t.value
-                              ? t.on
-                              : 'bg-muted text-muted-foreground hover:text-foreground'
-                          }`}
-                        >
-                          {t.short}
-                        </button>
-                      ))}
+                    {/* A number line: most negative to most positive, left to right. */}
+                    <div className="flex items-center justify-center gap-px">
+                      {SCALE_ORDER.map((level, idx) => {
+                        const meta = INTEREST_LEVELS.find((l) => l.level === level)!
+                        const on = mine?.interest === level
+                        return (
+                          <button
+                            key={level}
+                            onClick={() => prep.setInterest(p.gsis_id, level)}
+                            title={`${meta.label} (${meta.short})`}
+                            aria-label={`${meta.label} — ${p.name}`}
+                            aria-pressed={on}
+                            className={`h-5 w-[18px] font-display text-[10px] font-semibold ${
+                              idx === 0 ? 'rounded-l' : ''
+                            } ${idx === SCALE_ORDER.length - 1 ? 'rounded-r' : ''} ${
+                              // Gap between the negative and positive halves.
+                              level === 1 ? 'ml-1 rounded-l' : ''
+                            } ${level === -1 ? 'rounded-r' : ''} ${interestClass(level, on)}`}
+                          >
+                            {Math.abs(level)}
+                          </button>
+                        )
+                      })}
                     </div>
                   </TableCell>
                 )}

@@ -596,12 +596,15 @@ export const getDraftValues = (leagueId: number, params: DraftValuesParams) => {
 
 // --- Draft Prep (personal board: tags + custom ranking) ---
 
-/** Level of interest: must > target > sleeper, plus avoid. '' = untagged. */
-export type DraftPrepTag = 'must' | 'target' | 'sleeper' | 'avoid' | ''
+/**
+ * Signed interest scale: +3 must draft, +2 love, +1 like,
+ * -1 dislike, -2 hate, -3 do not draft. null = no opinion (0 is not a value).
+ */
+export type InterestLevel = -3 | -2 | -1 | 1 | 2 | 3
 
 export interface DraftPrepEntry {
   gsis_id: string
-  tag: DraftPrepTag
+  interest: InterestLevel | null
   custom_rank: number | null
   note: string
   /** What you plan to pay. null = not in the team plan ($0 is a real bid). */
@@ -620,7 +623,7 @@ export const setDraftPrepPlayer = (
   leagueId: number,
   season: number,
   gsisId: string,
-  body: { tag: DraftPrepTag; custom_rank: number | null; note: string; planned_cost: number | null },
+  body: { interest: InterestLevel | null; custom_rank: number | null; note: string; planned_cost: number | null },
 ) =>
   request<DraftPrepEntry>(`/leagues/${leagueId}/draft-prep/${gsisId}?season=${season}`, {
     method: 'PUT',

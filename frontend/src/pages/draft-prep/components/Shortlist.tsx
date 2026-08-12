@@ -1,13 +1,17 @@
 import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
-import type { DraftPlayer, DraftPrepTag } from '@/api/client'
+import type { DraftPlayer } from '@/api/client'
 import type { useDraftPrep } from '../hooks/useDraftPrep'
+import { INTEREST_LEVELS, interestTextClass } from '../lib/interest'
 
-const GROUPS: { tag: Exclude<DraftPrepTag, ''>; label: string; accent: string }[] = [
-  { tag: 'must', label: 'Must draft', accent: 'text-primary' },
-  { tag: 'target', label: 'Targets', accent: 'text-primary/80' },
-  { tag: 'sleeper', label: 'Sleepers', accent: 'text-positive' },
-  { tag: 'avoid', label: 'Avoid', accent: 'text-secondary' },
+/**
+ * Two columns rather than one per level: six headings for six levels would be
+ * mostly empty, and the level is more useful attached to the player than as a
+ * heading he sits under.
+ */
+const GROUPS: { key: 'up' | 'down'; label: string; accent: string; want: (n: number) => boolean }[] = [
+  { key: 'up', label: 'Targets', accent: 'text-primary', want: (n) => n > 0 },
+  { key: 'down', label: 'Fades', accent: 'text-secondary', want: (n) => n < 0 },
 ]
 
 /** Note field that only writes on blur/Enter, so typing isn't a request per keystroke. */
@@ -56,25 +60,27 @@ interface Props {
  * the part you actually read on draft night, so it sits above the full board.
  */
 export function Shortlist({ players, prep }: Props) {
-  const tagged = players.filter((p) => prep.entry(p.gsis_id).tag)
+  const tagged = players.filter((p) => prep.entry(p.gsis_id).interest != null)
   if (!tagged.length) {
     return (
       <p className="rounded-lg bg-card px-4 py-3 text-xs text-muted-foreground">
-        Tag players on the board below — <span className="font-display font-semibold">M</span> must
-        draft, <span className="font-display font-semibold">T</span> target,{' '}
-        <span className="font-display font-semibold">S</span> sleeper,{' '}
-        <span className="font-display font-semibold">A</span> avoid — and they'll collect here with
-        room for a note.
+        Rate players on the board below — <span className="font-mono">+3</span> must draft down to{' '}
+        <span className="font-mono">−3</span> do not draft — and they'll collect here with room for
+        a note.
       </p>
     )
   }
 
   return (
-    <div className="grid gap-4 rounded-lg bg-card px-4 py-3 sm:grid-cols-2 lg:grid-cols-4">
-      {GROUPS.map(({ tag, label, accent }) => {
-        const group = tagged.filter((p) => prep.entry(p.gsis_id).tag === tag)
+    <div className="grid gap-4 rounded-lg bg-card px-4 py-3 sm:grid-cols-2">
+      {GROUPS.map(({ key, label, accent, want }) => {
+        // Strongest feeling first, so the top of each column is what matters most.
+        const group = tagged
+          .filter((p) => want(prep.entry(p.gsis_id).interest ?? 0))
+          .sort((a, b) =>
+            Math.abs(prep.entry(b.gsis_id).interest ?? 0) - Math.abs(prep.entry(a.gsis_id).interest ?? 0))
         return (
-          <div key={tag}>
+          <div key={key}>
             <h3 className={`font-display text-[11px] font-semibold uppercase tracking-wide ${accent}`}>
               {label} <span className="font-mono text-muted-foreground">{group.length}</span>
             </h3>
@@ -85,12 +91,20 @@ export function Shortlist({ players, prep }: Props) {
                 {group.map((p) => (
                   <li key={p.gsis_id} className="border-b border-border pb-1.5 last:border-0">
                     <div className="flex items-baseline justify-between gap-2">
-                      <RouterLink
-                        to={`/players/${p.gsis_id}`}
-                        className="font-display text-[13px] font-semibold text-foreground hover:underline"
-                      >
-                        {p.name}
-                      </RouterLink>
+                      <span className="flex items-baseline gap-1.5">
+                        <span
+                          className={`font-mono text-[11px] tabular-nums ${interestTextClass(prep.entry(p.gsis_id).interest!)}`}
+                          title={INTEREST_LEVELS.find((l) => l.level === prep.entry(p.gsis_id).interest)?.label}
+                        >
+                          {INTEREST_LEVELS.find((l) => l.level === prep.entry(p.gsis_id).interest)?.short}
+                        </span>
+                        <RouterLink
+                          to={`/players/${p.gsis_id}`}
+                          className="font-display text-[13px] font-semibold text-foreground hover:underline"
+                        >
+                          {p.name}
+                        </RouterLink>
+                      </span>
                       <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
                         {p.position_group} · ${p.auction_value}
                       </span>
