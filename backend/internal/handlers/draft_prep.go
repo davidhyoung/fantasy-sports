@@ -13,10 +13,14 @@ import (
 // draftPrepEntry is one player on your personal draft board. Only players you've
 // actually marked have a row; everyone else is implicitly untagged and unranked.
 type draftPrepEntry struct {
-	GsisID     string `json:"gsis_id"`
-	Tag        string `json:"tag"`         // "target" | "sleeper" | "avoid" | ""
+	GsisID string `json:"gsis_id"`
+	// Level of interest: "must" > "target" > "sleeper", plus "avoid"; "" = untagged.
+	Tag        string `json:"tag"`
 	CustomRank *int   `json:"custom_rank"` // nil = unranked
 	Note       string `json:"note"`
+	// PlannedCost is what you intend to pay. nil = not in the team plan at all,
+	// which is why it is not defaulted to 0 — $0 is a meaningful bid.
+	PlannedCost *int `json:"planned_cost"`
 }
 
 type draftPrepResp struct {
@@ -26,7 +30,7 @@ type draftPrepResp struct {
 
 // validTags are the only tags accepted; anything else is rejected rather than
 // silently stored, since the column carries a matching CHECK constraint.
-var validTags = map[string]bool{"": true, "target": true, "sleeper": true, "avoid": true}
+var validTags = map[string]bool{"": true, "must": true, "target": true, "sleeper": true, "avoid": true}
 
 // prepSeason resolves the ?season= parameter, defaulting to the configured season.
 func (h *Handler) prepSeason(r *http.Request) int {
@@ -54,7 +58,7 @@ func (h *Handler) GetDraftPrep(w http.ResponseWriter, r *http.Request) {
 	season := h.prepSeason(r)
 
 	rows, err := h.db.Query(r.Context(), `
-		SELECT gsis_id, COALESCE(tag, ''), custom_rank, note
+		SELECT gsis_id, COALESCE(tag, ''), custom_rank, note, planned_cost
 		FROM draft_prep_players
 		WHERE user_id = $1 AND league_id = $2 AND season = $3
 		ORDER BY custom_rank NULLS LAST, gsis_id
@@ -68,7 +72,7 @@ func (h *Handler) GetDraftPrep(w http.ResponseWriter, r *http.Request) {
 	players := []draftPrepEntry{}
 	for rows.Next() {
 		var e draftPrepEntry
-		if err := rows.Scan(&e.GsisID, &e.Tag, &e.CustomRank, &e.Note); err != nil {
+		if err := rows.Scan(&e.GsisID, &e.Tag, &e.CustomRank, &e.Note, &e.PlannedCost); err != nil {
 			respondError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -104,16 +108,21 @@ func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) 
 	season := h.prepSeason(r)
 
 	var body struct {
-		Tag        string `json:"tag"`
-		CustomRank *int   `json:"custom_rank"`
-		Note       string `json:"note"`
+		Tag         string `json:"tag"`
+		CustomRank  *int   `json:"custom_rank"`
+		Note        string `json:"note"`
+		PlannedCost *int   `json:"planned_cost"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
 	if !validTags[body.Tag] {
-		respondError(w, http.StatusBadRequest, "tag must be target, sleeper or avoid")
+		respondError(w, http.StatusBadRequest, "tag must be must, target, sleeper or avoid")
+		return
+	}
+	if body.PlannedCost != nil && (*body.PlannedCost < 0 || *body.PlannedCost > 10000) {
+		respondError(w, http.StatusBadRequest, "planned_cost out of range")
 		return
 	}
 	if body.CustomRank != nil && (*body.CustomRank < 1 || *body.CustomRank > 10000) {
@@ -124,7 +133,7 @@ func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) 
 		body.Note = body.Note[:500]
 	}
 
-	if body.Tag == "" && body.CustomRank == nil && body.Note == "" {
+	if body.Tag == "" && body.CustomRank == nil && body.Note == "" && body.PlannedCost == nil {
 		if _, err := h.db.Exec(r.Context(), `
 			DELETE FROM draft_prep_players
 			WHERE user_id = $1 AND league_id = $2 AND season = $3 AND gsis_id = $4
@@ -141,21 +150,22 @@ func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) 
 		tag = body.Tag
 	}
 	if _, err := h.db.Exec(r.Context(), `
-		INSERT INTO draft_prep_players (user_id, league_id, season, gsis_id, tag, custom_rank, note, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+		INSERT INTO draft_prep_players (user_id, league_id, season, gsis_id, tag, custom_rank, note, planned_cost, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
 		ON CONFLICT (user_id, league_id, season, gsis_id) DO UPDATE
 		SET tag = EXCLUDED.tag, custom_rank = EXCLUDED.custom_rank,
-		    note = EXCLUDED.note, updated_at = NOW()
-	`, user.ID, leagueID, season, gsisID, tag, body.CustomRank, body.Note); err != nil {
+		    note = EXCLUDED.note, planned_cost = EXCLUDED.planned_cost, updated_at = NOW()
+	`, user.ID, leagueID, season, gsisID, tag, body.CustomRank, body.Note, body.PlannedCost); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	respondJSON(w, http.StatusOK, draftPrepEntry{
-		GsisID:     gsisID,
-		Tag:        body.Tag,
-		CustomRank: body.CustomRank,
-		Note:       body.Note,
+		GsisID:      gsisID,
+		Tag:         body.Tag,
+		CustomRank:  body.CustomRank,
+		Note:        body.Note,
+		PlannedCost: body.PlannedCost,
 	})
 }
 

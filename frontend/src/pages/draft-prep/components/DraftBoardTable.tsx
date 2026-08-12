@@ -13,6 +13,8 @@ const STRING_COLS = ['name', 'pos']
 export interface PrepControls {
   entry: (gsisId: string) => DraftPrepEntry
   toggleTag: (gsisId: string, tag: Exclude<DraftPrepTag, ''>) => void
+  /** Sets the price you plan to pay; null takes the player out of the plan. */
+  setPlannedCost: (gsisId: string, cost: number | null) => void
   /**
    * Moves a player next to the row above/below it. The neighbour is passed
    * explicitly rather than a direction alone: with a position filter on, the
@@ -46,10 +48,12 @@ function DeltaBadge({ gradeRank, fantasyRank }: { gradeRank: number; fantasyRank
   return <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-negative-light text-negative-foreground">OV</span>
 }
 
+/** Ordered by level of interest: must > target > sleeper, then the one negative. */
 const TAGS: { value: Exclude<DraftPrepTag, ''>; short: string; title: string; on: string }[] = [
-  { value: 'target',  short: 'T', title: 'Target',  on: 'bg-primary text-primary-foreground' },
-  { value: 'sleeper', short: 'S', title: 'Sleeper', on: 'bg-positive text-background' },
-  { value: 'avoid',   short: 'A', title: 'Avoid',   on: 'bg-secondary text-background' },
+  { value: 'must',    short: 'M', title: 'Must draft', on: 'bg-primary text-primary-foreground font-bold' },
+  { value: 'target',  short: 'T', title: 'Target',     on: 'bg-primary/70 text-primary-foreground' },
+  { value: 'sleeper', short: 'S', title: 'Sleeper',    on: 'bg-positive text-background' },
+  { value: 'avoid',   short: 'A', title: 'Avoid',      on: 'bg-secondary text-background' },
 ]
 
 /**
@@ -135,6 +139,7 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
             <SortableHead col="rank" current={sortCol} dir={sortDir} onSort={handleSort} className="w-10 text-center">#</SortableHead>
             <SortableHead col="name" current={sortCol} dir={sortDir} onSort={handleSort}>Player</SortableHead>
             {prep && <TableHead className="text-center">Tag</TableHead>}
+            {prep && <TableHead className="text-center">Plan</TableHead>}
             <TableHead>Trend</TableHead>
             <SortableHead col="pos" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Pos</SortableHead>
             <SortableHead col="age" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Age</SortableHead>
@@ -210,6 +215,32 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                         </button>
                       ))}
                     </div>
+                  </TableCell>
+                )}
+                {prep && (
+                  <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                    {mine?.planned_cost == null ? (
+                      <button
+                        onClick={() => prep.setPlannedCost(p.gsis_id, p.auction_value)}
+                        title={`Add to your team at $${p.auction_value}`}
+                        className="h-5 w-5 rounded bg-muted font-display text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+                      >
+                        +
+                      </button>
+                    ) : (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="font-mono text-xs tabular-nums text-primary">
+                          ${mine.planned_cost}
+                        </span>
+                        <button
+                          onClick={() => prep.setPlannedCost(p.gsis_id, null)}
+                          title="Remove from your team"
+                          className="font-mono text-[10px] text-muted-foreground hover:text-foreground"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    )}
                   </TableCell>
                 )}
                 <TableCell>

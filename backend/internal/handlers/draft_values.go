@@ -28,33 +28,33 @@ type replacementLevel struct {
 }
 
 type draftPlayer struct {
-	GsisID         string            `json:"gsis_id"`
-	Name           string            `json:"name"`
-	Position       string            `json:"position"`
-	PositionGroup  string            `json:"position_group"`
-	Team           string            `json:"team"`
-	HeadshotURL    string            `json:"headshot_url"`
-	Age            int               `json:"age"`
-	ProjFpts       float64           `json:"proj_fpts"`
-	ProjFptsPPR    float64           `json:"proj_fpts_ppr"`
-	ProjFptsHalf   float64           `json:"proj_fpts_half"`
-	ProjFptsPPRPG  float64           `json:"proj_fpts_ppr_pg"`
-	ProjLeagueFpts float64           `json:"proj_league_fpts"`
-	Confidence     float64           `json:"confidence"`
-	CompCount      int               `json:"comp_count"`
-	Uniqueness     string            `json:"uniqueness"`
-	VOR            float64           `json:"vor"`
-	AuctionValue   int               `json:"auction_value"`
-	OverallRank    int               `json:"overall_rank"`
-	PositionRank   int               `json:"position_rank"`
+	GsisID         string  `json:"gsis_id"`
+	Name           string  `json:"name"`
+	Position       string  `json:"position"`
+	PositionGroup  string  `json:"position_group"`
+	Team           string  `json:"team"`
+	HeadshotURL    string  `json:"headshot_url"`
+	Age            int     `json:"age"`
+	ProjFpts       float64 `json:"proj_fpts"`
+	ProjFptsPPR    float64 `json:"proj_fpts_ppr"`
+	ProjFptsHalf   float64 `json:"proj_fpts_half"`
+	ProjFptsPPRPG  float64 `json:"proj_fpts_ppr_pg"`
+	ProjLeagueFpts float64 `json:"proj_league_fpts"`
+	Confidence     float64 `json:"confidence"`
+	CompCount      int     `json:"comp_count"`
+	Uniqueness     string  `json:"uniqueness"`
+	VOR            float64 `json:"vor"`
+	AuctionValue   int     `json:"auction_value"`
+	OverallRank    int     `json:"overall_rank"`
+	PositionRank   int     `json:"position_rank"`
 	// Consensus columns are nil where no external source covers the player —
 	// coverage runs to roughly the top 100 picks, not the whole pool.
-	ConsensusAuctionValue *int     `json:"consensus_auction_value"`
-	ConsensusPositionRank *float64 `json:"consensus_position_rank"`
-	ConsensusSources      int      `json:"consensus_sources"`
-	ConsensusDerived      bool     `json:"consensus_derived"`
-	Trajectory     []trajectoryPoint `json:"trajectory,omitempty"`
-	PlayerGrade    *float64          `json:"player_grade"`
+	ConsensusAuctionValue *int              `json:"consensus_auction_value"`
+	ConsensusPositionRank *float64          `json:"consensus_position_rank"`
+	ConsensusSources      int               `json:"consensus_sources"`
+	ConsensusDerived      bool              `json:"consensus_derived"`
+	Trajectory            []trajectoryPoint `json:"trajectory,omitempty"`
+	PlayerGrade           *float64          `json:"player_grade"`
 }
 
 // draftSettings echoes the settings a board was computed with, in the same
@@ -90,6 +90,10 @@ var slotToYahoo = map[string]string{
 	"QB": "QB", "RB": "RB", "WR": "WR", "TE": "TE", "K": "K", "DEF": "DEF",
 	"FLEX":  "W/R/T",
 	"SFLEX": "Q/W/R/T",
+	// Bench starts nobody, so ComputeStarterSlots ignores it and it cannot affect
+	// replacement levels or prices. It is carried anyway because roster size is
+	// what tells the team builder how many $1 slots a budget still has to cover.
+	"BN": "BN",
 }
 
 // yahooToSlot maps a Yahoo roster position back to an editable slot name.
@@ -97,7 +101,9 @@ var slotToYahoo = map[string]string{
 // don't model exactly (e.g. "W/R") fold into FLEX, which is what the UI offers.
 func yahooToSlot(pos string) (string, bool) {
 	switch pos {
-	case "BN", "IR", "IL", "IL+", "NA":
+	case "BN":
+		return "BN", true
+	case "IR", "IL", "IL+", "NA":
 		return "", false
 	case "QB", "RB", "WR", "TE", "K":
 		return pos, true
@@ -153,7 +159,14 @@ func parseSlotOverride(raw string) (map[string]int, []ranking.RosterPosition, bo
 	}
 	// A parse that yielded no startable slot is treated as absent rather than as
 	// an empty roster, which would make every player worth his full point total.
-	return slots, positions, len(positions) > 0
+	// Bench alone doesn't count as startable, for the same reason.
+	startable := 0
+	for _, p := range positions {
+		if p.Position != "BN" {
+			startable++
+		}
+	}
+	return slots, positions, startable > 0
 }
 
 // GetDraftValues returns projected players with league-specific auction draft values.

@@ -3,12 +3,15 @@ import type { DraftValuesParams, DraftValuesResponse } from '@/api/client'
 
 export type ScoringFormat = 'league' | 'ppr' | 'half' | 'standard'
 
-export const SLOT_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SFLEX', 'K', 'DEF'] as const
+export const SLOT_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SFLEX', 'K', 'DEF', 'BN'] as const
 export type SlotPosition = (typeof SLOT_POSITIONS)[number]
 
 export const SLOT_LABELS: Record<SlotPosition, string> = {
   QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE',
   FLEX: 'FLEX', SFLEX: 'SUPERFLEX', K: 'K', DEF: 'DEF',
+  // Bench starts nobody and can't move a price; it's here because the team
+  // builder needs to know how many roster spots a budget has to cover.
+  BN: 'BENCH',
 }
 
 export interface DraftSettings {
@@ -23,7 +26,7 @@ export const FALLBACK_SETTINGS: DraftSettings = {
   numTeams: 12,
   budget: 200,
   scoringFormat: 'league',
-  slots: { QB: 1, RB: 2, WR: 3, TE: 1, FLEX: 1, SFLEX: 0, K: 1, DEF: 1 },
+  slots: { QB: 1, RB: 2, WR: 3, TE: 1, FLEX: 1, SFLEX: 0, K: 1, DEF: 1, BN: 6 },
 }
 
 const settingsKey = (leagueId: number) => `fs.draft.settings.v1.${leagueId}`

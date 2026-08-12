@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
-import { getDraftValues, listLeagues, type DraftPlayer } from '@/api/client'
+import { getDraftValues, listLeagues, type DraftPlayer, type DraftReplacementLevel } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 import { FilterChip, SelectControl } from '@/components/ui/filter-chip'
 import { PROJECTION_SEASON } from '@/lib/constants'
@@ -11,11 +12,13 @@ import {
 } from '@/pages/league-detail/hooks/useDraftSettings'
 import { DraftBoardTable, boardOrder } from './components/DraftBoardTable'
 import { Shortlist } from './components/Shortlist'
+import { TeamBuilder } from './components/TeamBuilder'
 import { useDraftPrep } from './hooks/useDraftPrep'
 
 const POSITIONS = ['All', 'QB', 'RB', 'WR', 'TE', 'K']
 const VIEWS = [
   { value: 'all', label: 'All players' },
+  { value: 'must', label: 'Must draft' },
   { value: 'target', label: 'Targets' },
   { value: 'sleeper', label: 'Sleepers' },
   { value: 'avoid', label: 'Avoid' },
@@ -23,7 +26,15 @@ const VIEWS = [
 ] as const
 type View = (typeof VIEWS)[number]['value']
 
+/** Board = the ranking surface; Team = what those prices add up to. */
+const SURFACES = [
+  { value: 'board', label: 'Board' },
+  { value: 'team', label: 'Team Builder' },
+] as const
+type Surface = (typeof SURFACES)[number]['value']
+
 const NO_PLAYERS: DraftPlayer[] = []
+const NO_LEVELS: DraftReplacementLevel[] = []
 const LEAGUE_KEY = 'fs.draft-prep.league'
 
 /**
@@ -69,6 +80,12 @@ export default function DraftPrep() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [view, setView] = useState<View>('all')
 
+  // The surface lives in the URL so a half-built team is a link you can return to.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const surface: Surface = searchParams.get('view') === 'team' ? 'team' : 'board'
+  const setSurface = (next: Surface) =>
+    setSearchParams((prev) => { prev.set('view', next); return prev }, { replace: true })
+
   const { params, key } = draftQuery(seasonNum, isCustomized ? settings : null)
   const { data, isLoading, isError, isFetching } = useQuery({
     queryKey: keys.draftValues(leagueId ?? 0, seasonNum, key),
@@ -86,6 +103,8 @@ export default function DraftPrep() {
   const prep = useDraftPrep(leagueId, seasonNum)
 
   const allPlayers = data?.players ?? NO_PLAYERS
+  // The team builder measures a lineup against replacement, same as the board's prices do.
+  const replacementLevels = data?.replacement_levels ?? NO_LEVELS
 
   const gradeRankMap = useMemo(() => {
     const map = new Map<string, number>()
@@ -146,7 +165,9 @@ export default function DraftPrep() {
           <p className="mt-1 text-sm text-muted-foreground">
             {isFetching && !isLoading
               ? 'Rescoring for your settings…'
-              : `${seasonNum} board · rank players, mark targets and sleepers, model your league settings`}
+              : surface === 'team'
+                ? `${seasonNum} team · what your planned prices add up to`
+                : `${seasonNum} board · rank players, mark targets and sleepers, model your league settings`}
           </p>
         </div>
         <SelectControl
@@ -175,6 +196,32 @@ export default function DraftPrep() {
         onReset={reset}
       />
 
+      <div className="flex w-fit rounded-lg bg-muted overflow-hidden">
+        {SURFACES.map((s) => (
+          <button
+            key={s.value}
+            onClick={() => setSurface(s.value)}
+            className={`px-3 py-1.5 font-display text-xs font-semibold ${
+              surface === s.value
+                ? 'bg-foreground text-background'
+                : 'bg-card text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            {s.label}
+            {s.value === 'team' && prep.counts.planned > 0 && ` ${prep.counts.planned}`}
+          </button>
+        ))}
+      </div>
+
+      {surface === 'team' ? (
+        <TeamBuilder
+          players={allPlayers}
+          replacementLevels={replacementLevels}
+          settings={settings}
+          prep={prep}
+        />
+      ) : (
+      <>
       <Shortlist players={allPlayers} prep={prep} />
 
       <div className="flex flex-wrap items-center gap-4">
@@ -193,6 +240,7 @@ export default function DraftPrep() {
           {VIEWS.map((v) => (
             <FilterChip key={v.value} active={view === v.value} onClick={() => setView(v.value)}>
               {v.label}
+              {v.value === 'must' && prep.counts.must > 0 && ` ${prep.counts.must}`}
               {v.value === 'target' && prep.counts.target > 0 && ` ${prep.counts.target}`}
               {v.value === 'sleeper' && prep.counts.sleeper > 0 && ` ${prep.counts.sleeper}`}
               {v.value === 'avoid' && prep.counts.avoid > 0 && ` ${prep.counts.avoid}`}
@@ -228,9 +276,16 @@ export default function DraftPrep() {
             players={filtered}
             gradeRankMap={gradeRankMap}
             showConsensus
-            prep={{ entry: prep.entry, toggleTag: prep.toggleTag, onMove: handleMove }}
+            prep={{
+              entry: prep.entry,
+              toggleTag: prep.toggleTag,
+              setPlannedCost: prep.setPlannedCost,
+              onMove: handleMove,
+            }}
           />
         </>
+      )}
+      </>
       )}
     </div>
   )

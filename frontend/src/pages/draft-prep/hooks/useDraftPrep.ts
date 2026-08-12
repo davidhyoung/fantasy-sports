@@ -6,7 +6,7 @@ import {
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 
-const EMPTY: DraftPrepEntry = { gsis_id: '', tag: '', custom_rank: null, note: '' }
+const EMPTY: DraftPrepEntry = { gsis_id: '', tag: '', custom_rank: null, note: '', planned_cost: null }
 
 /**
  * Your personal board for one league and season: tags (target/sleeper/avoid),
@@ -46,18 +46,21 @@ export function useDraftPrep(leagueId: number | null, season: number) {
   }
 
   const setPlayer = useMutation({
-    mutationFn: (v: { gsisId: string; tag: DraftPrepTag; customRank: number | null; note: string }) =>
+    mutationFn: (v: { gsisId: string; tag: DraftPrepTag; customRank: number | null; note: string; plannedCost: number | null }) =>
       setDraftPrepPlayer(leagueId!, season, v.gsisId, {
-        tag: v.tag, custom_rank: v.customRank, note: v.note,
+        tag: v.tag, custom_rank: v.customRank, note: v.note, planned_cost: v.plannedCost,
       }),
     onMutate: async (v) => {
       await qc.cancelQueries({ queryKey })
       const previous = patchCache((players) => {
         const rest = players.filter((p) => p.gsis_id !== v.gsisId)
-        // A player with no tag, rank or note carries nothing — drop the row, which
-        // is what the server does too.
-        if (!v.tag && v.customRank === null && !v.note) return rest
-        return [...rest, { gsis_id: v.gsisId, tag: v.tag, custom_rank: v.customRank, note: v.note }]
+        // A player with no tag, rank, note or planned cost carries nothing — drop
+        // the row, which is what the server does too.
+        if (!v.tag && v.customRank === null && !v.note && v.plannedCost === null) return rest
+        return [...rest, {
+          gsis_id: v.gsisId, tag: v.tag, custom_rank: v.customRank,
+          note: v.note, planned_cost: v.plannedCost,
+        }]
       })
       return { previous }
     },
@@ -77,7 +80,7 @@ export function useDraftPrep(leagueId: number | null, season: number) {
         // Players ranked for the first time have no row yet.
         for (const id of gsisIds) {
           if (!merged.some((p) => p.gsis_id === id)) {
-            merged.push({ gsis_id: id, tag: '', custom_rank: rank.get(id)!, note: '' })
+            merged.push({ gsis_id: id, tag: '', custom_rank: rank.get(id)!, note: '', planned_cost: null })
           }
         }
         return merged
@@ -90,32 +93,39 @@ export function useDraftPrep(leagueId: number | null, season: number) {
     onSettled: () => qc.invalidateQueries({ queryKey }),
   })
 
-  /** Cycles a tag off when re-applied, so one control both sets and clears it. */
-  const toggleTag = (gsisId: string, tag: Exclude<DraftPrepTag, ''>) => {
+  /** Writes one field, carrying the rest of the row through unchanged. */
+  const patch = (gsisId: string, changes: Partial<{ tag: DraftPrepTag; customRank: number | null; note: string; plannedCost: number | null }>) => {
     const current = entry(gsisId)
     setPlayer.mutate({
       gsisId,
-      tag: current.tag === tag ? '' : tag,
-      customRank: current.custom_rank,
-      note: current.note,
+      tag: changes.tag ?? current.tag,
+      customRank: changes.customRank !== undefined ? changes.customRank : current.custom_rank,
+      note: changes.note ?? current.note,
+      plannedCost: changes.plannedCost !== undefined ? changes.plannedCost : current.planned_cost,
     })
   }
 
-  const setNote = (gsisId: string, note: string) => {
-    const current = entry(gsisId)
-    setPlayer.mutate({ gsisId, tag: current.tag, customRank: current.custom_rank, note })
-  }
+  /** Cycles a tag off when re-applied, so one control both sets and clears it. */
+  const toggleTag = (gsisId: string, tag: Exclude<DraftPrepTag, ''>) =>
+    patch(gsisId, { tag: entry(gsisId).tag === tag ? '' : tag })
+
+  const setNote = (gsisId: string, note: string) => patch(gsisId, { note })
+
+  /** null removes the player from the team plan; a number sets the price. */
+  const setPlannedCost = (gsisId: string, cost: number | null) => patch(gsisId, { plannedCost: cost })
 
   const counts = useMemo(() => {
-    const c = { target: 0, sleeper: 0, avoid: 0, ranked: 0 }
+    const c = { must: 0, target: 0, sleeper: 0, avoid: 0, ranked: 0, planned: 0 }
     for (const e of data?.players ?? []) {
-      if (e.tag === 'target') c.target++
+      if (e.tag === 'must') c.must++
+      else if (e.tag === 'target') c.target++
       else if (e.tag === 'sleeper') c.sleeper++
       else if (e.tag === 'avoid') c.avoid++
       if (e.custom_rank != null) c.ranked++
+      if (e.planned_cost != null) c.planned++
     }
     return c
   }, [data])
 
-  return { entry, byPlayer, toggleTag, setNote, reorder, counts, isLoaded: !!data }
+  return { entry, byPlayer, toggleTag, setNote, setPlannedCost, reorder, counts, isLoaded: !!data }
 }

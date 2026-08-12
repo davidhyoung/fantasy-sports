@@ -24,7 +24,7 @@ func TestYahooToSlot(t *testing.T) {
 		{"W/R/T", "FLEX", true},
 		{"W/R", "FLEX", true},
 		{"Q/W/R/T", "SFLEX", true},
-		{"BN", "", false},
+		{"BN", "BN", true},
 		{"IR", "", false},
 		{"IL+", "", false},
 	}
@@ -48,7 +48,7 @@ func TestSlotsFromYahoo(t *testing.T) {
 		{Position: "DEF", Count: 1},
 		{Position: "BN", Count: 6},
 	})
-	want := map[string]int{"QB": 1, "RB": 2, "WR": 3, "TE": 1, "FLEX": 1, "SFLEX": 1, "K": 1, "DEF": 1}
+	want := map[string]int{"QB": 1, "RB": 2, "WR": 3, "TE": 1, "FLEX": 1, "SFLEX": 1, "K": 1, "DEF": 1, "BN": 6}
 	if len(slots) != len(want) {
 		t.Fatalf("got %d slot kinds, want %d: %v", len(slots), len(want), slots)
 	}

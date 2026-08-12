@@ -4,7 +4,8 @@ import type { DraftPlayer, DraftPrepTag } from '@/api/client'
 import type { useDraftPrep } from '../hooks/useDraftPrep'
 
 const GROUPS: { tag: Exclude<DraftPrepTag, ''>; label: string; accent: string }[] = [
-  { tag: 'target', label: 'Targets', accent: 'text-primary' },
+  { tag: 'must', label: 'Must draft', accent: 'text-primary' },
+  { tag: 'target', label: 'Targets', accent: 'text-primary/80' },
   { tag: 'sleeper', label: 'Sleepers', accent: 'text-positive' },
   { tag: 'avoid', label: 'Avoid', accent: 'text-secondary' },
 ]
@@ -59,7 +60,8 @@ export function Shortlist({ players, prep }: Props) {
   if (!tagged.length) {
     return (
       <p className="rounded-lg bg-card px-4 py-3 text-xs text-muted-foreground">
-        Tag players on the board below — <span className="font-display font-semibold">T</span> target,{' '}
+        Tag players on the board below — <span className="font-display font-semibold">M</span> must
+        draft, <span className="font-display font-semibold">T</span> target,{' '}
         <span className="font-display font-semibold">S</span> sleeper,{' '}
         <span className="font-display font-semibold">A</span> avoid — and they'll collect here with
         room for a note.
@@ -68,7 +70,7 @@ export function Shortlist({ players, prep }: Props) {
   }
 
   return (
-    <div className="grid gap-4 rounded-lg bg-card px-4 py-3 sm:grid-cols-3">
+    <div className="grid gap-4 rounded-lg bg-card px-4 py-3 sm:grid-cols-2 lg:grid-cols-4">
       {GROUPS.map(({ tag, label, accent }) => {
         const group = tagged.filter((p) => prep.entry(p.gsis_id).tag === tag)
         return (
