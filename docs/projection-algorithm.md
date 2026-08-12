@@ -137,6 +137,42 @@ too pessimistic — washout zeros widen it) and P90 ~7–18%.
 
 ---
 
+## Level Calibration
+
+The last step before a projection is stored. Measured across 2015–2024 with
+temporal integrity (`-cohort-bias`), the engine projects startable players about
+**12% high** — in every season sampled, and at every projection level, so the bias
+is proportional rather than additive. `projection_calibration` in
+`projection_config.json` scales every projected quantity by a per-position factor
+(seeded uniform at **0.884**); `calibration.go` applies it at the end of
+`computeWeightedProjection`, so the production and backtest paths share it.
+
+A *uniform* factor is invisible to the draft board and visible only in the
+numbers you read:
+
+```
+VOR = k·points − k·replacement = k·(points − replacement)
+auction = share of the VOR pool  →  k cancels
+```
+
+Applying it moved 0 position ranks, 0 auction values and 0 consensus values on the
+2026 board, while bias went +1.583 → −0.000 ppg and MAE 3.337 → 2.988.
+
+Per-stat rates are scaled alongside the point totals, so a player's projected
+yardage still reconciles with his projected points, and kickers — whose league
+points are computed from rates rather than a generic total — don't drift relative
+to skill positions.
+
+Two caveats worth carrying: part of the 12% is definitional rather than error (our
+per-game number is an if-healthy, in-role rate, while actuals include games played
+hurt and benchings), and the estimate is a floor, since players who lost their job
+entirely are excluded from the comparison. The residual after a uniform factor is
+not uniform — QB ends ~8% under, RB ~5% over — and per-position factors would fix
+that at the cost of repricing positions against each other. See
+`docs/algorithm-review.md` §7.7–7.8.
+
+---
+
 ## Confidence Score
 
 Five factors, computed in `computeProjections`:

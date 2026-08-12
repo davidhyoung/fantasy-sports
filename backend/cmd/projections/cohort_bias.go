@@ -155,6 +155,7 @@ func runCohortBias(ctx context.Context, pool *pgxpool.Pool, fromYear, toYear int
 		for _, b := range levelBands {
 			levels[b.label] = &cohortStat{}
 		}
+		byPos := map[string]*cohortStat{}
 
 		for target := fromYear; target <= toYear; target++ {
 			outcomes := projectSeasonBacktest(runCfg, allProfiles, target)
@@ -172,6 +173,10 @@ func runCohortBias(ctx context.Context, pool *pgxpool.Pool, fromYear, toYear int
 				stats[cohort].add(out.PerGame, actualPG)
 				overall.add(out.PerGame, actualPG)
 				levels[bandOf(out.PerGame)].add(out.PerGame, actualPG)
+				if byPos[out.Pos] == nil {
+					byPos[out.Pos] = &cohortStat{}
+				}
+				byPos[out.Pos].add(out.PerGame, actualPG)
 			}
 		}
 
@@ -204,6 +209,27 @@ func runCohortBias(ctx context.Context, pool *pgxpool.Pool, fromYear, toYear int
 			fmt.Printf("%-10s %-12s %6d %+9.3f %8.3f %8.0f%%\n",
 				label, b.label, s.n, s.bias(), s.mae(), s.bias()/meanProj*100)
 		}
+		// A single calibration factor only preserves cross-position ordering if the
+		// bias is the same everywhere. If positions differ materially, one global
+		// factor would quietly reprice positions against each other.
+		fmt.Printf("\n%-10s %-12s %6s %9s %9s %11s\n", label, "position", "n", "bias", "mean proj", "factor")
+		fmt.Println("  (factor = actual/projected — what we'd multiply by to remove the bias)")
+		posNames := make([]string, 0, len(byPos))
+		for k := range byPos {
+			posNames = append(posNames, k)
+		}
+		sort.Strings(posNames)
+		for _, pos := range posNames {
+			st := byPos[pos]
+			if st.n < 20 {
+				continue
+			}
+			fmt.Printf("%-10s %-12s %6d %+9.3f %9.2f %11.3f\n",
+				label, pos, st.n, st.bias(), st.projSum/float64(st.n), st.actSum/st.projSum)
+		}
+		fmt.Printf("%-10s %-12s %6d %+9.3f %9.2f %11.3f\n",
+			label, "ALL", overall.n, overall.bias(), overall.projSum/float64(overall.n),
+			overall.actSum/overall.projSum)
 		fmt.Println()
 	}
 	return nil

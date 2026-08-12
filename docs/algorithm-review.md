@@ -386,3 +386,46 @@ auction value. Two caveats before applying it:
 The honest summary of §7 as a whole: **the model's ordering is sound and agrees
 with the market; its levels are ~12% hot; and the cohort story that looked
 compelling in one season did not survive ten.**
+
+### 7.8 Applied (August 2026) — level calibration
+
+The §7.7 recommendation is implemented: `cmd/projections/calibration.go` scales
+every projected quantity by a per-position factor, seeded **uniform at 0.884**
+(`projection_calibration` in `projection_config.json`). Applied at the end of
+`computeWeightedProjection`, so the production and backtest paths share it.
+
+Measured effect across 2015–2024 (`-cohort-bias -min-base-ppg 8`, n = 1603):
+
+| | before | after |
+|---|---|---|
+| bias (proj − actual, per game) | +1.583 | **−0.000** |
+| MAE | 3.337 | **2.988** |
+| projections too high | 69% | 51% |
+| bias by level | +8% to +12% | −3% to +3% |
+
+Verified on the live 2026 board (471 players) that the draft math is untouched:
+**0 position-rank changes, 0 auction-value changes, 0 consensus-value changes**,
+and projected points scaled by exactly 0.884×. Two overall ranks swapped — both
+zero-VOR, $1 players at the bottom, where `sort.Slice` is unstable and ties
+shuffle between runs regardless.
+
+**Residual, and the open decision.** A uniform factor is right on aggregate and
+nearly exact for WR (0.988) and TE (0.996), but the bias was never uniform across
+positions. After calibration:
+
+| position | residual factor | reading |
+|---|---|---|
+| QB | 1.078 | now ~8% *under*-projected |
+| RB | 0.950 | still ~5% over |
+| WR | 0.988 | ✓ |
+| TE | 0.996 | ✓ |
+
+Uniform was chosen deliberately: per-position factors (QB 0.953, RB 0.840,
+TE 0.880, WR 0.873) would calibrate each position exactly, but they reprice
+positions *against each other* — QBs would get materially more expensive at
+auction. That is a different decision from correcting a display, so it is left as
+a one-line config edit rather than folded into this change.
+
+`nfl_projections` for target season 2026 was recomputed. The 2025 target rows are
+uncalibrated and unused by the UI; re-run `-project -season 2025` to bring them in
+line if they are ever needed.

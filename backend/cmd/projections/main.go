@@ -1499,6 +1499,9 @@ func computeProjections(ctx context.Context, pool *pgxpool.Pool, baseSeason, tar
 		projectedAge := target.Age + (targetSeason - target.Season)
 		agingMult := cfg.effectiveAgingMultipliers().Multiplier(target.PositionGroup, projectedAge)
 		proj := computeWeightedProjection(target, comps, targetSeason, agingMult, groupMeans[target.PositionGroup], cfg.GrowthShrinkageK, growthBaselines)
+		// Correct the engine's systematic level bias last, so it applies to the
+		// point estimate and its outcome distribution alike (calibration.go).
+		proj.applyCalibration(calibrationFor(cfg, target.PositionGroup))
 
 		// Grade trend adjustment: small bounded nudge (+/- 5%) based on grade trajectory.
 		// Player trending up in grade but stats haven't caught up → slight upward nudge.

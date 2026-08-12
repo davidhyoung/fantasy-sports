@@ -52,6 +52,10 @@ type projConfig struct {
 	// discounted by this factor. 0 = exact no-op (today's single-season
 	// behavior); must stay in [0, 1) — sanitizeConfig resets bad values.
 	TargetBlendDecay float64 `json:"target_blend_decay"`
+	// ProjectionCalibration scales every projected quantity per position group
+	// ("QB", "RB", …, plus a "default" fallback). See calibration.go for why a
+	// scalar is the right shape and what it does/doesn't move. Empty = no-op.
+	ProjectionCalibration map[string]float64 `json:"projection_calibration,omitempty"`
 	// TargetBlendDecayUp is the decay used when the base season came in ABOVE
 	// the preceding one — a breakout. Gains are given back far more often than
 	// drops are recovered (docs/algorithm-review.md §7.4), so regressing risers
@@ -447,6 +451,9 @@ func projectSeasonBacktest(cfg projConfig, allProfiles []seasonProfile, targetSe
 		projectedAge := target.Age + (targetSeason - target.Season)
 		agingMult := cfg.effectiveAgingMultipliers().Multiplier(target.PositionGroup, projectedAge)
 		proj := computeWeightedProjection(target, comps, targetSeason, agingMult, groupMeans[target.PositionGroup], cfg.GrowthShrinkageK, growthBaselines)
+		// Correct the engine's systematic level bias last, so it applies to the
+		// point estimate and its outcome distribution alike (calibration.go).
+		proj.applyCalibration(calibrationFor(cfg, target.PositionGroup))
 		out[target.GsisID] = projOutcome{
 			Pos:     target.PositionGroup,
 			PerGame: proj.ProjFptsPPRPG,
