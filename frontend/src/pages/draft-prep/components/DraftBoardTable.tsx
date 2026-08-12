@@ -6,7 +6,8 @@ import { gradeColorClass } from '@/lib/grades'
 import ConfidenceBadge from '@/pages/projections/components/ConfidenceBadge'
 import UniquenessBadge from '@/pages/projections/components/UniquenessBadge'
 import { TrendSparkline } from '@/pages/league-detail/components/TrendSparkline'
-import { INTEREST_LEVELS, SCALE_ORDER, interestClass } from '../lib/interest'
+import { ThumbsUp, ThumbsDown } from 'lucide-react'
+import { INTEREST_LEVELS, SCALE_ORDER, isFilled, interestIconClass } from '../lib/interest'
 
 const STRING_COLS = ['name', 'pos']
 
@@ -201,26 +202,29 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                 <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} linked />
                 {prep && (
                   <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                    {/* A number line: most negative to most positive, left to right. */}
-                    <div className="flex items-center justify-center gap-px">
-                      {SCALE_ORDER.map((level, idx) => {
+                    {/*
+                      Three thumbs each way, filling outward from the centre —
+                      one thumb up is "like", three is "must draft". The strongest
+                      notch sits furthest from the middle on both sides, so the
+                      row reads as a scale rather than six separate buttons.
+                    */}
+                    <div className="flex items-center justify-center">
+                      {SCALE_ORDER.map((level) => {
                         const meta = INTEREST_LEVELS.find((l) => l.level === level)!
-                        const on = mine?.interest === level
+                        const filled = isFilled(level, mine?.interest ?? null)
+                        const Icon = level > 0 ? ThumbsUp : ThumbsDown
                         return (
                           <button
                             key={level}
                             onClick={() => prep.setInterest(p.gsis_id, level)}
                             title={`${meta.label} (${meta.short})`}
                             aria-label={`${meta.label} — ${p.name}`}
-                            aria-pressed={on}
-                            className={`h-5 w-[18px] font-display text-[10px] font-semibold ${
-                              idx === 0 ? 'rounded-l' : ''
-                            } ${idx === SCALE_ORDER.length - 1 ? 'rounded-r' : ''} ${
-                              // Gap between the negative and positive halves.
-                              level === 1 ? 'ml-1 rounded-l' : ''
-                            } ${level === -1 ? 'rounded-r' : ''} ${interestClass(level, on)}`}
+                            aria-pressed={mine?.interest === level}
+                            className={`flex h-5 w-[17px] items-center justify-center hover:opacity-100 ${
+                              filled ? '' : 'opacity-70'
+                            } ${level === 1 ? 'ml-1.5' : ''}`}
                           >
-                            {Math.abs(level)}
+                            <Icon className={`h-3 w-3 ${interestIconClass(level, filled)}`} />
                           </button>
                         )
                       })}

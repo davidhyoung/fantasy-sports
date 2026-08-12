@@ -21,24 +21,22 @@ export function interestLabel(level: InterestLevel | null): string {
 }
 
 /**
- * Colour carries magnitude, not meaning — the sign is always shown as text, so
- * the scale is still readable without colour. Positive uses the one accent,
- * negative the cool secondary, each stepping up in weight with intensity.
+ * Whether a notch on the control reads as filled at the current level.
+ *
+ * Thumbs fill outward from the centre, the way a star rating fills from its
+ * edge: at +2 the first two thumbs-up are solid and the third is an outline, so
+ * magnitude is legible at a glance without a number on every button. A notch on
+ * the opposite side of the scale is never filled.
  */
-export function interestClass(level: InterestLevel, selected: boolean): string {
-  if (!selected) return 'bg-muted text-muted-foreground hover:text-foreground'
-  if (level > 0) {
-    return level === 3
-      ? 'bg-primary text-primary-foreground font-bold'
-      : level === 2
-        ? 'bg-primary text-primary-foreground'
-        : 'bg-primary/60 text-primary-foreground'
-  }
-  return level === -3
-    ? 'bg-secondary text-background font-bold'
-    : level === -2
-      ? 'bg-secondary text-background'
-      : 'bg-secondary/60 text-background'
+export function isFilled(notch: InterestLevel, current: InterestLevel | null): boolean {
+  if (current == null || Math.sign(notch) !== Math.sign(current)) return false
+  return Math.abs(notch) <= Math.abs(current)
+}
+
+/** Positive takes the one accent, negative the cool secondary. */
+export function interestIconClass(level: InterestLevel, filled: boolean): string {
+  if (!filled) return 'text-muted-foreground/40'
+  return level > 0 ? 'fill-current text-primary' : 'fill-current text-secondary'
 }
 
 /** Text-only variant for lists, where a filled chip would be too heavy. */
