@@ -202,3 +202,124 @@ actually improve held-out validation accuracy. The other two remain backlog.
   (QB competition) was already researched and captured. This is a research gap,
   not an algorithm gap: a targeted follow-up pass on "why did PHI/WAS offenses
   decline in 2025" would let the situational-notes layer do its job here too.
+
+## 7. Auction-divergence analysis (August 2026)
+
+Follow-up to §6, prompted by putting our auction value and a consensus value side
+by side on `/draft-prep`. §6 investigated the largest *rank* gaps player by player;
+this pass asked whether the gaps are systematic, and — crucially — whether the
+market or the model is right where they disagree. Conclusion: **agreement is much
+higher than the raw gaps suggest, the one systematic disagreement favours us, and
+the real calibration error is somewhere the divergence layer cannot see.**
+
+### 7.1 Agreement is high; the headline gaps are concentrated
+
+62 players had 2026 PPR consensus coverage (sources publish ~top-100: QB 8 deep,
+TE 6, RB/WR 24 each). Ranked within position on both sides:
+
+| measure | value |
+|---|---|
+| median rank delta | +1.0 |
+| |delta| > 10 | 8 of 62 |
+| ordering agreement, full pipeline vs consensus (Spearman ρ) | +0.91 RB, +0.85 WR, +0.83 QB |
+| same, last-season PPG only | +0.84 RB, +0.70 WR, **+0.07 QB** |
+
+The comp machinery earns its keep: ranking QBs on last season alone has essentially
+no relationship to consensus (ρ +0.07), while the pipeline reaches +0.83.
+
+Two things inflate the *apparent* disagreement and are not model error:
+- **Coverage depth.** Sources rank 8 QBs and 6 TEs. "Not on their list" is not a
+  disagreement, it's the end of the list.
+- **Population mismatch.** Our positional rank is over all ~471 projected players;
+  theirs is over their top-N. Re-ranking both sides over the covered set drops the
+  mean delta from +2.85 to **+0.33** (sd 7.0 → 3.5, outliers 8 → 2). The residual
+  offset is real, though: it means our top-N contains players the market omits
+  (RJ Harvey, Wan'Dale Robinson, Harold Fannin Jr. — the last on `comp_count = 1`).
+
+### 7.2 The one systematic disagreement: down seasons
+
+Correlating the gap with model features found three signals — base-season PPG
+(r −0.52), comp-pool size (+0.39), player grade (−0.41) — which collapse into one:
+`corr(base_ppg, comp_count) = −0.57`, `corr(base_ppg, grade) = +0.47`. They all
+measure "how good was he last year". Split by direction:
+
+| base season vs the one before | n | mean rank delta |
+|---|---|---|
+| fell ≥2 ppg | 17 | **+4.6** (we rank them well below the market) |
+| flat ±2 | 20 | +2.1 |
+| rose ≥2 ppg | 14 | +0.9 (we agree with the market) |
+
+So we do **not** chase career years — we and the market agree on breakouts. We mark
+down decliners much harder than the market does. Justin Jefferson (−7.4 ppg, our
+WR17 vs consensus WR6), Chuba Hubbard and David Montgomery (both +12) are this
+cohort, not three unrelated bugs.
+
+### 7.3 Why the §6 lever doesn't fix it
+
+The 2026 projections already ran with `target_blend_decay = 0.5` (config written
+38 seconds before the projection run), so the recency blend §6 implemented is live.
+Sweeping the decay 0 → 2.0 on a blended-PPG proxy moves agreement for the decliner
+cohort by less than 0.02 ρ (0.798 → 0.804 → 0.786). **Reweighting the previous
+season cannot close this gap**, because the disagreement is not about how much
+weight last season deserves — it is about *why* the season was down, which no
+weighting scheme can see. That information lives in the situational-notes layer.
+
+### 7.4 Who is right? History says we are
+
+Every player-season 2015–2024 with three consecutive measured seasons (n = 1328),
+asking what happens the year after a ≥2 ppg drop (n = 394):
+
+| | value |
+|---|---|
+| median share of the drop recovered next season | **−4%** |
+| ended above their pre-decline level | 13% |
+| **fell further** | **52%** |
+| mirror case: share of a ≥2 ppg *gain* given back | **58%** |
+
+The result holds across every age band (≤24: 6%, 25–26: −2%, 27–28: 1%, 29+: −12%)
+and whether the down year was injury-shortened (5%) or a full season (−8%). The
+most favourable slice anywhere — WRs aged ≤27 after a full down season — recovers
+10%, nowhere near the market's implied restoration. Every row requires a following
+season with ≥6 games, so players who washed out entirely are excluded: the finding
+is **biased toward recovery** and still shows none.
+
+Declines are sticky; gains are transient. The market's buy-low premium on decliners
+is not supported by ten years of this dataset.
+
+### 7.5 The real calibration error is where we and the market agree
+
+Checking our shipped 2025 projections against what actually happened (n = 143,
+players with 2023 + 2024 profiles and a measured 2025):
+
+| 2024 vs 2023 | n | our bias (proj − actual) | MAE | verdict |
+|---|---|---|---|---|
+| fell ≥2 ppg | 41 | **−0.35** | 2.58 | well calibrated (21/41 too high, 20/41 too low) |
+| flat ±2 | 57 | −0.11 | 3.05 | well calibrated |
+| rose ≥2 ppg | 45 | **+1.26** | 2.75 | **we project breakouts too high** |
+
+Our discount of decliners is a coin flip on direction — correctly calibrated, not
+excessive. The measurable error is on **risers**, and it lines up with the 58%
+give-back above: we under-regress breakout seasons by roughly a point per game.
+
+The divergence layer could never have found this, because on risers the market
+shares our bias (mean delta +0.9). **Consensus agreement and accuracy are different
+targets, and this is the case that separates them.**
+
+### 7.6 Recommendations
+
+1. **Do not chase consensus on decliners.** Two independent tests say our lower
+   ranking is better supported. Closing that gap would make the board agree with the
+   market and get worse.
+2. **Investigate asymmetric regression of breakout seasons.** The one quantified
+   error. The existing levers are symmetric — a blend that pulls a riser down also
+   pulls a decliner up, and decliners are already right. The targeted change is a
+   *directional* blend weight (regress gains harder than drops), validated by
+   backtest bias per cohort across 2015–2024, not by one season. Target: riser bias
+   +1.26 → ~0 with decliner bias unmoved. **Not implemented** — one season of
+   evidence is not enough to justify touching the engine.
+3. **Accept as criteria differences, not defects:** ADP is a market-clearing price
+   (it carries name-brand demand and positional-run dynamics) while we produce a
+   points projection; source list depth; and `proj_games = 17` for every player —
+   we project points *if healthy* while the market discounts injury-prone players.
+   The last is worth labelling in the UI, and is a candidate for the uncertainty
+   band rather than the point estimate.
