@@ -113,7 +113,16 @@ export function Shortlist({ players, prep }: Props) {
                           </RouterLink>
                         </span>
                         <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
-                          {p.position_group} · ${p.auction_value}
+                          {p.position_group}
+                          {p.tier > 0 && (
+                            <span
+                              className="text-foreground"
+                              title={`${p.position_group.split(',')[0]} tier ${p.tier} — how many others are this good tells you whether you can wait`}
+                            >
+                              {' '}T{p.tier}
+                            </span>
+                          )}{' '}
+                          · ${p.auction_value}
                         </span>
                       </div>
                       <NoteField

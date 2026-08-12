@@ -41,6 +41,27 @@ function edgeOf(p: DraftPlayer): number | null {
   return p.consensus_auction_value == null ? null : p.auction_value - p.consensus_auction_value
 }
 
+/**
+ * Tier within position. Weight steps down as the tier does, so the top of a
+ * position reads as heavier than its replacement-level tail without needing a
+ * different colour per tier — there are more tiers than the palette has meanings.
+ */
+function TierBadge({ tier, position }: { tier: number; position: string }) {
+  if (!tier) return <span className="text-muted-foreground/40">—</span>
+  const weight =
+    tier <= 2 ? 'bg-primary/20 text-primary font-semibold'
+    : tier <= 4 ? 'bg-muted text-foreground'
+    : 'bg-muted/60 text-muted-foreground'
+  return (
+    <span
+      title={`${position.split(',')[0]} tier ${tier} — players in a tier are close enough in value to be interchangeable`}
+      className={`inline-block rounded px-1.5 py-0.5 font-mono text-[11px] tabular-nums ${weight}`}
+    >
+      {tier}
+    </span>
+  )
+}
+
 /** Shows when grade rank and fantasy rank diverge significantly. */
 function DeltaBadge({ gradeRank, fantasyRank }: { gradeRank: number; fantasyRank: number }) {
   const diff = fantasyRank - gradeRank // positive = grade is better than fantasy rank
@@ -80,6 +101,10 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
         case 'rank':      aVal = a.overall_rank; bVal = b.overall_rank; break
         case 'name':      aVal = a.name; bVal = b.name; break
         case 'pos':       aVal = a.position_group; bVal = b.position_group; break
+        // Tiers are per position, so this deliberately interleaves them: sorting
+        // by tier answers "who is at the top of their own position?". Filter by
+        // position to read one position's tiers in isolation.
+        case 'tier':      aVal = a.tier || 99; bVal = b.tier || 99; break
         case 'age':       aVal = a.age || 0; bVal = b.age || 0; break
         case 'pts':       aVal = a.proj_league_fpts; bVal = b.proj_league_fpts; break
         case 'ppr':       aVal = a.proj_fpts_ppr_pg; bVal = b.proj_fpts_ppr_pg; break
@@ -146,6 +171,7 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
             {prep && <TableHead className="text-center">Plan</TableHead>}
             <TableHead>Trend</TableHead>
             <SortableHead col="pos" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Pos</SortableHead>
+            <SortableHead col="tier" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Tier</SortableHead>
             <SortableHead col="age" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Age</SortableHead>
             <SortableHead col="grade" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Grade</SortableHead>
             <SortableHead col="pts" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Proj Pts</SortableHead>
@@ -261,6 +287,9 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                   <TrendSparkline points={p.trajectory ?? []} />
                 </TableCell>
                 <TableCell className="text-center text-muted-foreground">{p.position_group}</TableCell>
+                <TableCell className="text-center">
+                  <TierBadge tier={p.tier} position={p.position_group} />
+                </TableCell>
                 <TableCell className="text-center text-muted-foreground font-mono tabular-nums">{p.age || '—'}</TableCell>
                 <TableCell className="text-right tabular-nums font-mono">
                   {p.player_grade != null ? (

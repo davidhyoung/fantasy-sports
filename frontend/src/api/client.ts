@@ -543,6 +543,8 @@ export interface DraftPlayer {
   auction_value: number
   overall_rank: number
   position_rank: number
+  /** Players at the same position whose value is close enough to be interchangeable. 1 = best. */
+  tier: number
   /** Market price on this league's dollar scale. null where no source covers him. */
   consensus_auction_value: number | null
   consensus_position_rank: number | null

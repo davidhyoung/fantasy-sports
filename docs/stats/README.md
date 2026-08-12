@@ -15,6 +15,7 @@ This library is **not** a one-shot rewrite of the algorithms. It is a catalog we
 | A short/injury-shortened base season is the entire input to a player's comp search | [recency-weighted-profiles.md](recency-weighted-profiles.md) | ✅ implemented behind a no-op default (August 2026); pending autotune |
 | Projection swings on 1-2 comps for a statistically rare player profile | [bayesian-shrinkage.md](bayesian-shrinkage.md) (growth-rate extension) | ✅ implemented behind a no-op default (August 2026); pending autotune |
 | Turning projected points into auction dollars, or asking what the market would pay for the same player | [auction-values.md](auction-values.md) | ✅ implemented (August 2026); consensus side is rank-derived until real auction prices are imported |
+| A ranked list implies precision the projections don't have — "is RB6 really different from RB7?" | [tiering.md](tiering.md) | ✅ implemented (August 2026) |
 
 ## Adding a new entry
 

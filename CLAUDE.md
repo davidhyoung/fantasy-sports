@@ -34,7 +34,7 @@ frontend/  React 18 + Vite 5 + TypeScript + Tailwind CSS + shadcn/ui + TanStack 
   - `projections.go` — ListProjections, GetProjectionDetail; serves pre-computed comp-based NFL player projections from nfl_projections table
   - `rankings_public.go` — ListPublicRankings: no-auth projection-based rankings with PPR/Half/Standard format toggle (GET /api/rankings)
   - `nfl_players.go` — GetNFLPlayer (full player detail: metadata + YoY stats + projection); GetNFLPlayerByYahooID (resolves Yahoo key → gsis_id and redirects)
-  - `draft_values.go` — GetDraftValues: league-specific auction values (VOR + $ value based on actual roster settings); uses `services/scoring` for canonical stat-ID translation and league-aware kicker scoring
+  - `draft_values.go` — GetDraftValues: league-specific auction values (VOR + $ value based on actual roster settings); uses `services/scoring` for canonical stat-ID translation and league-aware kicker scoring, and `services/tiers` to group interchangeable players within each position (`tier` on every player)
   - `grades.go` — ListGrades, GetPlayerGrades: real-life player grades (0-100 percentile) from nfl_player_grades table; supports comma-separated position filter (e.g. `?position=RB,WR,TE`)
   - `draft_prep.go` — GetDraftPrep, UpsertDraftPrepPlayer, ReorderDraftPrep: the personal draft board in `draft_prep_players`, scoped to (user, league, season) — interest level (signed −3..+3), custom rank, note, and planned cost
   - `draft_consensus.go` — `loadConsensusValues`: consensus auction value per player, on the league's dollar scale. Prefers imported `metric_type='auction'` rows (rescaled from a 12-team/$200 market pool); otherwise **derives** it by reading our own value curve at the market's median within-position rank — "what our board pays for the slot the market gives him". Same median/within-position conventions as `consensus.go`. See `docs/stats/auction-values.md`
@@ -46,6 +46,7 @@ frontend/  React 18 + Vite 5 + TypeScript + Tailwind CSS + shadcn/ui + TanStack 
   - `oauth.go` — Yahoo OAuth2 endpoint + NewOAuthConfig
   - `types.go` — all XML response structs
 - `internal/services/scoring/` — canonical stat-ID vocabulary + Yahoo-stat-ID translation + projection→canonical-total helpers; the single place stat-ID knowledge lives
+- `internal/services/tiers/` — groups players whose value is close enough to be interchangeable. One rule: a tier's total spread stays inside a budget of `draftable range ÷ targetTiers` (default 8), so cliffs break tiers automatically and "everyone in a tier is within one budget of everyone else" is literally true. Tiering is **per position** — across positions raw points aren't comparable. See `docs/stats/tiering.md`
 - `internal/services/nflstats/` — season-level aggregation of `nfl_player_stats` keyed by gsis_id; replaces Yahoo as the NFL stats source for rankings
 - `internal/db/db.go` — pgxpool connect helper
 - `migrations/` — numbered SQL migration files

@@ -11,6 +11,7 @@ import (
 	"github.com/davidyoung/fantasy-sports/backend/internal/aging"
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/ranking"
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/scoring"
+	"github.com/davidyoung/fantasy-sports/backend/internal/services/tiers"
 	"github.com/davidyoung/fantasy-sports/backend/internal/yahoo"
 )
 
@@ -47,6 +48,9 @@ type draftPlayer struct {
 	AuctionValue   int     `json:"auction_value"`
 	OverallRank    int     `json:"overall_rank"`
 	PositionRank   int     `json:"position_rank"`
+	// Tier groups players at the same position whose value is close enough that
+	// the choice between them is a coin flip. 1 = best tier.
+	Tier int `json:"tier"`
 	// Consensus columns are nil where no external source covers the player —
 	// coverage runs to roughly the top 100 picks, not the whole pool.
 	ConsensusAuctionValue *int              `json:"consensus_auction_value"`
@@ -517,7 +521,29 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		players[i].PositionRank = posRanks[pos]
 	}
 
-	// 9. Attach consensus values — what the market pays for the same players, on
+	// 9. Tier players within position: a tier answers "if I wait, do I still get
+	//    someone like this?", which only means anything among players who compete
+	//    for the same roster spot. The draftable range is the starter pool plus a
+	//    half, so the replacement-level tail can't flatten the top of the board.
+	byPositionForTiers := map[string][]tiers.Player{}
+	for _, p := range players {
+		pos := primaryPosition(p.PositionGroup)
+		byPositionForTiers[pos] = append(byPositionForTiers[pos], tiers.Player{
+			ID: p.GsisID, Value: p.ProjLeagueFpts,
+		})
+	}
+	tierByPlayer := map[string]int{}
+	for pos, group := range byPositionForTiers {
+		draftable := int(math.Ceil(starterSlots[pos] * float64(numTeams) * 1.5))
+		for id, tier := range tiers.Assign(group, tiers.Options{Draftable: draftable}) {
+			tierByPlayer[id] = tier
+		}
+	}
+	for i := range players {
+		players[i].Tier = tierByPlayer[players[i].GsisID]
+	}
+
+	// 10. Attach consensus values — what the market pays for the same players, on
 	//    this league's dollar scale. Runs after ranking, since the derived form
 	//    reads our own value-per-position-rank curve.
 	consensus := h.loadConsensusValues(r.Context(), season, effectiveFormat, players, budget*numTeams)
@@ -535,7 +561,7 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		players[i].ConsensusDerived = cv.Derived
 	}
 
-	// 10. Attach year-over-year trajectory from season profiles
+	// 11. Attach year-over-year trajectory from season profiles
 	gsisIDs := make([]string, len(players))
 	for i, p := range players {
 		gsisIDs[i] = p.GsisID
