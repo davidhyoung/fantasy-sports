@@ -310,7 +310,7 @@ targets, and this is the case that separates them.**
 1. **Do not chase consensus on decliners.** Two independent tests say our lower
    ranking is better supported. Closing that gap would make the board agree with the
    market and get worse.
-2. **Investigate asymmetric regression of breakout seasons.** The one quantified
+2. **Investigate asymmetric regression of breakout seasons.** [REFUTED by the sweep — see §7.7.] The one quantified
    error. The existing levers are symmetric — a blend that pulls a riser down also
    pulls a decliner up, and decliners are already right. The targeted change is a
    *directional* blend weight (regress gains harder than drops), validated by
@@ -323,3 +323,66 @@ targets, and this is the case that separates them.**
    we project points *if healthy* while the market discounts injury-prone players.
    The last is worth labelling in the UI, and is a candidate for the uncertainty
    band rather than the point estimate.
+
+### 7.7 Sweep result (August 2026) — §7.6's recommendation is refuted
+
+§7.5 inferred a breakout-specific over-projection from a single season (2025,
+n = 143). Running it properly across 2015–2024 with temporal integrity
+(`-cohort-bias`, which reports *signed* bias — the stored backtest metrics are
+unsigned and cannot show skew) does not support it.
+
+Startable players (base season ≥ 8 PPR/game), 1603 player-seasons:
+
+| base season vs the one before | n | bias (proj − actual, per game) | MAE |
+|---|---|---|---|
+| rose ≥2 ppg | 501 | +1.47 | 3.15 |
+| flat ±2 | 493 | **+1.73** | 3.18 |
+| fell ≥2 ppg | 309 | +1.39 | 3.29 |
+| **all** | 1603 | **+1.58** | 3.34 |
+
+There is **no riser-specific bias**. Risers (+1.47) and decliners (+1.39) are
+within noise of each other, and *flat* players are the worst cohort. The 2025
+slice was too small; the asymmetry it appeared to show was not real.
+
+**What is real is a global over-projection**, positive in all seven seasons
+sampled (+0.48 to +1.90) and hitting 69% of players. Split by projected level:
+
+| projected | n | bias | as % of projection |
+|---|---|---|---|
+| < 8 ppg | 62 | +0.61 | 8% |
+| 8–12 | 584 | +1.22 | 12% |
+| 12–16 | 525 | +1.54 | 11% |
+| 16+ ppg | 432 | +2.27 | 12% |
+
+The bias is **proportional, not additive** — a near-constant ~11–12% of whatever
+we projected. That distinction decides whether it matters:
+
+- **Ranks are unaffected.** Scaling every projection by the same factor preserves
+  order.
+- **Auction values are unaffected.** `VOR = k·points − k·replacement = k·(points −
+  replacement)`, and each price is a *share* of the VOR pool, so a common factor
+  cancels out of the whole draft-value pipeline.
+- **Displayed point totals are inflated by ~12%** — "Proj Pts", season totals on
+  the player page, anything absolute.
+
+`TargetBlendDecayUp` (added to test the hypothesis) does reduce riser bias —
++1.47 → +1.09 at 0.7, → +0.79 at 0.9 — but it is the wrong instrument, and the
+sweep shows why: decliners are equally over-projected and the knob leaves them
+untouched by construction. It improves a metric by shrinking one cohort in a
+model that is uniformly too high. **It stays at 0 (no-op).** The knob and the
+`-cohort-bias` mode are kept so the next hypothesis can be tested the same way.
+
+**Revised recommendation.** Not an engine change: a ~0.89 calibration factor on
+*displayed* projected points, which by the algebra above moves no rank and no
+auction value. Two caveats before applying it:
+
+- Part of the 12% is definitional, not error. Our per-game number is an
+  if-healthy, in-role rate; actuals include games played hurt, benchings and
+  blowouts. Calibrating that away makes the display honest but the projection
+  less interpretable as "his rate when right".
+- Survivorship makes 12% a floor, not a ceiling: actuals require ≥4 games, so
+  players who lost their job entirely are excluded from the comparison.
+
+The honest summary of §7 as a whole: **the model's ordering is sound and agrees
+with the market; its levels are ~12% hot; and the cohort story that looked
+compelling in one season did not survive ten.**

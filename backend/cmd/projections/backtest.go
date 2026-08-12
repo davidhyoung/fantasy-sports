@@ -30,22 +30,22 @@ import (
 // projConfig holds all tuneable parameters for the projection engine.
 // The CLI reads projection_config.json if it exists; otherwise uses defaults.
 type projConfig struct {
-	SimilarityThreshold float64            `json:"similarity_threshold"`
-	AgeWindow           int                `json:"age_window"`
-	MaxGrowth           float64            `json:"max_growth"`
-	MinGrowth           float64            `json:"min_growth"`
-	QBWeights           map[string]float64 `json:"qb_weights"`
-	RBWeights           map[string]float64 `json:"rb_weights"`
-	WRWeights           map[string]float64 `json:"wr_weights"`
-	TEWeights           map[string]float64 `json:"te_weights"`
-	KWeights            map[string]float64 `json:"k_weights"`
+	SimilarityThreshold float64                 `json:"similarity_threshold"`
+	AgeWindow           int                     `json:"age_window"`
+	MaxGrowth           float64                 `json:"max_growth"`
+	MinGrowth           float64                 `json:"min_growth"`
+	QBWeights           map[string]float64      `json:"qb_weights"`
+	RBWeights           map[string]float64      `json:"rb_weights"`
+	WRWeights           map[string]float64      `json:"wr_weights"`
+	TEWeights           map[string]float64      `json:"te_weights"`
+	KWeights            map[string]float64      `json:"k_weights"`
 	AgingMultipliers    *aging.AgingMultipliers `json:"aging_multipliers,omitempty"`
-	TunedAt             string             `json:"tuned_at,omitempty"`
-	TrainSeasons        string             `json:"train_seasons,omitempty"`
-	ValidateSeasons     string             `json:"validate_seasons,omitempty"`
-	ValidationRMSE      float64            `json:"validation_rmse,omitempty"` // legacy objective (pre rank-corr)
-	ObjectiveMetric     string             `json:"objective_metric,omitempty"`
-	ValidationScore     float64            `json:"validation_score,omitempty"`
+	TunedAt             string                  `json:"tuned_at,omitempty"`
+	TrainSeasons        string                  `json:"train_seasons,omitempty"`
+	ValidateSeasons     string                  `json:"validate_seasons,omitempty"`
+	ValidationRMSE      float64                 `json:"validation_rmse,omitempty"` // legacy objective (pre rank-corr)
+	ObjectiveMetric     string                  `json:"objective_metric,omitempty"`
+	ValidationScore     float64                 `json:"validation_score,omitempty"`
 
 	// TargetBlendDecay (docs/stats/recency-weighted-profiles.md) weights the
 	// target's immediately preceding season into their base-season profile,
@@ -861,7 +861,8 @@ func storeBacktestResults(ctx context.Context, pool *pgxpool.Pool, results []bac
 //
 // trainYears:    seasons used to tune parameters
 // validateYears: held-out seasons; the tuned config must beat the default
-//                config here or the default is kept (overfitting guard)
+//
+//	config here or the default is kept (overfitting guard)
 func runAutotune(ctx context.Context, pool *pgxpool.Pool, trainFrom, trainTo, valFrom, valTo int) error {
 	log.Printf("=== Auto-tuning (train %d–%d, validate %d–%d, objective: per-game rank correlation) ===",
 		trainFrom, trainTo, valFrom, valTo)

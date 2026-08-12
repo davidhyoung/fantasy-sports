@@ -220,47 +220,47 @@ type seasonProfile struct {
 	Height        *int
 	Weight        *int
 
-	PassAttPG   float64
-	PassYdsPG   float64
-	PassTdPG    float64
-	IntPG       float64
-	RushAttPG   float64
-	RushYdsPG   float64
-	RushTdPG    float64
-	TargetsPG   float64
-	RecPG       float64
-	RecYdsPG    float64
-	RecTdPG     float64
-	FptsPG      float64
-	FptsPPRPG   float64
-	FgMadePG    float64
-	PatMadePG   float64
+	PassAttPG float64
+	PassYdsPG float64
+	PassTdPG  float64
+	IntPG     float64
+	RushAttPG float64
+	RushYdsPG float64
+	RushTdPG  float64
+	TargetsPG float64
+	RecPG     float64
+	RecYdsPG  float64
+	RecTdPG   float64
+	FptsPG    float64
+	FptsPPRPG float64
+	FgMadePG  float64
+	PatMadePG float64
 
-	PassYPA      *float64
-	CompPct      *float64
-	RushYPC      *float64
-	RecYPR       *float64
-	TargetShare  *float64
-	WOPR         *float64
-	PassEPAPlay  *float64
-	RushEPAPlay  *float64
-	RecEPAPlay   *float64
+	PassYPA       *float64
+	CompPct       *float64
+	RushYPC       *float64
+	RecYPR        *float64
+	TargetShare   *float64
+	WOPR          *float64
+	PassEPAPlay   *float64
+	RushEPAPlay   *float64
+	RecEPAPlay    *float64
 	RushYardShare *float64
 
-	SacksPG             float64
-	PassingAirYardsPG   float64
-	PassingYACPG        float64
-	AirYardsShare       *float64
-	RushingFirstDownsPG float64
-	ReceivingAirYardsPG float64
-	ReceivingYACPG      float64
+	SacksPG               float64
+	PassingAirYardsPG     float64
+	PassingYACPG          float64
+	AirYardsShare         *float64
+	RushingFirstDownsPG   float64
+	ReceivingAirYardsPG   float64
+	ReceivingYACPG        float64
 	ReceivingFirstDownsPG float64
-	FumblesPG           float64
-	FgPct               *float64
+	FumblesPG             float64
+	FgPct                 *float64
 
-	TeamFptsPG     *float64
-	TeamPassYdsPG  *float64
-	TeamRushYdsPG  *float64
+	TeamFptsPG    *float64
+	TeamPassYdsPG *float64
+	TeamRushYdsPG *float64
 
 	ZScores map[string]float64
 }
@@ -310,21 +310,21 @@ type compResult struct {
 
 // projection holds the final computed projection for one player.
 type projection struct {
-	GsisID      string
-	BaseSeason  int
+	GsisID       string
+	BaseSeason   int
 	TargetSeason int
 
-	ProjFptsPG     float64
-	ProjFptsPPRPG  float64
-	ProjPassYdsPG  float64
-	ProjPassTdPG   float64
-	ProjRushYdsPG  float64
-	ProjRushTdPG   float64
-	ProjRecPG      float64
-	ProjRecYdsPG   float64
-	ProjRecTdPG    float64
-	ProjFgMadePG   float64
-	ProjPatMadePG  float64
+	ProjFptsPG    float64
+	ProjFptsPPRPG float64
+	ProjPassYdsPG float64
+	ProjPassTdPG  float64
+	ProjRushYdsPG float64
+	ProjRushTdPG  float64
+	ProjRecPG     float64
+	ProjRecYdsPG  float64
+	ProjRecTdPG   float64
+	ProjFgMadePG  float64
+	ProjPatMadePG float64
 
 	ProjGames    int
 	ProjFpts     float64
@@ -338,16 +338,16 @@ type projection struct {
 	ProjFptsPPRP50   float64
 	ProjFptsPPRP90   float64
 
-	Confidence     float64
-	ConfSimilarity float64
-	ConfCompCount  float64
-	ConfAgreement  float64
+	Confidence      float64
+	ConfSimilarity  float64
+	ConfCompCount   float64
+	ConfAgreement   float64
 	ConfSampleDepth float64
 	ConfDataQuality float64
 
-	CompCount    int
+	CompCount     int
 	AvgSimilarity float64
-	Uniqueness   string
+	Uniqueness    string
 
 	Comps []compResult
 }
@@ -364,6 +364,7 @@ func main() {
 	doConsensusDiff := flag.Bool("consensus-diff", false, "diff our projection rank against imported consensus rankings")
 	doCohortBias := flag.Bool("cohort-bias", false, "report signed projection bias split by whether the base season rose or fell")
 	sweepDecayUp := flag.String("sweep-decay-up", "", "comma-separated TargetBlendDecayUp values to sweep with -cohort-bias (e.g. 0,0.5,1.0)")
+	cohortMinPPG := flag.Float64("min-base-ppg", 0, "restrict -cohort-bias to players at or above this base-season PPR/game")
 	importConsensus := flag.String("import-consensus", "", "path to a consensus rankings/ADP JSON file to import")
 	importNotes := flag.String("import-notes", "", "path to a situational news JSON file to import")
 	consensusFormat := flag.String("format", "ppr", "scoring format for -consensus-diff (standard|half_ppr|ppr)")
@@ -453,7 +454,7 @@ func main() {
 				sweep = append(sweep, v)
 			}
 		}
-		if err := runCohortBias(ctx, pool, *fromSeason, *toSeason, cfg, sweep); err != nil {
+		if err := runCohortBias(ctx, pool, *fromSeason, *toSeason, cfg, sweep, *cohortMinPPG); err != nil {
 			log.Fatalf("cohort bias: %v", err)
 		}
 	}
@@ -495,40 +496,40 @@ func buildProfiles(ctx context.Context, pool *pgxpool.Pool) error {
 	// 1. Aggregate all player-seasons from nfl_player_stats (REG season only).
 	log.Println("  aggregating player-season stats…")
 	type rawSeason struct {
-		GsisID       string
-		Season       int
-		Games        int
-		PassAtt      float64
-		PassYds      float64
-		PassTds      float64
-		Ints         float64
-		RushAtt      float64
-		RushYds      float64
-		RushTds      float64
-		Targets      float64
-		Recs         float64
-		RecYds       float64
-		RecTds       float64
-		Fpts         float64
-		FptsPPR      float64
-		FgMade       float64
-		PatMade      float64
-		Completions  float64
-		PassEPA      *float64
-		RushEPA      *float64
-		RecEPA       *float64
-		TargetShare  *float64
-		WOPR         *float64
-		Team         string
-		Sacks        float64
-		PassAirYds   float64
-		PassYAC      float64
+		GsisID         string
+		Season         int
+		Games          int
+		PassAtt        float64
+		PassYds        float64
+		PassTds        float64
+		Ints           float64
+		RushAtt        float64
+		RushYds        float64
+		RushTds        float64
+		Targets        float64
+		Recs           float64
+		RecYds         float64
+		RecTds         float64
+		Fpts           float64
+		FptsPPR        float64
+		FgMade         float64
+		PatMade        float64
+		Completions    float64
+		PassEPA        *float64
+		RushEPA        *float64
+		RecEPA         *float64
+		TargetShare    *float64
+		WOPR           *float64
+		Team           string
+		Sacks          float64
+		PassAirYds     float64
+		PassYAC        float64
 		RushFirstDowns float64
-		RecAirYds    float64
-		RecYAC       float64
-		RecFirstDowns float64
-		Fumbles      float64
-		FgAtt        float64
+		RecAirYds      float64
+		RecYAC         float64
+		RecFirstDowns  float64
+		Fumbles        float64
+		FgAtt          float64
 	}
 
 	// Production stats are schedule-adjusted per game before aggregation
@@ -681,7 +682,10 @@ func buildProfiles(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	defer teamRows.Close()
 
-	type teamKey struct{ team string; season int }
+	type teamKey struct {
+		team   string
+		season int
+	}
 	type teamStats struct{ fptsPG, passYdsPG, rushYdsPG float64 }
 	teamCtx := make(map[teamKey]teamStats)
 	for teamRows.Next() {
@@ -1022,10 +1026,18 @@ func computeZScores(ctx context.Context, pool *pgxpool.Pool) error {
 				vals[f] = *nums[i]
 			}
 		}
-		if age != nil { vals["age"] = float64(*age) }
-		if height != nil { vals["height"] = float64(*height) }
-		if weight != nil { vals["weight"] = float64(*weight) }
-		if draftNumber != nil { vals["draft_number"] = float64(*draftNumber) }
+		if age != nil {
+			vals["age"] = float64(*age)
+		}
+		if height != nil {
+			vals["height"] = float64(*height)
+		}
+		if weight != nil {
+			vals["weight"] = float64(*weight)
+		}
+		if draftNumber != nil {
+			vals["draft_number"] = float64(*draftNumber)
+		}
 
 		profiles = append(profiles, profileRow{id, gsisID, season, posGroup, gamesPlayed, vals})
 	}
@@ -1880,10 +1892,14 @@ func computeWeightedProjection(target *seasonProfile, comps []compResult, target
 		pt := c.Trajectory[0]
 		switch statIdx {
 		case 0:
-			if c.MatchProfile["fpts_ppr_pg"] == 0 { return 1.0, true }
+			if c.MatchProfile["fpts_ppr_pg"] == 0 {
+				return 1.0, true
+			}
 			return clampGrowth(pt.FptsPPRPG / c.MatchProfile["fpts_ppr_pg"]), true
 		case 1:
-			if c.MatchProfile["fpts_pg"] == 0 { return 1.0, true }
+			if c.MatchProfile["fpts_pg"] == 0 {
+				return 1.0, true
+			}
 			return clampGrowth(pt.FptsPG / c.MatchProfile["fpts_pg"]), true
 		}
 		return clampGrowth(pt.Growth), true
@@ -2004,14 +2020,22 @@ func computeWeightedProjection(target *seasonProfile, comps []compResult, target
 }
 
 func clampGrowth(g float64) float64 {
-	if g > maxGrowthCap { return maxGrowthCap }
-	if g < minGrowthFloor { return minGrowthFloor }
+	if g > maxGrowthCap {
+		return maxGrowthCap
+	}
+	if g < minGrowthFloor {
+		return minGrowthFloor
+	}
 	return g
 }
 
 func clamp(v, lo, hi float64) float64 {
-	if v < lo { return lo }
-	if v > hi { return hi }
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
 	return v
 }
 
@@ -2090,6 +2114,8 @@ func stdev(vals []float64, mu float64) float64 {
 }
 
 func abs(a int) int {
-	if a < 0 { return -a }
+	if a < 0 {
+		return -a
+	}
 	return a
 }

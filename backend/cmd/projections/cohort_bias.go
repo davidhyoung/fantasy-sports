@@ -26,12 +26,12 @@ import (
 const cohortSplit = 2.0
 
 type cohortStat struct {
-	n        int
-	sumErr   float64 // signed: projected − actual, per game
-	sumAbs   float64
-	tooHigh  int
-	projSum  float64
-	actSum   float64
+	n       int
+	sumErr  float64 // signed: projected − actual, per game
+	sumAbs  float64
+	tooHigh int
+	projSum float64
+	actSum  float64
 }
 
 func (c *cohortStat) add(projected, actual float64) {
@@ -67,6 +67,27 @@ func absF(v float64) float64 {
 	return v
 }
 
+// levelBands split players by how good we said they'd be, so a uniform level
+// bias can be told apart from one that scales with the projection.
+var levelBands = []struct {
+	label    string
+	min, max float64
+}{
+	{"< 8 ppg", 0, 8},
+	{"8-12", 8, 12},
+	{"12-16", 12, 16},
+	{"16+ ppg", 16, 1e9},
+}
+
+func bandOf(projPG float64) string {
+	for _, b := range levelBands {
+		if projPG >= b.min && projPG < b.max {
+			return b.label
+		}
+	}
+	return levelBands[len(levelBands)-1].label
+}
+
 // cohortOf classifies a player by the direction of their base season relative to
 // the one before. Players without two prior seasons are unclassifiable and are
 // reported separately rather than silently folded into "flat".
@@ -89,7 +110,10 @@ func cohortOf(seasonMap map[int]*seasonProfile, baseSeason int) string {
 // cohort. With sweep values supplied it repeats the whole run per value of
 // TargetBlendDecayUp, so the asymmetric-regression hypothesis can be tested
 // against held-out seasons rather than a single year.
-func runCohortBias(ctx context.Context, pool *pgxpool.Pool, fromYear, toYear int, cfg projConfig, sweep []float64) error {
+// minBasePPG optionally restricts the report to players who were already
+// fantasy-relevant in their base season. It filters on an INPUT (the base
+// season), never on the outcome, so it can't select for our own errors.
+func runCohortBias(ctx context.Context, pool *pgxpool.Pool, fromYear, toYear int, cfg projConfig, sweep []float64, minBasePPG float64) error {
 	allProfiles, err := loadAllProfiles(ctx, pool)
 	if err != nil {
 		return fmt.Errorf("load profiles: %w", err)
@@ -98,7 +122,8 @@ func runCohortBias(ctx context.Context, pool *pgxpool.Pool, fromYear, toYear int
 	if err != nil {
 		return fmt.Errorf("load actuals: %w", err)
 	}
-	log.Printf("=== Cohort bias, seasons %d–%d (%d profiles) ===", fromYear, toYear, len(allProfiles))
+	log.Printf("=== Cohort bias, seasons %d–%d (%d profiles, min base ppg %.1f) ===",
+		fromYear, toYear, len(allProfiles), minBasePPG)
 
 	// Index profiles by player so cohort classification can look back two seasons.
 	byPlayer := map[string]map[int]*seasonProfile{}
@@ -126,6 +151,10 @@ func runCohortBias(ctx context.Context, pool *pgxpool.Pool, fromYear, toYear int
 		for _, name := range []string{"rose", "flat", "fell", "unknown"} {
 			stats[name] = &cohortStat{}
 		}
+		levels := map[string]*cohortStat{}
+		for _, b := range levelBands {
+			levels[b.label] = &cohortStat{}
+		}
 
 		for target := fromYear; target <= toYear; target++ {
 			outcomes := projectSeasonBacktest(runCfg, allProfiles, target)
@@ -135,10 +164,14 @@ func runCohortBias(ctx context.Context, pool *pgxpool.Pool, fromYear, toYear int
 				if !ok || act.Games < minEvalGames {
 					continue
 				}
+				if base := byPlayer[gsisID][target-1]; minBasePPG > 0 && (base == nil || base.FptsPPRPG < minBasePPG) {
+					continue
+				}
 				actualPG := act.Total / float64(act.Games)
 				cohort := cohortOf(byPlayer[gsisID], target-1)
 				stats[cohort].add(out.PerGame, actualPG)
 				overall.add(out.PerGame, actualPG)
+				levels[bandOf(out.PerGame)].add(out.PerGame, actualPG)
 			}
 		}
 
@@ -156,6 +189,21 @@ func runCohortBias(ctx context.Context, pool *pgxpool.Pool, fromYear, toYear int
 		}
 		fmt.Printf("%-10s %-8s %6d %+9.3f %8.3f %8.0f%%\n",
 			label, "ALL", overall.n, overall.bias(), overall.mae(), float64(overall.tooHigh)/float64(overall.n)*100)
+
+		// A uniform level bias cancels out of ranks and out of VOR, so it barely
+		// touches a draft board. A bias that grows with projected level does not —
+		// it stretches the top of the board away from the field. Splitting by
+		// projected level is what tells those two apart.
+		fmt.Printf("\n%-10s %-12s %6s %9s %8s %9s\n", label, "proj level", "n", "bias", "MAE", "bias/proj")
+		for _, b := range levelBands {
+			s := levels[b.label]
+			if s == nil || s.n == 0 {
+				continue
+			}
+			meanProj := s.projSum / float64(s.n)
+			fmt.Printf("%-10s %-12s %6d %+9.3f %8.3f %8.0f%%\n",
+				label, b.label, s.n, s.bias(), s.mae(), s.bias()/meanProj*100)
+		}
 		fmt.Println()
 	}
 	return nil
