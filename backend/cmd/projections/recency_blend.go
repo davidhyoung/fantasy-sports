@@ -44,6 +44,31 @@ func blendPtr(cur, prior *float64, wCur, wPrior float64) *float64 {
 	return &v
 }
 
+// effectiveBlendDecay picks the blend decay for one player, allowing breakouts to
+// be regressed harder than down seasons.
+//
+// The asymmetry is empirical, not a hunch: across 2015–2024, a player who gained
+// ≥2 ppg gave back a median 58% of it the following season, while one who lost
+// ≥2 ppg recovered a median −4% — declines are sticky, gains are transient
+// (docs/algorithm-review.md §7.4). A single symmetric decay cannot express that:
+// raising it to regress breakouts also drags decliners upward, and decliners are
+// already well calibrated.
+//
+// decayUp <= 0 falls back to the symmetric decay, so the default is an exact no-op.
+func effectiveBlendDecay(seasonMap map[int]*seasonProfile, baseSeason int, decay, decayUp float64) float64 {
+	if decayUp <= 0 {
+		return decay
+	}
+	base, prior := seasonMap[baseSeason], seasonMap[baseSeason-1]
+	if base == nil || prior == nil {
+		return decay
+	}
+	if base.FptsPPRPG > prior.FptsPPRPG {
+		return decayUp
+	}
+	return decay
+}
+
 // blendTargetProfile returns the profile to use as a projection TARGET (comp
 // search + growth-rate input) — never as a comp candidate, which stays a plain
 // single-season snapshot. Skeleton fields (age, years_exp, draft_number,

@@ -52,6 +52,12 @@ type projConfig struct {
 	// discounted by this factor. 0 = exact no-op (today's single-season
 	// behavior); must stay in [0, 1) — sanitizeConfig resets bad values.
 	TargetBlendDecay float64 `json:"target_blend_decay"`
+	// TargetBlendDecayUp is the decay used when the base season came in ABOVE
+	// the preceding one — a breakout. Gains are given back far more often than
+	// drops are recovered (docs/algorithm-review.md §7.4), so regressing risers
+	// harder than decliners is the asymmetry that symmetric blending can't
+	// express. 0 = fall back to TargetBlendDecay, i.e. exact today's behavior.
+	TargetBlendDecayUp float64 `json:"target_blend_decay_up,omitempty"`
 	// GrowthShrinkageK (docs/stats/bayesian-shrinkage.md, growth-rate
 	// extension) shrinks the comp-derived growth rate toward an age/position
 	// baseline, weighted as if it were a comp with this much combined
@@ -144,6 +150,9 @@ func sanitizeConfig(cfg projConfig) projConfig {
 	}
 	if cfg.TargetBlendDecay < 0 || cfg.TargetBlendDecay >= 1 {
 		cfg.TargetBlendDecay = def.TargetBlendDecay
+	}
+	if cfg.TargetBlendDecayUp < 0 || cfg.TargetBlendDecayUp >= 1 {
+		cfg.TargetBlendDecayUp = def.TargetBlendDecayUp
 	}
 	if cfg.GrowthShrinkageK < 0 {
 		cfg.GrowthShrinkageK = def.GrowthShrinkageK
@@ -386,7 +395,8 @@ func projectSeasonBacktest(cfg projConfig, allProfiles []seasonProfile, targetSe
 	var targets []*seasonProfile
 	for _, seasonMap := range byPlayerSeason {
 		if _, ok := seasonMap[baseSeason]; ok {
-			targets = append(targets, blendTargetProfile(seasonMap, baseSeason, cfg.TargetBlendDecay))
+			targets = append(targets, blendTargetProfile(seasonMap, baseSeason,
+				effectiveBlendDecay(seasonMap, baseSeason, cfg.TargetBlendDecay, cfg.TargetBlendDecayUp)))
 		}
 	}
 

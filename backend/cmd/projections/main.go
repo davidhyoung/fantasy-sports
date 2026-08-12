@@ -19,6 +19,7 @@ import (
 	"math"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/davidyoung/fantasy-sports/backend/internal/aging"
@@ -361,6 +362,8 @@ func main() {
 	doBacktest := flag.Bool("backtest", false, "backtest projections against historical actuals")
 	doAutotune := flag.Bool("autotune", false, "auto-tune dimension weights via coordinate descent")
 	doConsensusDiff := flag.Bool("consensus-diff", false, "diff our projection rank against imported consensus rankings")
+	doCohortBias := flag.Bool("cohort-bias", false, "report signed projection bias split by whether the base season rose or fell")
+	sweepDecayUp := flag.String("sweep-decay-up", "", "comma-separated TargetBlendDecayUp values to sweep with -cohort-bias (e.g. 0,0.5,1.0)")
 	importConsensus := flag.String("import-consensus", "", "path to a consensus rankings/ADP JSON file to import")
 	importNotes := flag.String("import-notes", "", "path to a situational news JSON file to import")
 	consensusFormat := flag.String("format", "ppr", "scoring format for -consensus-diff (standard|half_ppr|ppr)")
@@ -373,8 +376,8 @@ func main() {
 	flag.Parse()
 
 	if !*doProfiles && !*doProject && !*doGrades && !*doAll && !*doBacktest && !*doAutotune &&
-		!*doConsensusDiff && *importConsensus == "" && *importNotes == "" {
-		fmt.Fprintln(os.Stderr, "usage: go run ./cmd/projections [-profiles] [-project -season N] [-grades] [-all -season N] [-backtest -from N -to N] [-autotune -from N -to N -train-to N] [-import-consensus FILE -season N] [-import-notes FILE -season N] [-consensus-diff -season N -format ppr]")
+		!*doConsensusDiff && !*doCohortBias && *importConsensus == "" && *importNotes == "" {
+		fmt.Fprintln(os.Stderr, "usage: go run ./cmd/projections [-profiles] [-project -season N] [-grades] [-all -season N] [-backtest -from N -to N] [-autotune -from N -to N -train-to N] [-import-consensus FILE -season N] [-import-notes FILE -season N] [-consensus-diff -season N -format ppr] [-cohort-bias -from N -to N [-sweep-decay-up 0,0.5]]")
 		os.Exit(1)
 	}
 
@@ -436,6 +439,23 @@ func main() {
 			log.Fatalf("backtest: %v", err)
 		}
 		log.Printf("  backtest complete: %d result sets stored", len(results))
+	}
+
+	if *doCohortBias {
+		cfg := loadConfig()
+		var sweep []float64
+		if *sweepDecayUp != "" {
+			for _, part := range strings.Split(*sweepDecayUp, ",") {
+				v, err := strconv.ParseFloat(strings.TrimSpace(part), 64)
+				if err != nil {
+					log.Fatalf("bad -sweep-decay-up value %q: %v", part, err)
+				}
+				sweep = append(sweep, v)
+			}
+		}
+		if err := runCohortBias(ctx, pool, *fromSeason, *toSeason, cfg, sweep); err != nil {
+			log.Fatalf("cohort bias: %v", err)
+		}
 	}
 
 	if *doAutotune {
@@ -1361,7 +1381,8 @@ func computeProjections(ctx context.Context, pool *pgxpool.Pool, baseSeason, tar
 	var targets []*seasonProfile
 	for _, seasonMap := range byPlayerSeason {
 		if _, ok := seasonMap[baseSeason]; ok {
-			targets = append(targets, blendTargetProfile(seasonMap, baseSeason, cfg.TargetBlendDecay))
+			targets = append(targets, blendTargetProfile(seasonMap, baseSeason,
+				effectiveBlendDecay(seasonMap, baseSeason, cfg.TargetBlendDecay, cfg.TargetBlendDecayUp)))
 		}
 	}
 	log.Printf("  found %d players with %d base-season profiles", len(targets), baseSeason)
