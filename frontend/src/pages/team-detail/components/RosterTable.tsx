@@ -41,7 +41,7 @@ export function RosterTable({ roster, statLabels, rankByPlayer }: Props) {
                 <TableCell className="text-muted-foreground">{p.display_position}</TableCell>
                 <TableCell className="text-muted-foreground">{p.selected_position.position}</TableCell>
                 {hasRankings && (
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell className="text-right font-mono tabular-nums">
                     {rp ? (
                       <div className="flex flex-col items-end gap-0.5">
                         <span className="text-xs text-muted-foreground">
@@ -64,7 +64,7 @@ export function RosterTable({ roster, statLabels, rankByPlayer }: Props) {
                     return <ZScoreCell key={label} value={stat?.value ?? '—'} zScore={catScore.z_score} className="text-muted-foreground" />
                   }
                   return (
-                    <TableCell key={label} className="text-right tabular-nums text-muted-foreground">
+                    <TableCell key={label} className="text-right font-mono tabular-nums text-muted-foreground">
                       {stat?.value ?? '—'}
                     </TableCell>
                   )

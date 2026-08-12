@@ -37,7 +37,7 @@ export function TeamRosterTable({ teamName, roster, statLabels }: Props) {
                   {statLabels.map((label) => {
                     const stat = p.stats?.find((s: RosterStat) => s.label === label)
                     return (
-                      <TableCell key={label} className="text-right tabular-nums text-muted-foreground">
+                      <TableCell key={label} className="text-right font-mono tabular-nums text-muted-foreground">
                         {stat?.value ?? '—'}
                       </TableCell>
                     )

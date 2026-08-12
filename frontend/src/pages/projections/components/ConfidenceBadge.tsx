@@ -9,7 +9,7 @@ export default function ConfidenceBadge({ value, className }: ConfidenceBadgePro
   const pct = Math.round(value * 100)
   const color =
     value >= 0.70 ? 'bg-positive-light text-positive-foreground border-positive-border' :
-    value >= 0.45 ? 'bg-warning-light text-warning-foreground border-warning-border' :
+    value >= 0.45 ? 'bg-muted text-muted-foreground border-border' :
                     'bg-negative-light text-negative-foreground border-negative-border'
 
   return (

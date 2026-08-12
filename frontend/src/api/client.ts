@@ -543,8 +543,24 @@ export interface DraftPlayer {
   auction_value: number
   overall_rank: number
   position_rank: number
+  /** Market price on this league's dollar scale. null where no source covers him. */
+  consensus_auction_value: number | null
+  consensus_position_rank: number | null
+  consensus_sources: number
+  /** true = inferred from consensus rank; false = an imported market price. */
+  consensus_derived: boolean
   trajectory?: RankingTrajectoryPoint[]
   player_grade: number | null
+}
+
+/** The settings a board was computed with, in the vocabulary overrides use. */
+export interface DraftSettingsResponse {
+  num_teams: number
+  budget: number
+  format: string
+  /** Editable roster slots: QB, RB, WR, TE, FLEX, SFLEX, K, DEF. */
+  slots: Record<string, number>
+  overridden: boolean
 }
 
 export interface DraftValuesResponse {
@@ -552,22 +568,68 @@ export interface DraftValuesResponse {
   budget_per_team: number
   num_teams: number
   scoring_format: string
+  settings: DraftSettingsResponse
   replacement_levels: DraftReplacementLevel[]
   players: DraftPlayer[]
 }
 
-export const getDraftValues = (leagueId: number, params: {
+export interface DraftValuesParams {
   season?: number
+  /** 'league' keeps the league's own reception scoring; the rest force a format. */
   format?: string
   budget?: number
-}) => {
+  teams?: number
+  /** Roster override, e.g. `QB:1,RB:2,WR:3,TE:1,FLEX:1,SFLEX:1,K:1,DEF:1`. */
+  slots?: string
+}
+
+export const getDraftValues = (leagueId: number, params: DraftValuesParams) => {
   const qs = new URLSearchParams()
   if (params.season) qs.set('season', String(params.season))
-  if (params.format) qs.set('format', params.format)
+  if (params.format && params.format !== 'league') qs.set('format', params.format)
   if (params.budget) qs.set('budget', String(params.budget))
+  if (params.teams) qs.set('teams', String(params.teams))
+  if (params.slots) qs.set('slots', params.slots)
   const q = qs.toString()
   return request<DraftValuesResponse>(`/leagues/${leagueId}/draft-values${q ? `?${q}` : ''}`)
 }
+
+// --- Draft Prep (personal board: tags + custom ranking) ---
+
+export type DraftPrepTag = 'target' | 'sleeper' | 'avoid' | ''
+
+export interface DraftPrepEntry {
+  gsis_id: string
+  tag: DraftPrepTag
+  custom_rank: number | null
+  note: string
+}
+
+export interface DraftPrepResponse {
+  season: number
+  players: DraftPrepEntry[]
+}
+
+export const getDraftPrep = (leagueId: number, season: number) =>
+  request<DraftPrepResponse>(`/leagues/${leagueId}/draft-prep?season=${season}`)
+
+export const setDraftPrepPlayer = (
+  leagueId: number,
+  season: number,
+  gsisId: string,
+  body: { tag: DraftPrepTag; custom_rank: number | null; note: string },
+) =>
+  request<DraftPrepEntry>(`/leagues/${leagueId}/draft-prep/${gsisId}?season=${season}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+
+/** Replaces the whole board order — position in the array becomes the rank. */
+export const reorderDraftPrep = (leagueId: number, season: number, gsisIds: string[]) =>
+  request<{ ranked: number }>(`/leagues/${leagueId}/draft-prep/order?season=${season}`, {
+    method: 'PUT',
+    body: JSON.stringify({ gsis_ids: gsisIds }),
+  })
 
 // --- NFL Player Detail ---
 

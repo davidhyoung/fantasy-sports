@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <table ref={ref} className={cn('w-full caption-bottom text-sm', className)} {...props} />
+    <table ref={ref} className={cn('w-full caption-bottom text-[13px]', className)} {...props} />
   )
 )
 Table.displayName = 'Table'
@@ -26,7 +26,7 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
   ({ className, ...props }, ref) => (
     <tr
       ref={ref}
-      className={cn('border-b border-border/40 transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted', className)}
+      className={cn('border-b border-border hover:bg-card data-[state=selected]:bg-card', className)}
       {...props}
     />
   )
@@ -37,7 +37,11 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<
   ({ className, ...props }, ref) => (
     <th
       ref={ref}
-      className={cn('h-10 px-2 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]', className)}
+      className={cn(
+        // Column labels are the one place ALL CAPS is used in this design system.
+        'h-10 px-2 text-left align-middle font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+        className
+      )}
       {...props}
     />
   )

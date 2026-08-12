@@ -2,101 +2,119 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens follow the handoff design system: warm near-black neutrals, one
+   coral-pink accent carrying all positive/primary meaning, a cool blue for
+   negative/secondary, and a purple reserved strictly for projected/future data.
+   Dark is the designed theme; light is derived by inverting the neutral ramp and
+   darkening the accents for contrast. */
+
 @layer base {
   :root {
-    --background: 220 10% 92%;
-    --foreground: 240 10% 8%;
-    --card: 0 0% 99%;
-    --card-foreground: 240 10% 8%;
-    --popover: 0 0% 99%;
-    --popover-foreground: 240 10% 8%;
-    --primary: 170 90% 35%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 270 80% 58%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 220 12% 86%;
-    --muted-foreground: 220 10% 40%;
-    --accent: 270 80% 58%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 85% 50%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 220 12% 82%;
-    --input: 220 12% 82%;
-    --ring: 170 90% 40%;
+    /* ── Light (derived) ── */
+    --background: 40 30% 94%;
+    --foreground: 40 17% 10%;
+    --card: 42 45% 98%;
+    --card-foreground: 40 17% 10%;
+    --popover: 42 45% 98%;
+    --popover-foreground: 40 17% 10%;
+    --primary: 347 62% 48%;
+    --primary-foreground: 42 45% 98%;
+    --primary-hover: 347 62% 42%;
+    --secondary: 226 50% 52%;
+    --secondary-foreground: 42 45% 98%;
+    --muted: 40 20% 89%;
+    --muted-foreground: 39 12% 38%;
+    /* accent = subtle hover surface (shadcn semantics), not a brand hue */
+    --accent: 40 25% 91%;
+    --accent-foreground: 40 17% 10%;
+    --destructive: 0 72% 46%;
+    --destructive-foreground: 42 45% 98%;
+    --border: 38 18% 84%;
+    --input: 38 18% 84%;
+    --ring: 347 62% 48%;
     --radius: 0.5rem;
-    --neon: 170 90% 50%;
     --nav-height: 53px;
     --tabs-height: 0px;
 
-    /* Semantic palette — teal (positive), purple (accent), orange (negative/warning) */
-    --positive: 170 90% 30%;
-    --positive-foreground: 170 90% 25%;
-    --positive-light: 170 60% 95%;
-    --positive-border: 170 50% 80%;
+    /* Semantic palette — pink (positive/primary), blue (negative), purple (projected) */
+    --positive: 347 62% 45%;
+    --positive-foreground: 347 62% 40%;
+    --positive-light: 347 60% 95%;
+    --positive-border: 347 40% 82%;
 
-    --highlight: 270 60% 50%;
-    --highlight-foreground: 270 60% 42%;
-    --highlight-light: 270 50% 96%;
-    --highlight-border: 270 40% 82%;
+    --highlight: 256 60% 55%;
+    --highlight-foreground: 256 60% 48%;
+    --highlight-light: 256 55% 96%;
+    --highlight-border: 256 35% 84%;
 
-    --warning: 30 90% 52%;
-    --warning-foreground: 30 90% 42%;
-    --warning-light: 30 70% 95%;
-    --warning-border: 30 60% 80%;
+    /* No counterpart in the design system — retained as a warm escape hatch. */
+    --warning: 33 85% 45%;
+    --warning-foreground: 33 85% 38%;
+    --warning-light: 33 70% 95%;
+    --warning-border: 33 55% 82%;
 
-    --negative: 16 90% 48%;
-    --negative-foreground: 16 85% 40%;
-    --negative-light: 16 70% 95%;
-    --negative-border: 16 60% 80%;
+    --negative: 226 50% 50%;
+    --negative-foreground: 226 50% 44%;
+    --negative-light: 226 55% 95%;
+    --negative-border: 226 35% 82%;
 
-    /* Chart line color (HSL string for inline SVG use) */
-    --chart-line: 270 60% 50%;
+    /* Chart strokes (HSL strings for inline SVG use). Actual seasons use the
+       primary accent; projected segments use the purple. */
+    --chart-line: 347 62% 48%;
+    --chart-projected: 256 60% 55%;
   }
 
   .dark {
     color-scheme: dark;
-    --background: 240 15% 4%;
-    --foreground: 220 15% 90%;
-    --card: 240 12% 8%;
-    --card-foreground: 220 15% 90%;
-    --popover: 240 12% 8%;
-    --popover-foreground: 220 15% 90%;
-    --primary: 170 90% 50%;
-    --primary-foreground: 240 15% 4%;
-    --secondary: 270 80% 65%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 240 10% 14%;
-    --muted-foreground: 220 10% 55%;
-    --accent: 270 80% 65%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 80% 55%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 240 8% 16%;
-    --input: 240 8% 16%;
-    --ring: 170 90% 50%;
-    --neon: 170 90% 50%;
 
-    --positive: 170 90% 55%;
-    --positive-foreground: 170 80% 60%;
-    --positive-light: 170 50% 12%;
-    --positive-border: 170 40% 20%;
+    /* ── Dark (the designed theme) ──
+       n-950 #15130f · n-900 #1c1913 · n-850 #231f18 · n-800 #2b2620
+       n-700 #3a352c · n-500 #7d7566 · n-400 #a89f8f · n-200 #dcd6c9
+       n-100 #f0ece3 · n-50 #faf7f1 */
+    --background: 40 17% 7%;
+    --foreground: 42 30% 92%;
+    --card: 40 19% 9%;
+    --card-foreground: 42 30% 92%;
+    --popover: 40 19% 9%;
+    --popover-foreground: 42 30% 92%;
+    --primary: 347 69% 63%;
+    --primary-foreground: 40 17% 7%;
+    --primary-hover: 347 78% 72%;
+    --secondary: 226 62% 68%;
+    --secondary-foreground: 40 17% 7%;
+    --muted: 38 19% 12%;
+    --muted-foreground: 39 10% 45%;
+    /* Design spec: hover states darken to n-900. */
+    --accent: 40 19% 9%;
+    --accent-foreground: 40 47% 96%;
+    --destructive: 0 65% 58%;
+    --destructive-foreground: 40 17% 7%;
+    --border: 33 15% 15%;
+    --input: 33 15% 15%;
+    --ring: 347 78% 72%;
 
-    --highlight: 270 80% 68%;
-    --highlight-foreground: 270 70% 72%;
-    --highlight-light: 270 40% 12%;
-    --highlight-border: 270 30% 22%;
+    --positive: 347 69% 63%;
+    --positive-foreground: 347 78% 72%;
+    --positive-light: 344 21% 14%;
+    --positive-border: 336 27% 20%;
 
-    --warning: 30 90% 58%;
-    --warning-foreground: 30 80% 62%;
-    --warning-light: 30 50% 12%;
-    --warning-border: 30 40% 20%;
+    --highlight: 256 79% 71%;
+    --highlight-foreground: 256 79% 71%;
+    --highlight-light: 256 30% 14%;
+    --highlight-border: 256 30% 24%;
 
-    --negative: 16 85% 55%;
-    --negative-foreground: 16 75% 60%;
-    --negative-light: 16 50% 12%;
-    --negative-border: 16 40% 20%;
+    --warning: 38 80% 62%;
+    --warning-foreground: 38 80% 66%;
+    --warning-light: 38 30% 13%;
+    --warning-border: 38 30% 22%;
 
-    --chart-line: 270 80% 68%;
+    --negative: 226 62% 68%;
+    --negative-foreground: 226 62% 68%;
+    --negative-light: 225 24% 13%;
+    --negative-border: 226 25% 22%;
+
+    --chart-line: 347 69% 63%;
+    --chart-projected: 256 79% 71%;
   }
 }
 
@@ -109,6 +127,9 @@
   }
 }
 
+/* The design system specifies no transitions or animations anywhere — depth and
+   state come from flat color steps. Keeping the reduced-motion block regardless,
+   for any third-party animation that slips through. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

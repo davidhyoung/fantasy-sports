@@ -95,13 +95,13 @@ export default function ProjectionTable({
         </TableHeader>
         <TableBody>
           {sorted.map((p) => (
-            <ClickableRow key={p.gsis_id} href={`/projections/${p.gsis_id}`}>
-              <TableCell className="text-center text-muted-foreground tabular-nums">
+            <ClickableRow key={p.gsis_id} href={`/players/${p.gsis_id}`}>
+              <TableCell className="text-center text-muted-foreground font-mono tabular-nums">
                 {p.overall_rank}
               </TableCell>
               <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} linked />
               <TableCell className="text-center text-muted-foreground">{p.position_group}</TableCell>
-              <TableCell className="text-center text-muted-foreground tabular-nums">{p.age || '—'}</TableCell>
+              <TableCell className="text-center text-muted-foreground font-mono tabular-nums">{p.age || '—'}</TableCell>
               <TableCell className="text-right tabular-nums font-mono">
                 {p.player_grade != null ? (
                   <span className={gradeColorClass(p.player_grade)}>{p.player_grade.toFixed(0)}</span>

@@ -4,14 +4,14 @@ import { Sun, Moon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTheme } from '@/components/ui/provider'
 import Home from './pages/Home'
-import Leagues from './pages/Leagues'
 import LeagueDetail from './pages/league-detail'
+import MyTeamRedirect from './pages/league-detail/MyTeamRedirect'
 import TeamDetail from './pages/team-detail'
 import MatchupDetail from './pages/matchup-detail'
 import PlayerDetail from './pages/player-detail'
-import Projections from './pages/projections'
+import Statistics from './pages/statistics'
+import DraftPrep from './pages/draft-prep'
 import Divergences from './pages/divergences'
-import Rankings from './pages/rankings'
 import { getMe } from './api/client'
 import { keys } from './api/queryKeys'
 
@@ -19,6 +19,25 @@ function ProjectionRedirect() {
   const { gsisId } = useParams<{ gsisId: string }>()
   return <Navigate to={`/players/${gsisId}`} replace />
 }
+
+/** The only graphic in the system — four flat squares, no imagery anywhere else. */
+function BrandMark() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 26 26" aria-hidden>
+      <rect x="2" y="2" width="9" height="9" className="fill-primary" />
+      <rect x="15" y="2" width="9" height="9" className="fill-muted" />
+      <rect x="2" y="15" width="9" height="9" className="fill-muted" />
+      <rect x="15" y="15" width="9" height="9" className="fill-secondary" />
+    </svg>
+  )
+}
+
+/** `match` lists the path prefixes that should light up each nav segment. */
+const NAV_ITEMS = [
+  { to: '/', label: 'Leagues', match: ['/', '/leagues', '/teams'] },
+  { to: '/draft-prep', label: 'Draft Prep', match: ['/draft-prep'] },
+  { to: '/statistics', label: 'Statistics', match: ['/statistics', '/players', '/divergences'] },
+]
 
 export default function App() {
   const location = useLocation()
@@ -38,46 +57,48 @@ export default function App() {
       >
         Skip to content
       </a>
-      <nav className="sticky top-0 z-40 bg-background border-b border-border/40 px-6 pt-5 pb-3 flex items-center gap-6">
-        <RouterLink
-          to="/"
-          className="font-semibold text-foreground hover:text-primary transition-colors"
-        >
-          Fantasy Sports
+      <nav className="sticky top-0 z-40 bg-card border-b border-border px-7 py-4 flex items-center justify-between">
+        <RouterLink to="/" className="flex items-center gap-2.5">
+          <BrandMark />
+          <span className="font-display text-base font-bold text-foreground">Fantasy Sports</span>
         </RouterLink>
-        {[
-          { to: '/leagues', label: 'Leagues' },
-          { to: '/rankings', label: 'Rankings' },
-          { to: '/projections', label: 'Projections' },
-          { to: '/divergences', label: 'Divergences' },
-        ].map(({ to, label }) => (
-          <RouterLink
-            key={to}
-            to={to}
-            className={`transition-colors ${
-              location.pathname.startsWith(to)
-                ? 'text-foreground font-medium'
-                : 'text-muted-foreground hover:text-primary'
-            }`}
-          >
-            {label}
-          </RouterLink>
-        ))}
-        <div className="ml-auto flex items-center gap-4">
+
+        <div className="flex items-center gap-2.5">
+          {/* Leagues, the pre-draft board, and the player-data surface. */}
+          <div className="flex items-center gap-0.5 rounded-pill bg-muted p-1">
+            {NAV_ITEMS.map(({ to, label, match }) => {
+              const active = match.some(p =>
+                p === '/' ? location.pathname === '/' : location.pathname.startsWith(p)
+              )
+              return (
+                <RouterLink
+                  key={to}
+                  to={to}
+                  className={`rounded-pill px-3.5 py-1.5 font-display text-xs font-semibold ${
+                    active
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {label}
+                </RouterLink>
+              )
+            })}
+          </div>
+
           <button
             onClick={() => setTheme(isDark ? 'light' : 'dark')}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] border-input text-[11px] text-muted-foreground hover:text-foreground"
             aria-label="Toggle theme"
           >
-            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {isDark ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
           </button>
           {authLoading ? null : user ? (
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-foreground">{user.display_name}</span>
-              <a
-                href="/auth/logout"
-                className="text-sm text-muted-foreground hover:text-destructive transition-colors"
-              >
+            <div className="flex items-center gap-3">
+              <span className="font-display text-[13px] font-semibold text-foreground">
+                {user.display_name}
+              </span>
+              <a href="/auth/logout" className="font-display text-[13px] text-muted-foreground hover:text-foreground">
                 Logout
               </a>
             </div>
@@ -92,12 +113,19 @@ export default function App() {
       <main id="main-content" className="px-6 pt-8 pb-6">
         <Routes>
           <Route path="/" element={<Home user={user ?? null} />} />
-          <Route path="/leagues" element={<Leagues />} />
+          {/* The leagues list lives on the home screen now. */}
+          <Route path="/leagues" element={<Navigate to="/" replace />} />
           <Route path="/leagues/:id" element={<LeagueDetail />} />
+          {/* Stable deep link to your own team in a league → /teams/:teamId */}
+          <Route path="/leagues/:id/my-team" element={<MyTeamRedirect />} />
           <Route path="/teams/:id" element={<TeamDetail />} />
           <Route path="/leagues/:leagueId/matchup/:week/:t1/:t2" element={<MatchupDetail />} />
-          <Route path="/rankings" element={<Rankings />} />
-          <Route path="/projections" element={<Projections />} />
+          <Route path="/draft-prep" element={<DraftPrep />} />
+          <Route path="/statistics" element={<Statistics />} />
+          {/* Rankings and Projections merged into Statistics as two views. */}
+          <Route path="/rankings" element={<Navigate to="/statistics?view=grades" replace />} />
+          <Route path="/projections" element={<Navigate to="/statistics?view=projections" replace />} />
+          {/* Kept as a deep page: Home surfaces the top signals, this is the full table. */}
           <Route path="/divergences" element={<Divergences />} />
           <Route path="/players/:gsisId" element={<PlayerDetail />} />
           {/* Legacy redirect — old /projections/:gsisId links now go to /players/:gsisId */}

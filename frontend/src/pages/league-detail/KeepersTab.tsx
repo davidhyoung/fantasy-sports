@@ -67,7 +67,7 @@ export function KeepersTab({ leagueId, active, teams, myTeam, season }: Props) {
         <div className="flex items-center gap-3 mb-4">
           {mySubmitted ? (
             <>
-              <span className="text-sm text-green-600 dark:text-green-400 font-medium">✓ Keepers submitted</span>
+              <span className="text-sm text-positive-foreground font-medium">✓ Keepers submitted</span>
               <Button
                 size="sm"
                 variant="outline"
@@ -105,7 +105,7 @@ export function KeepersTab({ leagueId, active, teams, myTeam, season }: Props) {
         </select>
 
         {myTeam && effectiveTeamFilter === myTeam.yahoo_key && (
-          <span className={`text-sm font-medium ${wishlistCount >= MAX_KEEPERS ? 'text-orange-400' : 'text-muted-foreground'}`}>
+          <span className={`text-sm font-medium ${wishlistCount >= MAX_KEEPERS ? 'text-negative-foreground' : 'text-muted-foreground'}`}>
             {wishlistCount} / {MAX_KEEPERS} keepers selected
           </span>
         )}

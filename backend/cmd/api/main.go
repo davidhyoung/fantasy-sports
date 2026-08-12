@@ -107,6 +107,10 @@ func main() {
 			r.Get("/{id}/keeper-summary", h.GetKeeperSummary)
 			r.Get("/{id}/rankings", h.GetLeagueRankings)
 			r.Get("/{id}/draft-values", h.GetDraftValues)
+			r.Get("/{id}/draft-prep", h.GetDraftPrep)
+			// Fixed path before the wildcard, so "order" isn't read as a player id.
+			r.Put("/{id}/draft-prep/order", h.ReorderDraftPrep)
+			r.Put("/{id}/draft-prep/{gsisId}", h.UpsertDraftPrepPlayer)
 		})
 	})
 	r.Route("/api/players", func(r chi.Router) {

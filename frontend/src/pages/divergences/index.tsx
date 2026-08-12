@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
 import { Table, TableBody, TableCell, TableHead, TableHeader } from '@/components/ui/table'
+import { FilterChip, SelectControl } from '@/components/ui/filter-chip'
 import {
   ClickableRow,
   HeaderRow,
@@ -69,9 +71,13 @@ export default function Divergences() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
+      <RouterLink to="/" className="text-xs text-muted-foreground hover:text-foreground">
+        ← Back to leagues
+      </RouterLink>
+
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Consensus Divergence</h1>
+          <h1 className="font-display text-[26px] font-bold text-foreground">Consensus Divergence</h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
             Where our projections disagree most with external expert rankings and ADP,
             compared within position group. A large gap is a prompt to look — not a
@@ -80,43 +86,34 @@ export default function Divergences() {
           </p>
         </div>
 
-        <div className="flex gap-1 bg-muted rounded-lg p-1 self-start sm:self-center">
+        <SelectControl
+          label="Scoring"
+          value={format}
+          onChange={(e) => setFormat(e.target.value as RankingsFormat)}
+          className="self-start sm:self-center"
+        >
           {FORMATS.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setFormat(f.value)}
-              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                format === f.value
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {f.label}
-            </button>
+            <option key={f.value} value={f.value}>{f.label}</option>
           ))}
-        </div>
+        </SelectControl>
       </div>
 
-      <div className="flex gap-1 flex-wrap">
+      <div className="flex gap-1.5 flex-wrap">
         {POSITIONS.map((pos) => (
-          <button
+          <FilterChip
             key={pos}
+            active={pos === positionLabel}
             onClick={() => setPositionLabel(pos)}
-            className={`px-3 py-1 rounded text-sm font-medium transition-colors border ${
-              pos === positionLabel
-                ? 'bg-primary/20 text-primary border-primary/50'
-                : 'text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground'
-            }`}
           >
             {pos}
-          </button>
+          </FilterChip>
         ))}
       </div>
 
       {isLoading ? (
         <p className="text-muted-foreground text-sm">Loading divergences…</p>
       ) : isError ? (
-        <p className="text-red-600 dark:text-red-400 text-sm">Failed to load divergences.</p>
+        <p className="text-destructive text-sm">Failed to load divergences.</p>
       ) : data ? (
         <>
           <p className="text-xs text-muted-foreground">
@@ -209,7 +206,7 @@ export default function Divergences() {
                       <TableCell
                         className={`text-right tabular-nums font-mono ${
                           p.source_count < 2
-                            ? 'text-warning-foreground'
+                            ? 'text-negative-foreground'
                             : 'text-muted-foreground'
                         }`}
                         title={

@@ -15,7 +15,7 @@ export default function ProjectionDetail() {
   if (isError || !data) {
     return (
       <div className="p-6 space-y-2">
-        <p className="text-red-600 dark:text-red-400 text-sm">Projection not found.</p>
+        <p className="text-destructive text-sm">Projection not found.</p>
         <Link to="/projections" className="text-sm text-primary hover:underline">
           ← Back to rankings
         </Link>
@@ -28,7 +28,7 @@ export default function ProjectionDetail() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Back */}
-      <Link to="/projections" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+      <Link to="/projections" className="text-sm text-muted-foreground hover:text-primary">
         ← {data.target_season} Draft Rankings
       </Link>
 
@@ -135,16 +135,16 @@ export default function ProjectionDetail() {
               <tbody>
                 {data.historical.map(h => (
                   <tr key={h.season} className="border-b border-border/30">
-                    <td className="py-1 pr-3 tabular-nums">{h.season}</td>
-                    <td className="py-1 pr-3 text-right tabular-nums text-muted-foreground">{h.age}</td>
-                    <td className="py-1 pr-3 text-right tabular-nums text-muted-foreground">{h.games}</td>
+                    <td className="py-1 pr-3 font-mono tabular-nums">{h.season}</td>
+                    <td className="py-1 pr-3 text-right font-mono tabular-nums text-muted-foreground">{h.age}</td>
+                    <td className="py-1 pr-3 text-right font-mono tabular-nums text-muted-foreground">{h.games}</td>
                     <td className="py-1 text-right tabular-nums font-mono">{h.fpts_ppr_pg.toFixed(1)}</td>
                   </tr>
                 ))}
                 <tr className="text-primary font-medium">
-                  <td className="pt-2 pr-3 tabular-nums">{data.target_season}*</td>
-                  <td className="pt-2 pr-3 text-right tabular-nums">{data.age + 1}</td>
-                  <td className="pt-2 pr-3 text-right tabular-nums">{p.games}</td>
+                  <td className="pt-2 pr-3 font-mono tabular-nums">{data.target_season}*</td>
+                  <td className="pt-2 pr-3 text-right font-mono tabular-nums">{data.age + 1}</td>
+                  <td className="pt-2 pr-3 text-right font-mono tabular-nums">{p.games}</td>
                   <td className="pt-2 text-right tabular-nums font-mono">{p.fpts_ppr_pg.toFixed(1)}</td>
                 </tr>
               </tbody>
@@ -183,9 +183,9 @@ export default function ProjectionDetail() {
 
 function SummaryCard({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className={`rounded-lg p-3 text-center ${highlight ? 'bg-purple-950/40 border border-purple-900/50' : 'bg-muted/30'}`}>
+    <div className={`rounded-lg p-3 text-center ${highlight ? 'bg-highlight-light border border-highlight-border' : 'bg-muted/30'}`}>
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`text-2xl font-bold tabular-nums font-mono mt-0.5 ${highlight ? 'text-purple-300' : 'text-foreground'}`}>
+      <div className={`text-2xl font-bold tabular-nums font-mono mt-0.5 ${highlight ? 'text-highlight-foreground' : 'text-foreground'}`}>
         {value}
       </div>
     </div>
@@ -203,16 +203,16 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 
 function ConfBar({ label, value, weight }: { label: string; value: number; weight: number }) {
   const bar =
-    value >= 0.70 ? 'bg-purple-600 dark:bg-purple-400' :
-    value >= 0.45 ? 'bg-purple-400 dark:bg-purple-500/70' :
-                    'bg-purple-300 dark:bg-purple-600/50'
+    value >= 0.70 ? 'bg-positive' :
+    value >= 0.45 ? 'bg-positive/60' :
+                    'bg-positive/30'
   return (
     <div className="flex items-center gap-3 text-xs">
       <div className="w-36 text-muted-foreground shrink-0">{label}</div>
       <div className="flex-1 bg-muted/30 rounded-full h-1.5 overflow-hidden">
         <div className={`h-full rounded-full ${bar}`} style={{ width: `${Math.round(value * 100)}%` }} />
       </div>
-      <div className="text-muted-foreground w-8 text-right tabular-nums">{Math.round(value * 100)}%</div>
+      <div className="text-muted-foreground w-8 text-right font-mono tabular-nums">{Math.round(value * 100)}%</div>
       <div className="text-muted-foreground/50 w-12 text-right">{weight}% wt</div>
     </div>
   )

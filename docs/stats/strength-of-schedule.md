@@ -1,5 +1,17 @@
 # Strength of Schedule (Opponent Adjustment)
 
+> **Status: implemented (June 2026)** — the *simple multiplicative* form (§1 below),
+> inside the profile-aggregation SQL in `buildProfiles`
+> (`backend/cmd/projections/main.go`). Defense strength = PPR points allowed per game
+> to each position group, per season, derived from `nfl_player_stats.opponent_team`
+> (100% coverage 1999–present; no new table needed — computed in a CTE). Factor =
+> `league_avg / opp_allowed`, capped to [0.75, 1.25], applied per weekly stat line to
+> yards/TDs/fantasy points/air yards/YAC/first downs before summing. Volume,
+> turnovers, kicking, and EPA stay raw. Uses only same-season data, so backtest
+> temporal integrity holds. Backtest delta: mean per-game Spearman ρ +0.002
+> (neutral-to-slightly-positive; kept for comp-matching consistency). The iterative
+> SRS form (§2) remains future work.
+
 ## Problem it solves
 
 A WR with 1,200 receiving yards against the league's 3 worst pass defenses is not equivalent to one with 1,200 yards against top-10 defenses. Neither the ranking engine (`analysis.go`) nor the projection engine (`cmd/projections/`) adjusts for opponent quality today. This systematically overrates players on easy schedules and underrates those on hard ones — and worse, it **compounds** in comp-based projections because the historical comps' own stats were also unadjusted.

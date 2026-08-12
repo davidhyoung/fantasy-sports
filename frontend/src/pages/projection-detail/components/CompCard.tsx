@@ -32,7 +32,7 @@ export default function CompCard({ comp, rank }: CompCardProps) {
       {/* Header row: rank + player info + similarity */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="text-muted-foreground text-xs tabular-nums w-4 shrink-0">#{rank}</span>
+          <span className="text-muted-foreground text-xs font-mono tabular-nums w-4 shrink-0">#{rank}</span>
           {comp.headshot_url ? (
             <img
               src={comp.headshot_url}
@@ -66,7 +66,7 @@ export default function CompCard({ comp, rank }: CompCardProps) {
         ))}
         {(comp.divergent_dims ?? []).map(dim => (
           <span key={dim}
-            className="inline-flex items-center rounded-full bg-warning-light px-1.5 py-0.5 text-[10px] font-medium text-warning-foreground">
+            className="inline-flex items-center rounded-full bg-negative-light px-1.5 py-0.5 text-[10px] font-medium text-negative-foreground">
             {dim}
           </span>
         ))}

@@ -25,7 +25,7 @@ export function MatchupCard({ matchup, thisTeam, opponent, matchupHref, week }: 
             )}
             <p className="text-sm font-semibold text-foreground">{thisTeam.name}</p>
           </div>
-          <p className="text-2xl font-bold tabular-nums">{thisTeam.points || '0'}</p>
+          <p className="text-2xl font-bold font-mono tabular-nums">{thisTeam.points || '0'}</p>
           {thisTeam.projected_points && (
             <p className="text-xs text-muted-foreground">proj. {thisTeam.projected_points}</p>
           )}
@@ -40,7 +40,7 @@ export function MatchupCard({ matchup, thisTeam, opponent, matchupHref, week }: 
               <img src={opponent.logo_url} alt={opponent.name} className="h-7 w-7 rounded object-contain" />
             )}
           </div>
-          <p className="text-2xl font-bold tabular-nums">{opponent.points || '0'}</p>
+          <p className="text-2xl font-bold font-mono tabular-nums">{opponent.points || '0'}</p>
           {opponent.projected_points && (
             <p className="text-xs text-muted-foreground">proj. {opponent.projected_points}</p>
           )}
@@ -53,7 +53,7 @@ export function MatchupCard({ matchup, thisTeam, opponent, matchupHref, week }: 
     return (
       <RouterLink
         to={matchupHref}
-        className="block mb-6 bg-card rounded-lg border border-border/30 p-4 hover:bg-muted/30 transition-colors"
+        className="block mb-6 bg-card rounded-lg border border-border/30 p-4 hover:bg-muted/30"
       >
         {cardContent}
       </RouterLink>

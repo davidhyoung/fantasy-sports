@@ -14,7 +14,7 @@ interface Props {
 export function StandingsTab({ leagueId, active, yahooKeyToId }: Props) {
   const { data: standings, error } = useStandings(leagueId, active)
 
-  if (error) return <p className="text-red-600 dark:text-red-400 text-sm">{(error as Error).message}</p>
+  if (error) return <p className="text-destructive text-sm">{(error as Error).message}</p>
   if (standings === undefined) return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
   if (standings.length === 0) return <p className="text-muted-foreground">No standings data available.</p>
 
@@ -62,16 +62,16 @@ export function StandingsTab({ leagueId, active, yahooKeyToId }: Props) {
                   )}
                 </div>
               </TableCell>
-              <TableCell className="text-center tabular-nums">
+              <TableCell className="text-center font-mono tabular-nums">
                 {s.wins}-{s.losses}{s.ties > 0 ? `-${s.ties}` : ''}
               </TableCell>
-              <TableCell className="text-right tabular-nums text-muted-foreground">
+              <TableCell className="text-right font-mono tabular-nums text-muted-foreground">
                 {gamesBack(s)}
               </TableCell>
-              {hasPF     && <TableCell className="text-right tabular-nums">{s.points_for}</TableCell>}
-              {hasPA     && <TableCell className="text-right tabular-nums">{s.points_against}</TableCell>}
+              {hasPF     && <TableCell className="text-right font-mono tabular-nums">{s.points_for}</TableCell>}
+              {hasPA     && <TableCell className="text-right font-mono tabular-nums">{s.points_against}</TableCell>}
               {hasStreak && (
-                <TableCell className="text-right text-xs text-muted-foreground tabular-nums">
+                <TableCell className="text-right text-xs text-muted-foreground font-mono tabular-nums">
                   {s.streak_value > 0 && s.streak_type
                     ? `${s.streak_value}${s.streak_type === 'win' ? 'W' : 'L'}`
                     : '—'}

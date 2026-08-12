@@ -1,112 +1,104 @@
 # Player Ranking Algorithm
 
+> Last synced with code: June 2026. Implementation lives in
+> `internal/services/ranking/` (pure logic) and `internal/handlers/analysis.go`
+> (Yahoo/local data assembly). Update this doc when either changes.
+
 ## Overview
 
-The ranking engine scores every rostered player in a league relative to all other rostered players, using the league's own scoring categories. It produces an **overall value score**, **per-category z-scores**, **percentiles**, and **position-relative rankings**.
+The ranking engine scores every rostered player in a league relative to all other
+rostered players, using the league's own scoring configuration. It has two modes,
+selected by sport:
 
-Rankings are computed on-the-fly from Yahoo Fantasy API data — no local database storage needed.
+- **Categories mode** (NBA): weighted z-score rankings (`RankByCategories`)
+- **Points mode** (NFL): VORP — value over replacement player (`RankByPoints`)
 
-## How It Works
+Rankings are computed on the fly per request. For NFL season rankings, stat values
+come from the local `nfl_player_stats` table (via `services/nflstats`); Yahoo supplies
+only league context (rosters, scoring categories, roster slots, FA list). Other stat
+periods and NBA leagues still read stats from Yahoo.
 
-### 1. Data Collection
+---
 
-The endpoint `GET /api/leagues/{id}/rankings?stat_type=season` fetches two things concurrently:
+## Categories mode (NBA)
 
-- **All team rosters with stats** — every player on every team, with their season (or specified period) stats
-- **League scoring categories** — the stat categories that determine matchup wins (e.g., PTS, REB, AST for NBA; Pass Yds, Rush TD for NFL). Display-only stats are excluded.
+### 1. Per-category z-scores
 
-### 2. Z-Score Computation
+For each scoring category, mean and stdev are computed across all rostered players,
+then each player gets `z = (value − mean) / stdev`. Yahoo's `sort_order` is respected:
+for "lower is better" categories (TO), the z-score is flipped so positive always
+means good.
 
-For each scoring category:
+### 2. Category weights — NOT equal
 
-1. **Collect** all rostered players' values for that category
-2. **Compute the mean** (average) across all players who have a value
-3. **Compute the standard deviation** (spread) across those same players
-4. **For each player**, compute the z-score:
+Each category's weight is `CV × scarcity`, normalised so the mean weight is 1.0:
 
-```
-z = (player_value - mean) / stdev
-```
+- **CV** (coefficient of variation) = `stdev / |mean|` — categories where players
+  differ more are worth more.
+- **Scarcity** = `1 / (1 + max(0, avg_FA_z))` — computed from the top ~100 free
+  agents' z-scores against the rostered baseline. If strong replacements are freely
+  available in a category, rostered production in it is discounted.
 
-A z-score tells you how many standard deviations a player is above or below the league average:
-- `z = +1.0` means the player is 1 standard deviation above average
-- `z = -0.5` means the player is half a standard deviation below average
-- `z = 0` means the player is exactly average
-
-### 3. Sort Order Handling
-
-Yahoo provides a `sort_order` field for each category:
-- `"1"` = **higher is better** (e.g., Points, Rebounds, Touchdowns)
-- `"0"` = **lower is better** (e.g., Turnovers, Interceptions)
-
-For "lower is better" categories, the z-score is **flipped**: `z = -z`. This ensures a positive z-score always means "good" regardless of the category direction.
-
-### 4. Overall Score
-
-A player's overall score is the **sum of all their z-scores** across every scoring category:
+### 3. Overall and position scores
 
 ```
-overall_score = z_PTS + z_REB + z_AST + z_STL + z_BLK + z_FG% + z_FT% + z_3PM + z_TO
+overall_score  = Σ weight_c × z_c            (across scoring categories)
+position_score = z-score of overall_score within the player's position group
 ```
 
-All categories are weighted equally. A higher overall score means the player contributes more value across all categories.
+Players are ranked overall and within position. Percentiles per category are
+rank-based among rostered players.
 
-### 5. Percentile
-
-For each category, players are ranked and assigned a percentile:
-
-```
-percentile = (number_of_players_beaten / total_players) * 100
-```
-
-A player at the 90th percentile in PTS is scoring more points than 90% of rostered players.
-
-### 6. Ranking
-
-- **Overall rank**: Players sorted by overall score descending. #1 is the most valuable.
-- **Position rank**: Players grouped by position (QB, RB, PG, C, etc.), then ranked by overall score within each group. This answers "how good is this player relative to others at their position?"
-
-## Edge Cases
+### Edge cases
 
 | Scenario | Behavior |
 |----------|----------|
-| Player has no stats for a category | z-score = 0 (neutral) |
-| All players have the same value (stdev = 0) | z-score = 0 for everyone |
-| Player has no stats at all | Overall score = 0, ranked last |
-| League has no scoring categories | Endpoint returns empty response |
-| No rosters loaded | Endpoint returns empty response |
+| Player has no value for a category | z = 0 (neutral) |
+| stdev = 0 for a category | z = 0 for everyone, weight = 0 |
+| FA fetch fails | scarcity = 1.0 (logged, rankings still served) |
+| < 2 players at a position | position_score = 0, rank 1 |
 
-## Visual Indicators (Frontend)
+## Points mode (NFL)
 
-Stat cells in roster tables are color-coded by z-score:
+### 1. Total points
 
-| Z-Score Range | Color | Meaning |
-|---------------|-------|---------|
-| z >= 1.5 | Strong green | Elite (top ~7%) |
-| z >= 0.5 | Light green | Above average |
-| -0.5 < z < 0.5 | No color | Average |
-| z <= -0.5 | Light red | Below average |
-| z <= -1.5 | Strong red | Poor (bottom ~7%) |
+`total_points = Σ stat_value × league_stat_modifier` per player. For season stat type,
+values come from `nfl_player_stats` translated through the canonical stat-ID vocabulary
+(`services/scoring`).
 
-The "Value" column shows the overall score with color (green = positive, red = negative) and the overall rank as a badge.
+### 2. Replacement levels
 
-## Example
+Starter slots per position are derived from the league's actual roster settings;
+FLEX slots (e.g. W/R/T) are split evenly among eligible positions. For each position:
 
-NBA H2H Categories league with 10 teams, ~130 rostered players:
+```
+threshold   = ceil(starter_slots_per_team × num_teams)
+replacement = total_points of the (threshold+1)-th best rostered player
+VORP        = player_total_points − replacement
+```
 
-| Player | PTS (z) | REB (z) | AST (z) | TO (z) | Overall | Rank |
-|--------|---------|---------|---------|--------|---------|------|
-| Jokic | +1.82 | +2.10 | +1.93 | -0.31 | +8.24 | #1 |
-| Curry | +2.05 | -0.48 | +0.82 | +0.53 | +5.12 | #5 |
-| Bench player | -0.90 | -0.40 | -1.20 | -0.80 | -4.50 | #98 |
+Players (rostered + top FAs) are ranked by VORP; per-stat z-scores against the
+rostered baseline are attached for cell coloring.
 
-Jokic's PTS z-score of +1.82 means he scores 1.82 standard deviations more points than the average rostered player. His TO z-score of -0.31 means he turns the ball over slightly more than average (negative because lower turnovers is better).
+---
 
-## Future Enhancements
+## Visual indicators (frontend)
 
-- **Custom category weights** — let users weight categories differently (e.g., 2x for steals)
-- **Position-relative z-scores** — compare players only against others at their position
-- **Points league support** — use Yahoo's `stat_modifiers` for weighted scoring
-- **Trend analysis** — compare this week vs last week vs season z-scores
-- **Free agent rankings** — rank available players to find top pickups
-- **Trade analyzer** — compare net value when swapping sets of players
+Stat cells are color-coded by z-score (±0.5 light, ±1.5 strong). The Value column
+shows overall score/VORP with rank badges; points-mode leagues also display the
+replacement-level legend.
+
+## Known gaps
+
+- **No shrinkage on short stat periods** — `stat_type=lastweek` or early-season
+  rankings z-score tiny samples directly (see `docs/stats/bayesian-shrinkage.md`;
+  the projection pipeline shrinks, the live ranking path does not yet).
+- **No schedule adjustment** — live rankings use raw stats, unlike the projection
+  profiles which are SOS-adjusted.
+- **NBA leagues depend on Yahoo period stats** — no local NBA stats feed yet.
+
+## Future enhancements
+
+- Custom category weights (user-tunable, replacing CV × scarcity)
+- Trend analysis (week-over-week z-score changes)
+- Trade analyzer (net value across player sets)

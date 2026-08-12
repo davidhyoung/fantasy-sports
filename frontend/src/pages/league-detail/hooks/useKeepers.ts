@@ -13,6 +13,8 @@ import {
 } from '../../../api/client'
 import type { Team, KeeperRules, KeeperWishlistEntry, RankedPlayer } from '../../../api/client'
 import { keys } from '../../../api/queryKeys'
+import { PROJECTION_SEASON } from '@/lib/constants'
+import { draftQuery, readSettings } from './useDraftSettings'
 
 export const MAX_KEEPERS = 3
 
@@ -64,11 +66,16 @@ export function useKeepers(leagueId: number, myTeam: Team | undefined, active: b
     enabled: active,
   })
 
-  // Draft values for auction $ column
-  const draftSeason = (parseInt(season, 10) || 2025) + 1
+  // Draft values for auction $ column — same season clamp and same saved league
+  // settings as the Draft Values sub-tab, so keeper prices agree with the board.
+  const draftSeason = Math.min((parseInt(season, 10) || 2025) + 1, PROJECTION_SEASON)
+  const draft = useMemo(
+    () => draftQuery(draftSeason, readSettings(leagueId)),
+    [draftSeason, leagueId],
+  )
   const { data: draftValuesData } = useQuery({
-    queryKey: keys.draftValues(leagueId, draftSeason, 'league', 200),
-    queryFn: () => getDraftValues(leagueId, { season: draftSeason, budget: 200 }),
+    queryKey: keys.draftValues(leagueId, draftSeason, draft.key),
+    queryFn: () => getDraftValues(leagueId, draft.params),
     enabled: active,
     staleTime: 5 * 60 * 1000,
   })

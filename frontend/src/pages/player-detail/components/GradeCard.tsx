@@ -7,15 +7,15 @@ interface Props {
 }
 
 function gradeColor(grade: number): string {
-  if (grade >= 90) return 'text-positive-foreground'
-  if (grade >= 70) return 'text-highlight-foreground'
+  if (grade >= 90) return 'text-positive'
+  if (grade >= 70) return 'text-positive-foreground'
   if (grade >= 50) return 'text-foreground'
   return 'text-muted-foreground'
 }
 
 function gradeBg(grade: number): string {
   if (grade >= 90) return 'bg-positive-light border-positive-border'
-  if (grade >= 70) return 'bg-highlight-light border-highlight-border'
+  if (grade >= 70) return 'bg-positive-light/60 border-positive-border/60'
   if (grade >= 50) return 'bg-muted/30 border-border'
   return 'bg-muted/20 border-border/50'
 }
@@ -31,7 +31,7 @@ function gradeLabel(grade: number): string {
 
 function barColor(grade: number): string {
   if (grade >= 90) return 'bg-positive'
-  if (grade >= 70) return 'bg-highlight'
+  if (grade >= 70) return 'bg-positive/60'
   if (grade >= 50) return 'bg-muted-foreground/40'
   return 'bg-muted-foreground/25'
 }
@@ -109,7 +109,7 @@ export default function GradeCard({ grades }: Props) {
             {gradeLabel(selected.overall)}
           </div>
           {trend != null && (
-            <div className={`text-xs mt-1 font-medium tabular-nums ${trendColor(trend)}`}>
+            <div className={`text-xs mt-1 font-medium font-mono tabular-nums ${trendColor(trend)}`}>
               {trendArrow(trend)} {trend > 0 ? '+' : ''}{(trend * 100).toFixed(0)} YoY
             </div>
           )}
@@ -127,7 +127,7 @@ export default function GradeCard({ grades }: Props) {
                 </div>
                 <div className="h-1.5 bg-muted/30 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all ${barColor(val)}`}
+                    className={`h-full rounded-full ${barColor(val)}`}
                     style={{ width: `${Math.min(val, 100)}%` }}
                   />
                 </div>
@@ -160,7 +160,7 @@ export default function GradeCard({ grades }: Props) {
 
         return (
           <details className="border-t border-border pt-2 group">
-            <summary className="text-xs text-muted-foreground cursor-pointer select-none list-none flex items-center gap-1 hover:text-foreground transition-colors">
+            <summary className="text-xs text-muted-foreground cursor-pointer select-none list-none flex items-center gap-1 hover:text-foreground">
               <svg className="w-3 h-3 transition-transform group-open:rotate-90" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M4 2l4 4-4 4" /></svg>
               Grade History
             </summary>
@@ -176,13 +176,13 @@ export default function GradeCard({ grades }: Props) {
                 )
               })}
               {/* line */}
-              <path d={line} fill="none" stroke="currentColor" className="text-highlight" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+              <path d={line} fill="none" stroke="currentColor" className="text-positive" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
               {/* dots + labels */}
               {pts.map((p, i) => {
                 const isSelected = p.g.season === selectedSeason
                 return (
                   <g key={p.g.season} className="cursor-pointer" onClick={() => setSelectedSeason(p.g.season)}>
-                    <circle cx={p.x} cy={p.y} r={isSelected ? 5 : 3.5} className={isSelected ? 'fill-highlight' : 'fill-card stroke-highlight'} strokeWidth={isSelected ? 0 : 1.5} />
+                    <circle cx={p.x} cy={p.y} r={isSelected ? 5 : 3.5} className={isSelected ? 'fill-positive' : 'fill-card stroke-positive'} strokeWidth={isSelected ? 0 : 1.5} />
                     {isSelected && (
                       <text x={p.x} y={p.y - 8} textAnchor="middle" className="fill-foreground" fontSize={10} fontWeight={600} fontFamily="monospace">{p.g.overall.toFixed(0)}</text>
                     )}

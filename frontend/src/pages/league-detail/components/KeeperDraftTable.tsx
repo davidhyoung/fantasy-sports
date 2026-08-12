@@ -93,10 +93,10 @@ export function KeeperDraftTable({
                   </div>
                 </TableCell>
 
-                <TableCell className="text-right tabular-nums text-sm">
+                <TableCell className="text-right font-mono tabular-nums text-sm">
                   {p.undrafted ? (
                     <span className="text-muted-foreground">
-                      — <Badge className="text-xs bg-muted text-muted-foreground border-border">FA</Badge>
+                      — <Badge variant="neutral">FA</Badge>
                     </span>
                   ) : (
                     `$${p.draft_cost}`
@@ -122,21 +122,21 @@ export function KeeperDraftTable({
                       className="w-16 h-7 text-sm px-2 text-right"
                     />
                   ) : (
-                    <span className="tabular-nums text-sm text-muted-foreground">
+                    <span className="font-mono tabular-nums text-sm text-muted-foreground">
                       {p.years_kept > 0 ? p.years_kept : '—'}
                     </span>
                   )}
                 </TableCell>
 
-                <TableCell className="text-right tabular-nums text-sm font-medium">
+                <TableCell className="text-right font-mono tabular-nums text-sm font-medium">
                   {p.not_keepable ? (
-                    <span className="text-orange-400 text-xs">⚠ Max</span>
+                    <span className="text-negative-foreground text-xs">⚠ Max</span>
                   ) : (
                     `$${p.keeper_cost}`
                   )}
                 </TableCell>
 
-                <TableCell className="text-right tabular-nums text-sm">
+                <TableCell className="text-right font-mono tabular-nums text-sm">
                   {(() => {
                     const av = auctionByName.get(p.player_name)
                     if (av == null) return <span className="text-muted-foreground">—</span>
@@ -145,7 +145,7 @@ export function KeeperDraftTable({
                       <div>
                         <span className="font-medium">${av}</span>
                         {surplus !== 0 && (
-                          <div className={`text-xs ${surplus > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          <div className={`text-xs ${surplus > 0 ? 'text-positive-foreground' : 'text-destructive'}`}>
                             {surplus > 0 ? '+' : ''}{surplus}
                           </div>
                         )}
@@ -156,7 +156,7 @@ export function KeeperDraftTable({
 
                 <TableCell>
                   {isDesignated && (
-                    <Badge className="bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-700 text-xs">
+                    <Badge variant="pink">
                       Designated
                     </Badge>
                   )}

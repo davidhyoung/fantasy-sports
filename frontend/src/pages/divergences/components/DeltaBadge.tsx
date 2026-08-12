@@ -20,8 +20,8 @@ export default function DeltaBadge({ delta, className }: DeltaBadgeProps) {
     magnitude < 5
       ? 'bg-muted text-muted-foreground border-border'
       : delta > 0
-        ? 'bg-warning-light text-warning-foreground border-warning-border'
-        : 'bg-highlight-light text-highlight-foreground border-highlight-border'
+        ? 'bg-negative-light text-negative-foreground border-negative-border'
+        : 'bg-positive-light text-positive-foreground border-positive-border'
 
   const title =
     magnitude < 5

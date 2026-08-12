@@ -7,7 +7,13 @@ export default {
   theme: {
     extend: {
       fontFamily: {
+        // Three families, one job each — never mixed.
+        // display: headings, nav, buttons, labels, table column headers
+        // sans:    body copy, descriptions, badges
+        // mono:    every number — stats, grades, scores, percentages, dates
+        display: ['Space Grotesk', ...defaultTheme.fontFamily.sans],
         sans: ['Inter', ...defaultTheme.fontFamily.sans],
+        mono: ['IBM Plex Mono', ...defaultTheme.fontFamily.mono],
       },
       colors: {
         border: 'hsl(var(--border))',
@@ -26,6 +32,7 @@ export default {
         primary: {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
+          hover: 'hsl(var(--primary-hover))',
         },
         secondary: {
           DEFAULT: 'hsl(var(--secondary))',
@@ -69,9 +76,13 @@ export default {
         },
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
+        // 5px small badges · 6–8px buttons/toggles · 10–12px cards · pill chips/nav
         sm: 'calc(var(--radius) - 4px)',
+        md: 'calc(var(--radius) - 2px)',
+        lg: 'var(--radius)',
+        xl: '10px',
+        '2xl': '12px',
+        pill: '16px',
       },
     },
   },

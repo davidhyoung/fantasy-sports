@@ -1,6 +1,5 @@
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import { TableHead, TableRow, TableCell } from '@/components/ui/table'
 import { zScoreIndicator, zScoreColor } from '@/lib/utils'
 
@@ -21,22 +20,22 @@ interface SortableHeadProps {
   className?: string
 }
 
-/** Sortable column header with chevron indicators. */
+/** Sortable column header. The design system uses no icon set — direction is a
+ *  typographic glyph appended to the label, and inactive columns show nothing. */
 function SortableHead({ col, current, dir, onSort, children, className }: SortableHeadProps) {
   const active = col === current
   return (
     <TableHead
       className={`cursor-pointer select-none hover:text-foreground whitespace-nowrap ${className ?? ''}`}
       onClick={() => onSort(col)}
+      aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
     >
       <div className="flex items-center gap-1">
         <span>{children}</span>
-        {active ? (
-          dir === 'desc'
-            ? <ChevronDown className="h-3 w-3 shrink-0" />
-            : <ChevronUp className="h-3 w-3 shrink-0" />
-        ) : (
-          <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-30" />
+        {active && (
+          <span aria-hidden className="text-primary text-[9px] leading-none">
+            {dir === 'desc' ? '▼' : '▲'}
+          </span>
         )}
       </div>
     </TableHead>
@@ -66,16 +65,29 @@ function useTableSort(defaultCol: string, defaultDir: SortDir = 'desc', stringCo
 
 // ── Player avatar ───────────────────────────────────────────────────────────
 
+/** Avatar sizes used across the design: table rows (28/32), league player header
+ *  (72), statistics player detail header (84). */
+type AvatarSize = 28 | 32 | 40 | 72 | 84
+
+const AVATAR_CLASS: Record<AvatarSize, string> = {
+  28: 'h-7 w-7',
+  32: 'h-8 w-8',
+  40: 'h-10 w-10',
+  72: 'h-[72px] w-[72px]',
+  84: 'h-[84px] w-[84px]',
+}
+
 interface PlayerAvatarProps {
   src?: string | null
   alt: string
-  /** Pixel size. Default 28 (h-7 w-7). Use 32 for larger variant. */
-  size?: 28 | 32
+  /** Pixel size. Default 28. */
+  size?: AvatarSize
 }
 
-/** Rounded player headshot with muted fallback circle. */
+/** Flat circular headshot with an elevated-surface fallback circle — no border,
+ *  no ring, per the design system. */
 function PlayerAvatar({ src, alt, size = 28 }: PlayerAvatarProps) {
-  const cls = size === 32 ? 'h-8 w-8' : 'h-7 w-7'
+  const cls = AVATAR_CLASS[size]
   if (src) {
     return (
       <img
@@ -100,7 +112,7 @@ interface PlayerCellProps {
   /** Whether this row is clickable (adds hover:text-primary to name). */
   linked?: boolean
   /** Avatar size. Default 28. */
-  avatarSize?: 28 | 32
+  avatarSize?: AvatarSize
 }
 
 /** Standard player cell with avatar + name (+ optional subtitle). */
@@ -120,7 +132,7 @@ function PlayerCell({ name, imageUrl, sub, linked, avatarSize = 28 }: PlayerCell
 
 // ── Clickable row ───────────────────────────────────────────────────────────
 
-const CLICKABLE_ROW_CLASS = 'cursor-pointer hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+const CLICKABLE_ROW_CLASS = 'cursor-pointer hover:bg-card focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 interface ClickableRowProps extends React.HTMLAttributes<HTMLTableRowElement> {
   /** URL to navigate to. If undefined, the row renders as a normal non-clickable row. */
@@ -166,7 +178,7 @@ interface ZScoreCellProps {
 /** Right-aligned stat cell with a z-score indicator glyph. */
 function ZScoreCell({ value, zScore, className }: ZScoreCellProps) {
   return (
-    <TableCell className={`text-right text-xs tabular-nums ${className ?? ''}`}>
+    <TableCell className={`text-right text-xs font-mono tabular-nums ${className ?? ''}`}>
       {value}
       <span
         className={`ml-0.5 text-[10px] ${zScoreColor(zScore)}`}
@@ -180,10 +192,10 @@ function ZScoreCell({ value, zScore, className }: ZScoreCellProps) {
 
 // ── Header row ──────────────────────────────────────────────────────────────
 
-/** Standard header row with consistent background. Wraps TableRow. */
+/** Standard header row — a flat dark bar, square corners, no hover. */
 function HeaderRow({ children, className, ...props }: React.HTMLAttributes<HTMLTableRowElement>) {
   return (
-    <TableRow className={`bg-card first:rounded-t-lg [&>th:first-child]:rounded-tl-lg [&>th:last-child]:rounded-tr-lg ${className ?? ''}`} {...props}>
+    <TableRow className={`bg-card hover:bg-card ${className ?? ''}`} {...props}>
       {children}
     </TableRow>
   )
@@ -198,4 +210,4 @@ export {
   ZScoreCell,
   HeaderRow,
 }
-export type { SortDir }
+export type { SortDir, AvatarSize }

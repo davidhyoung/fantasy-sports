@@ -13,7 +13,7 @@ export function ScoreboardTab({ leagueId, active, yahooKeyToId }: Props) {
   const navigate = useNavigate()
   const { data: scoreboard, error } = useScoreboard(leagueId, active)
 
-  if (error) return <p className="text-red-600 dark:text-red-400 text-sm">{(error as Error).message}</p>
+  if (error) return <p className="text-destructive text-sm">{(error as Error).message}</p>
   if (!scoreboard) return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
   if (scoreboard.matchups.length === 0) return <p className="text-muted-foreground">No matchups available for this week.</p>
 
@@ -31,7 +31,7 @@ export function ScoreboardTab({ leagueId, active, yahooKeyToId }: Props) {
           return (
             <div
               key={i}
-              className={`bg-card rounded-lg border border-border/30 p-4${matchupHref ? ' hover:bg-muted/30 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''}`}
+              className={`bg-card rounded-lg border border-border/30 p-4${matchupHref ? ' hover:bg-muted/30 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''}`}
               onClick={() => matchupHref && navigate(matchupHref)}
               onKeyDown={matchupHref ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(matchupHref) } } : undefined}
               tabIndex={matchupHref ? 0 : undefined}
@@ -60,7 +60,7 @@ export function ScoreboardTab({ leagueId, active, yahooKeyToId }: Props) {
                         <p className="font-medium text-foreground truncate">{t.name}</p>
                       )}
                     </div>
-                    <p className="text-lg font-bold tabular-nums shrink-0">{t.points || '—'}</p>
+                    <p className="text-lg font-bold font-mono tabular-nums shrink-0">{t.points || '—'}</p>
                   </div>
                 )
               })}

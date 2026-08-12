@@ -28,27 +28,45 @@ type replacementLevel struct {
 }
 
 type draftPlayer struct {
-	GsisID         string             `json:"gsis_id"`
-	Name           string             `json:"name"`
-	Position       string             `json:"position"`
-	PositionGroup  string             `json:"position_group"`
-	Team           string             `json:"team"`
-	HeadshotURL    string             `json:"headshot_url"`
-	Age            int                `json:"age"`
-	ProjFpts       float64            `json:"proj_fpts"`
-	ProjFptsPPR    float64            `json:"proj_fpts_ppr"`
-	ProjFptsHalf   float64            `json:"proj_fpts_half"`
-	ProjFptsPPRPG  float64            `json:"proj_fpts_ppr_pg"`
-	ProjLeagueFpts float64            `json:"proj_league_fpts"`
-	Confidence     float64            `json:"confidence"`
-	CompCount      int                `json:"comp_count"`
-	Uniqueness     string             `json:"uniqueness"`
-	VOR            float64            `json:"vor"`
-	AuctionValue   int                `json:"auction_value"`
-	OverallRank    int                `json:"overall_rank"`
-	PositionRank   int                `json:"position_rank"`
-	Trajectory     []trajectoryPoint  `json:"trajectory,omitempty"`
-	PlayerGrade    *float64           `json:"player_grade"`
+	GsisID         string            `json:"gsis_id"`
+	Name           string            `json:"name"`
+	Position       string            `json:"position"`
+	PositionGroup  string            `json:"position_group"`
+	Team           string            `json:"team"`
+	HeadshotURL    string            `json:"headshot_url"`
+	Age            int               `json:"age"`
+	ProjFpts       float64           `json:"proj_fpts"`
+	ProjFptsPPR    float64           `json:"proj_fpts_ppr"`
+	ProjFptsHalf   float64           `json:"proj_fpts_half"`
+	ProjFptsPPRPG  float64           `json:"proj_fpts_ppr_pg"`
+	ProjLeagueFpts float64           `json:"proj_league_fpts"`
+	Confidence     float64           `json:"confidence"`
+	CompCount      int               `json:"comp_count"`
+	Uniqueness     string            `json:"uniqueness"`
+	VOR            float64           `json:"vor"`
+	AuctionValue   int               `json:"auction_value"`
+	OverallRank    int               `json:"overall_rank"`
+	PositionRank   int               `json:"position_rank"`
+	// Consensus columns are nil where no external source covers the player —
+	// coverage runs to roughly the top 100 picks, not the whole pool.
+	ConsensusAuctionValue *int     `json:"consensus_auction_value"`
+	ConsensusPositionRank *float64 `json:"consensus_position_rank"`
+	ConsensusSources      int      `json:"consensus_sources"`
+	ConsensusDerived      bool     `json:"consensus_derived"`
+	Trajectory     []trajectoryPoint `json:"trajectory,omitempty"`
+	PlayerGrade    *float64          `json:"player_grade"`
+}
+
+// draftSettings echoes the settings a board was computed with, in the same
+// editable vocabulary the client sends back as overrides. Returning it means the
+// UI never has to reverse-engineer roster slots from the distributed values.
+type draftSettings struct {
+	NumTeams int            `json:"num_teams"`
+	Budget   int            `json:"budget"`
+	Format   string         `json:"format"`
+	Slots    map[string]int `json:"slots"`
+	// Overridden reports whether any setting came from the query rather than the league.
+	Overridden bool `json:"overridden"`
 }
 
 type draftValuesResp struct {
@@ -56,13 +74,105 @@ type draftValuesResp struct {
 	BudgetPerTeam     int                `json:"budget_per_team"`
 	NumTeams          int                `json:"num_teams"`
 	ScoringFormat     string             `json:"scoring_format"`
+	Settings          draftSettings      `json:"settings"`
 	ReplacementLevels []replacementLevel `json:"replacement_levels"`
 	Players           []draftPlayer      `json:"players"`
+}
+
+// ── roster-slot vocabulary ────────────────────────────────────────────────────
+//
+// The client edits a flat set of slot names; Yahoo expresses flex spots as
+// slash-separated eligibility lists. These two helpers translate between them so
+// the flex distribution itself stays in ranking.ComputeStarterSlots.
+
+// slotToYahoo maps an editable slot name to the Yahoo roster position it stands for.
+var slotToYahoo = map[string]string{
+	"QB": "QB", "RB": "RB", "WR": "WR", "TE": "TE", "K": "K", "DEF": "DEF",
+	"FLEX":  "W/R/T",
+	"SFLEX": "Q/W/R/T",
+}
+
+// yahooToSlot maps a Yahoo roster position back to an editable slot name.
+// Bench and injury slots return false — they don't start anyone. Flex shapes we
+// don't model exactly (e.g. "W/R") fold into FLEX, which is what the UI offers.
+func yahooToSlot(pos string) (string, bool) {
+	switch pos {
+	case "BN", "IR", "IL", "IL+", "NA":
+		return "", false
+	case "QB", "RB", "WR", "TE", "K":
+		return pos, true
+	case "DEF", "DST", "D":
+		return "DEF", true
+	}
+	eligible := ranking.ParseFlexEligible(pos)
+	if len(eligible) == 0 {
+		return "", false
+	}
+	for _, e := range eligible {
+		if e == "QB" {
+			return "SFLEX", true
+		}
+	}
+	return "FLEX", true
+}
+
+// slotsFromYahoo summarises a league's Yahoo roster in the editable vocabulary.
+func slotsFromYahoo(positions []yahoo.RosterPosition) map[string]int {
+	slots := map[string]int{}
+	for _, rp := range positions {
+		if name, ok := yahooToSlot(rp.Position); ok {
+			slots[name] += rp.Count
+		}
+	}
+	return slots
+}
+
+// parseSlotOverride reads a `slots=QB:1,RB:2,FLEX:1,SFLEX:1` override into both
+// the editable map and the Yahoo-shaped positions ComputeStarterSlots expects.
+func parseSlotOverride(raw string) (map[string]int, []ranking.RosterPosition, bool) {
+	slots := map[string]int{}
+	var positions []ranking.RosterPosition
+	for _, part := range strings.Split(raw, ",") {
+		name, countStr, ok := strings.Cut(strings.TrimSpace(part), ":")
+		if !ok {
+			continue
+		}
+		name = strings.ToUpper(strings.TrimSpace(name))
+		yahooPos, known := slotToYahoo[name]
+		if !known {
+			continue
+		}
+		count, err := strconv.Atoi(strings.TrimSpace(countStr))
+		if err != nil || count < 0 || count > 20 {
+			continue
+		}
+		slots[name] = count
+		if count > 0 {
+			positions = append(positions, ranking.RosterPosition{Position: yahooPos, Count: count})
+		}
+	}
+	// A parse that yielded no startable slot is treated as absent rather than as
+	// an empty roster, which would make every player worth his full point total.
+	return slots, positions, len(positions) > 0
 }
 
 // GetDraftValues returns projected players with league-specific auction draft values.
 //
 // GET /api/leagues/{id}/draft-values?season=2026&budget=200
+//
+// Every setting the scoring depends on can be overridden, so the client can ask
+// "what would this board look like as a 14-team superflex PPR league?" without a
+// second implementation of the draft math:
+//
+//	season  target projection season
+//	budget  auction dollars per team
+//	teams   team count (drives replacement levels and the money pool)
+//	format  league|ppr|half|standard — league keeps the league's own scoring
+//	slots   roster override, e.g. QB:1,RB:2,WR:3,TE:1,FLEX:1,SFLEX:1,K:1,DEF:1
+//
+// Anything omitted falls back to the league's real settings. The response echoes
+// what was used in `settings`, in the same vocabulary, so the client never has to
+// reverse-engineer it.
 func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	user := requireUser(r)
 
@@ -88,9 +198,28 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	}
 
 	budget := h.config.DefaultBudget
+	overridden := false
 	if b := q.Get("budget"); b != "" {
-		if v, err := strconv.Atoi(b); err == nil && v > 0 {
+		if v, err := strconv.Atoi(b); err == nil && v > 0 && v <= 100000 {
 			budget = v
+			overridden = true
+		}
+	}
+
+	// Scoring override: "league" (or absent) keeps the league's own reception
+	// scoring; the rest force a format so "what if we went full PPR" is answerable.
+	formatOverride := ""
+	switch f := strings.ToLower(q.Get("format")); f {
+	case "ppr", "half", "half_ppr", "standard":
+		formatOverride = strings.TrimSuffix(f, "_ppr")
+		overridden = true
+	}
+
+	slotsOverride, rosterOverride, hasSlotsOverride := map[string]int{}, []ranking.RosterPosition(nil), false
+	if s := q.Get("slots"); s != "" {
+		slotsOverride, rosterOverride, hasSlotsOverride = parseSlotOverride(s)
+		if hasSlotsOverride {
+			overridden = true
 		}
 	}
 
@@ -101,6 +230,13 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	).Scan(&numTeams); err != nil || numTeams == 0 {
 		respondError(w, http.StatusUnprocessableEntity, "no teams found — sync your league first")
 		return
+	}
+	// Team-count override changes replacement levels and the total money pool.
+	if t := q.Get("teams"); t != "" {
+		if v, err := strconv.Atoi(t); err == nil && v >= 2 && v <= 32 {
+			numTeams = v
+			overridden = true
+		}
 	}
 
 	// 2. Build Yahoo client and fetch roster positions + scoring stats concurrently.
@@ -134,9 +270,13 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 
 	rpr := <-rosterPosCh
 	if rpr.err != nil {
-		log.Printf("[draft-values] GetLeagueRosterPositions %s: %v", yahooKey, rpr.err)
-		respondError(w, http.StatusBadGateway, "failed to fetch league roster settings")
-		return
+		// With an explicit roster override we don't need Yahoo's roster at all, so a
+		// failure there is only fatal when we'd otherwise have no starter slots.
+		log.Printf("[draft-values] GetLeagueRosterPositions %s: %v (slots override: %t)", yahooKey, rpr.err, hasSlotsOverride)
+		if !hasSlotsOverride {
+			respondError(w, http.StatusBadGateway, "failed to fetch league roster settings")
+			return
+		}
 	}
 
 	sr := <-scoringCh
@@ -145,10 +285,17 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	}
 	scoringStats := sr.stats
 
-	// 3. Compute starter slots per position using ranking service
-	rankingPositions := make([]ranking.RosterPosition, len(rpr.positions))
-	for i, rp := range rpr.positions {
-		rankingPositions[i] = ranking.RosterPosition{Position: rp.Position, Count: rp.Count}
+	// 3. Compute starter slots per position using ranking service. An override
+	//    replaces the league's roster wholesale; the flex distribution itself stays
+	//    in ComputeStarterSlots either way, so both paths score identically.
+	rankingPositions := rosterOverride
+	effectiveSlots := slotsOverride
+	if !hasSlotsOverride {
+		rankingPositions = make([]ranking.RosterPosition, len(rpr.positions))
+		for i, rp := range rpr.positions {
+			rankingPositions[i] = ranking.RosterPosition{Position: rp.Position, Count: rp.Count}
+		}
+		effectiveSlots = slotsFromYahoo(rpr.positions)
 	}
 	starterSlots := ranking.ComputeStarterSlots(rankingPositions)
 
@@ -206,6 +353,12 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		scoringFormat = "ppr"
 		effectiveFormat = "ppr"
 	}
+	// An explicit format override wins. Kickers keep scoring off the league's own
+	// modifiers below — reception rules can't move a kicker either way.
+	if formatOverride != "" {
+		effectiveFormat = formatOverride
+		scoringFormat = formatOverride
+	}
 
 	// Translate Yahoo scoring → canonical-keyed modifiers once, for kicker scoring below.
 	yahooMods := make(map[string]float64, len(scoringStats))
@@ -218,11 +371,11 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var dp draftPlayer
 		var (
-			passYdsPG, passTdPG             float64
-			rushYdsPG, rushTdPG             float64
-			recPG, recYdsPG, recTdPG        float64
-			fgMadePG, patMadePG             float64
-			games                           int
+			passYdsPG, passTdPG      float64
+			rushYdsPG, rushTdPG      float64
+			recPG, recYdsPG, recTdPG float64
+			fgMadePG, patMadePG      float64
+			games                    int
 		)
 		if err := rows.Scan(
 			&dp.GsisID, &dp.Name, &dp.Position, &dp.PositionGroup, &dp.Team, &dp.HeadshotURL,
@@ -351,7 +504,25 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		players[i].PositionRank = posRanks[pos]
 	}
 
-	// 9. Attach year-over-year trajectory from season profiles
+	// 9. Attach consensus values — what the market pays for the same players, on
+	//    this league's dollar scale. Runs after ranking, since the derived form
+	//    reads our own value-per-position-rank curve.
+	consensus := h.loadConsensusValues(r.Context(), season, effectiveFormat, players, budget*numTeams)
+	for i := range players {
+		cv, ok := consensus[players[i].GsisID]
+		if !ok {
+			continue
+		}
+		auction, posRank := cv.Auction, cv.PositionRank
+		players[i].ConsensusAuctionValue = &auction
+		if posRank > 0 {
+			players[i].ConsensusPositionRank = &posRank
+		}
+		players[i].ConsensusSources = cv.SourceCount
+		players[i].ConsensusDerived = cv.Derived
+	}
+
+	// 10. Attach year-over-year trajectory from season profiles
 	gsisIDs := make([]string, len(players))
 	for i, p := range players {
 		gsisIDs[i] = p.GsisID
@@ -361,11 +532,27 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		players[i].Trajectory = trajectories[players[i].GsisID]
 	}
 
+	// A season with no projections yields nil slices, which marshal to JSON `null`.
+	// The client expects arrays, so normalise to empty.
+	if players == nil {
+		players = []draftPlayer{}
+	}
+	if replResp == nil {
+		replResp = []replacementLevel{}
+	}
+
 	respondJSON(w, http.StatusOK, draftValuesResp{
-		Season:            season,
-		BudgetPerTeam:     budget,
-		NumTeams:          numTeams,
-		ScoringFormat:     scoringFormat,
+		Season:        season,
+		BudgetPerTeam: budget,
+		NumTeams:      numTeams,
+		ScoringFormat: scoringFormat,
+		Settings: draftSettings{
+			NumTeams:   numTeams,
+			Budget:     budget,
+			Format:     scoringFormat,
+			Slots:      effectiveSlots,
+			Overridden: overridden,
+		},
 		ReplacementLevels: replResp,
 		Players:           players,
 	})

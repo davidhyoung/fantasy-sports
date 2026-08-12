@@ -80,7 +80,7 @@ export function CommissionerKeeperView({ leagueId, myTeam, active }: Props) {
           <h3 className="text-sm font-semibold text-foreground">Commissioner View</h3>
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
             submittedCount === totalCount
-              ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700'
+              ? 'bg-positive-light text-positive-foreground border-positive-border'
               : 'bg-muted text-muted-foreground border-border'
           }`}>
             {submittedCount} / {totalCount} submitted
@@ -150,7 +150,7 @@ export function CommissionerKeeperView({ leagueId, myTeam, active }: Props) {
                 <TableCell className="text-center">
                   {entry.submitted ? (
                     <div className="flex flex-col items-center gap-0.5">
-                      <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-300 dark:border-green-700 text-xs gap-1">
+                      <Badge variant="pink" className="gap-1">
                         <CheckCircle2 className="h-3 w-3" />
                         Submitted
                       </Badge>
@@ -161,7 +161,7 @@ export function CommissionerKeeperView({ leagueId, myTeam, active }: Props) {
                       )}
                     </div>
                   ) : (
-                    <Badge variant="outline" className="text-muted-foreground gap-1 text-xs">
+                    <Badge variant="neutral" className="gap-1">
                       <Clock className="h-3 w-3" />
                       Pending
                     </Badge>

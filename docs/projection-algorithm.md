@@ -1,12 +1,23 @@
 # NFL Player Projection Algorithm
 
+> Last synced with code: June 2026. If you change `cmd/projections/`, update this doc
+> (and `docs/algorithm-review.md` if assumptions change).
+
 ## Overview
 
-The projection system uses a comp-based (Marcel-style) approach: for each target player, it finds historical players with similar statistical profiles and physical/career attributes, then uses how those comparable players developed in subsequent seasons to project the target's future performance.
+The projection system uses a comp-based (PECOTA-style) approach: for each target player,
+it finds historical players with similar statistical profiles and physical/career
+attributes, then uses how those comparable players developed in subsequent seasons to
+project the target's future performance.
 
-Unlike regression-to-the-mean systems that apply fixed aging curves, this approach lets the data speak — if a player's closest comps all declined sharply at age 29, that trajectory is baked into the projection. Comp count is itself a confidence signal: a player with many strong comps is a recognizable archetype, while one with few comps is genuinely unusual and carries wider uncertainty.
+Unlike regression-to-the-mean systems that apply fixed aging curves, this approach lets
+the data speak — if a player's closest comps all declined sharply at age 29, that
+trajectory is baked into the projection. Comps that **washed out of the league** after
+their match season count as zero-growth outcomes, so archetypes with high washout rates
+(aging RBs, marginal producers) are projected down accordingly.
 
-The system runs as an offline batch CLI (`cmd/projections/main.go`) and writes results to the database. There are no per-request computations.
+The system runs as an offline batch CLI (`cmd/projections/main.go`) and writes results
+to the database. There are no per-request computations.
 
 ---
 
@@ -15,179 +26,178 @@ The system runs as an offline batch CLI (`cmd/projections/main.go`) and writes r
 - **nflverse** weekly player stats (1999–present), imported via `cmd/import/`
 - `nfl_players` — player metadata: position, physical profile, draft info, career stage
 - `nfl_player_stats` — weekly box scores aggregated to seasonal totals during profile building
-- Team-level context (pass attempts per game, team rushing share) derived from `nfl_player_stats` itself — no external team data feed required
+- Team-level context (pass/rush yards per game, fantasy points per game) derived from
+  `nfl_player_stats` itself — no external team data feed required
+- Defense-vs-position strength, also derived from `nfl_player_stats` (`opponent_team`)
 
 ---
 
 ## Player Profiles
 
-Step 1 (`-profiles`) reads `nfl_player_stats` and `nfl_players`, computes one row per player per season in `nfl_player_season_profiles`.
+Step 1 (`-profiles`) reads `nfl_player_stats` and `nfl_players` and computes one row per
+player per season (min 4 active games) in `nfl_player_season_profiles`.
 
-Each profile captures:
+**Strength-of-schedule adjustment** (`docs/stats/strength-of-schedule.md`): each weekly
+production stat (yards, TDs, fantasy points, air yards, YAC, first downs) is scaled by
+`league_avg_PPR_allowed / opponent_PPR_allowed` for the player's position group that
+season, capped to [0.75, 1.25], before summing into season totals. Volume (attempts,
+targets), turnovers, kicking, and EPA averages stay raw. Profiles therefore hold
+*schedule-neutral* production.
 
-| Dimension group | Examples |
-|---|---|
-| Per-game rates | pass_yards/g, rush_yards/g, targets/g, receptions/g, fg_pct |
-| Efficiency metrics | yards_per_attempt, yards_per_carry, yards_per_reception, completion_pct, epa_per_play |
-| Usage share | target_share, wopr, rush_share (within team) |
-| Physical profile | height, weight, BMI (used as passive similarity dimensions) |
-| Career stage | years_exp, age at season start |
-| Team context | team_pass_volume (team pass attempts/g), team_rush_volume |
-| Draft capital | draft_number (normalized within round), draft_round — only for players with < 3 years experience |
-| Volume | games_played, games_started |
+Each profile captures per-game rates, efficiency metrics (YPA, YPC, YPR, comp%, EPA/play),
+usage shares (target share, WOPR, rush yard share), physical profile, career stage,
+team context, and volume.
 
-All rate dimensions are z-scored against the same position group and stored as JSONB in the `z_scores` column. Raw season totals are also stored for trajectory calculation.
+**Z-scores with shrinkage** (`docs/stats/bayesian-shrinkage.md`): before z-scoring, each
+rate stat (YPA, comp%, YPC, YPR, FG%, EPA/play) is shrunk toward the position-group's
+attempt-weighted mean: `shrunk = (n·observed + k·mean) / (n + k)`, where `n` is the
+player's attempts/carries/receptions and `k` is the median sample size in the pool.
+A 20-carry 7.0-YPC season no longer z-scores like an elite rusher. Usage shares are
+*not* shrunk — role is real even in short samples. All dimensions are then z-scored
+within the position group **globally across seasons** (so a z of +1.0 means the same
+thing in 2005 and 2024) and stored as JSONB in `z_scores`.
 
 ---
 
 ## Similarity Matching
 
-Step 2 (`-project`) compares each target player's profile against every historical profile in the same position group using **weighted Euclidean distance** on z-scored dimensions.
+Step 2 (`-project`) compares each target player's base-season profile against every
+historical profile in the same position group (age within ±2 years) using weighted
+Euclidean distance over **dimension groups** — not individual stats. Each group's
+z-scores are averaged first, so adding more stats to a group doesn't dilute the
+group's weight:
 
 ```
-distance(a, b) = sqrt( Σ w_d × (z_a_d - z_b_d)² )
-similarity     = 1 / (1 + distance)
+group_diff_g = avg_z(target, g) − avg_z(cand, g)
+distance     = sqrt( Σ w_g × group_diff_g² / Σ w_g )
+similarity   = 1 / (1 + distance)
 ```
 
-A comp is accepted only if `similarity >= 0.60`. There is no fixed-N cutoff — all qualifying comps are used. This means a common archetype may produce 40+ comps while a unique player profile produces 0.
+A comp is accepted only if `similarity ≥ 0.60` (tunable). There is no fixed-N cutoff —
+a common archetype may produce 40+ comps while a unique player produces 0.
 
-**Draft capital as a similarity dimension** is applied only when the target player has fewer than 3 years of NFL experience. For veterans, draft slot is dropped from the distance calculation entirely — a 5th-year player has proven (or failed to prove) themselves independent of where they were drafted.
+### Dimension groups and default weights
 
-**Position group matching** is used rather than strict position matching. For example, WR and slot WR are grouped together; RB profiles are compared only against other RBs. This prevents obviously irrelevant cross-position comparisons while allowing for positional flexibility within a group.
-
----
-
-## Position-Specific Dimensions
-
-Different positions emphasize different statistical dimensions. Weights below are relative (higher = more influence on distance).
-
-### QB
-| Dimension | Weight |
+| Position | Groups (weight) |
 |---|---|
-| completion_pct | 2.0 |
-| yards_per_attempt | 2.0 |
-| pass_yards_per_game | 1.5 |
-| passing_tds_per_game | 1.5 |
-| interceptions_per_game | 1.5 |
-| rush_yards_per_game | 1.0 |
-| epa_per_play | 2.0 |
-| years_exp | 1.0 |
+| QB | passing (3.0), rushing (2.0), value (2.0), physical (0.75), context (0.75), grade (1.25) |
+| RB | rushing (3.0), receiving (2.0), value (2.0), physical (1.25), context (0.75), grade (1.25) |
+| WR | receiving (3.0), rushing (0.75), value (2.0), physical (1.0), context (0.75), grade (1.25) |
+| TE | receiving (3.0), rushing (0.5), value (2.0), physical (0.75), context (0.75), grade (1.25) |
+| K | kicking (3.0), value (3.0), physical (1.0), grade (1.25) |
 
-### RB
-| Dimension | Weight |
-|---|---|
-| rush_yards_per_game | 2.0 |
-| yards_per_carry | 2.0 |
-| rush_share | 2.0 |
-| targets_per_game | 1.5 |
-| receptions_per_game | 1.0 |
-| receiving_yards_per_game | 1.0 |
-| rushing_epa_per_play | 1.5 |
-| years_exp | 1.0 |
-| age | 1.5 |
-
-### WR
-| Dimension | Weight |
-|---|---|
-| targets_per_game | 2.0 |
-| target_share | 2.5 |
-| receptions_per_game | 1.5 |
-| receiving_yards_per_game | 2.0 |
-| yards_per_reception | 1.5 |
-| wopr | 2.0 |
-| receiving_epa_per_play | 1.5 |
-| years_exp | 1.0 |
-| age | 1.0 |
-
-### TE
-| Dimension | Weight |
-|---|---|
-| targets_per_game | 2.0 |
-| target_share | 2.0 |
-| receptions_per_game | 2.0 |
-| receiving_yards_per_game | 2.0 |
-| yards_per_reception | 1.5 |
-| receiving_epa_per_play | 1.5 |
-| years_exp | 1.5 |
-| age | 1.0 |
-
-### K
-| Dimension | Weight |
-|---|---|
-| fg_pct | 3.0 |
-| fg_long | 2.0 |
-| fg_made_per_game | 2.0 |
-| pat_made_per_game | 1.0 |
-| years_exp | 1.0 |
+- The **grade** group is `overall_grade_z` from `nfl_player_grades` — prefers comps who
+  were similarly good at football overall, not just stat-line twins.
+- **Draft capital** is added as an extra group (weight 1.0) only for players with
+  < 3 years experience.
+- Weights live in `projection_config.json` (keyed by group name) and are tuned by
+  `-autotune`. The field lists per group are fixed in `positionGroups()` in `main.go`.
 
 ---
 
 ## Development Curve Projection
 
-For each accepted comp, the algorithm looks up what that historical player did in the 1, 2, and 3 seasons following the matched season. This is the **development trajectory**.
-
-Each trajectory is weighted by `similarity²` — squaring the similarity sharpens the influence of the closest comps and reduces noise from borderline matches.
-
-The projected value for each stat in year N+1 is:
+For each accepted comp, the algorithm looks up the comp's next qualifying season and
+computes a growth rate `next_season_PPR/G ÷ match_season_PPR/G`, clamped to
+[0.1, 3.0]. The target's projection is the similarity²-weighted average growth applied
+to their base-season value:
 
 ```
-projected_stat = Σ (similarity² × comp_stat_in_year_N+1) / Σ similarity²
+weight_i        = similarity_i² / Σ similarity²
+projected_PPR/G = base_PPR/G × Σ weight_i × growth_i
 ```
 
-**Growth caps** are applied to prevent extreme outlier comps from distorting projections:
+- **Washed-out comps** (no qualifying season after the match, despite the data extending
+  past it) contribute `growth = 0`, bypassing the clamp floor — washing out is a real
+  outcome, not a measurement outlier. Skipping them (the old behavior) was survivorship
+  bias that inflated projections for risky archetypes.
+- **Zero-comp targets** regress halfway to the position-group mean
+  (`0.5 × base + 0.5 × group_mean`) instead of repeating their season verbatim.
+- A position-phase **aging multiplier** (developing ×1.02 … late-career ×0.93, tunable)
+  is applied on top; it's deliberately small because the age-matched comps already
+  embed most aging signal.
+- A **grade-trend nudge** (±5% max) adjusts for players whose real-life grade is
+  trending up/down faster than their stat line.
+- Component stats (yards, TDs, receptions, FG) are scaled by the same overall growth
+  ratio — the system projects fantasy production, not independent stat shapes.
 
-- Maximum growth: 3× the target's current season value
-- Minimum floor: 0.1× the target's current season value (players can decline but not to zero)
+## Outcome Distribution (uncertainty)
 
-**Retired player handling:** if a comp player retired after the matched season (no subsequent stats exist), they contribute a zero trajectory for that year. This naturally penalizes archetypes with high retirement rates — for example, older RBs with declining usage whose comps frequently did not play again.
+Per `docs/stats/uncertainty-quantification.md`: the comp set is itself an empirical
+outcome distribution. Alongside the point estimate, the engine stores the
+similarity²-weighted standard deviation (per-game) and **P10 / P50 / P90** season-total
+PPR quantiles, computed by walking cumulative comp weight over sorted implied outcomes
+(washouts contribute zeros, which is what gives risky archetypes their low floors).
+Fewer than 2 usable comps → quantiles collapse to the point estimate.
+
+Backtests check calibration: the fraction of realized per-game outcomes below P10 /
+above P90 is stored in `nfl_backtest_results.p10_coverage / p90_coverage`
+(well-calibrated ≈ 0.10 each). As of June 2026, P10 coverage runs ~2–6% (floor slightly
+too pessimistic — washout zeros widen it) and P90 ~7–18%.
 
 ---
 
 ## Confidence Score
 
-Each projection row includes a `confidence` float (0–1). It is a weighted combination of five factors:
-
-| Factor | Weight | Notes |
-|---|---|---|
-| Comp count | 30% | Normalized: 0 comps → 0, 20+ comps → 1.0 |
-| Mean similarity of comps | 25% | Average `similarity` across all accepted comps |
-| Data completeness | 20% | Fraction of dimensions that were non-null for the target |
-| Seasons of history | 15% | More seasons = more stable profile; saturates at 5 years |
-| Games played (current season) | 10% | Full 17-game season → 1.0; scaled proportionally |
+Five factors, computed in `computeProjections`:
 
 ```
-confidence = 0.30 × comp_count_score
-           + 0.25 × mean_similarity
-           + 0.20 × completeness
-           + 0.15 × history_score
-           + 0.10 × games_played_score
+confidence = 0.25 × avg_similarity
+           + 0.20 × min(1, comp_count / 10)
+           + 0.25 × comp_agreement        (1 / (1 + stdev of comp growths))
+           + 0.15 × sample_depth          (fraction of comps with a usable outcome)
+           + 0.15 × min(1, seasons_of_history / 3)
 ```
 
----
+Confidence captures "how much to trust the projection process"; the P10–P90 spread
+captures "how wide the outcome range is." A boom/bust player can have high confidence
+in a wide distribution.
 
 ## Profile Uniqueness
 
-Comp count is surfaced as a human-readable `archetype_label` in the projection output:
+`uniqueness` label from comp count: 0 → `unique`, ≤3 → `rare`, <10 → `moderate`,
+≥10 with avg similarity ≥ 0.70 → `common`.
 
-| Comp count | Label |
-|---|---|
-| 20+ | common |
-| 10–19 | moderate |
-| 3–9 | rare |
-| 1–2 | very rare |
-| 0 | unique |
+---
 
-A "unique" label means no historical player clears the 0.60 similarity threshold. The projection falls back to population mean for the position group with minimum confidence. A "common" label suggests the player fits a well-understood mold and the projection is based on a robust sample.
+## Backtesting & Tuning
+
+`-backtest` replays each target season using **only prior-season data** — profiles are
+filtered, then z-scores *and shrinkage priors* are recomputed from the restricted pool.
+Metrics are stored in `nfl_backtest_results` on two bases:
+
+- `eval_basis = 'total'` — projected vs actual season PPR totals (what a drafter
+  experiences, but dominated by unpredictable injuries)
+- `eval_basis = 'per_game'` — projected vs actual PPR/G (≥4 games played); the cleaner
+  skill signal and the **tuning objective**
+
+`-autotune` runs coordinate ascent (similarity threshold, age window, aging multipliers,
+per-position group weights) maximizing **mean per-game Spearman rank correlation** on
+training seasons — draft decisions are ordinal, so ordering players correctly beats
+minimizing point error. The tuned config must beat the default config on held-out
+validation seasons or the default is kept. Winner is saved to `projection_config.json`.
+
+Benchmark (June 2026, train 2015–2021, validate 2022–2024): per-game ρ ≈ 0.71 train,
+**0.75 validation**; season-total RMSE ~68–81 pts (vs ~82–92 before the survivorship
+fix + shrinkage + SOS). Note: pre-June-2026 backtest rows measured a "repeat last
+season" baseline due to a missing `MatchProfile` bug and are not comparable.
 
 ---
 
 ## Limitations
 
-- **Team context changes:** projections assume stable team context (pass volume, offensive scheme). A QB trade or coordinator change can invalidate a projection entirely.
-- **Position changes:** a player switching from RB to full-time pass catcher mid-career has no valid comps in either position group until a new profile accumulates. The system will flag low comp count / low confidence in these cases.
-- **Kicker volatility:** FG% is highly variable season to season. Kicker projections have structurally lower confidence and wider variance than skill positions.
-- **No in-season weekly projections:** the system produces season-level projections only. Week-by-week projections accounting for opponent, weather, injury status, and game script are not yet implemented.
-- **Historical coverage:** nflverse data starts at 1999. Players whose archetype only emerged after 2010 (e.g., pass-catching RBs in modern spread offenses) will have fewer valid comps from the early years of the dataset.
+- **Team context changes:** projections assume stable team context. A trade or
+  coordinator change can invalidate a projection; `context` dimensions only partially
+  mitigate.
+- **Uniform component scaling:** can't express "fewer yards, more TDs" development.
+- **Era pooling:** global z-scores mean passing-era inflation leaks into cross-era
+  comps; SOS narrows but doesn't eliminate it.
+- **Grade dimension absent in backtests:** backtests recompute z-scores without
+  `overall_grade_z` (grades aren't recomputed per historical cutoff), so backtest
+  similarity slightly differs from production similarity.
+- **17-game projection for everyone:** durability risk is not modeled in totals.
+- **Kicker volatility:** FG% shrinkage helps, but kicker projections remain
+  structurally low-confidence.
 
 ---
 
@@ -196,14 +206,12 @@ A "unique" label means no historical player clears the 0.60 similarity threshold
 All commands run from the `backend/` directory:
 
 ```bash
-# Step 1: build player season profiles (run after importing nflverse data)
-make project-nfl ARGS="-profiles"
-
-# Step 2: compute comp-based projections for a target season
-make project-nfl ARGS="-project -season 2025"
-
-# Both steps in sequence
-make project-nfl ARGS="-all -season 2025"
+make project-nfl ARGS="-profiles"               # step 1: build season profiles (SOS + shrinkage)
+make project-nfl ARGS="-grades"                 # step 2: player grades + grade z enrichment
+make project-nfl ARGS="-project -season 2026"   # step 3: comp-based projections
+make project-nfl ARGS="-all -season 2026"       # all steps
+make backtest-nfl ARGS="-from 2015 -to 2024"    # dual-basis backtest
+make autotune-nfl ARGS="-from 2015 -to 2024 -train-to 2021"  # tune on per-game rank corr
 ```
 
 Steps are idempotent — re-running upserts on conflict.
@@ -213,13 +221,17 @@ Steps are idempotent — re-running upserts on conflict.
 ## Database Tables
 
 ### `nfl_player_season_profiles`
-
-One row per player per season. Stores aggregated per-game rates, raw season totals, career stage metadata, and a `z_scores` JSONB column containing each dimension's z-score within the player's position group for that season.
-
-Key columns: `gsis_id`, `season`, `position_group`, `games_played`, `age`, `years_exp`, `z_scores` (JSONB), `raw_stats` (JSONB), `team_context` (JSONB), `created_at`.
+One row per player per season: schedule-adjusted per-game rates, raw totals metadata,
+career stage, team context, `z_scores` JSONB (shrunk rates, grade z), `tags` TEXT[].
 
 ### `nfl_projections`
+One row per (player, base_season, target_season): projected per-game stat line, season
+totals (std/half/PPR), `proj_fpts_ppr_stdev` + `proj_fpts_ppr_p10/p50/p90`, confidence
+breakdown, comp count/avg similarity/uniqueness, `comps` JSONB (top 10, each with
+similarity, weight, `washed_out`, match profile, pre/post trajectories, matching and
+divergent dimension groups).
 
-One row per player per projected season. Stores the projected stat line, confidence score, comp count, mean similarity, archetype label, and a `comp_details` JSONB array listing each comp's `gsis_id`, `matched_season`, and `similarity`.
-
-Key columns: `gsis_id`, `season`, `position`, `projected_stats` (JSONB), `confidence`, `comp_count`, `mean_similarity`, `archetype_label`, `comp_details` (JSONB), `created_at`.
+### `nfl_backtest_results`
+Accuracy metrics per (target_season, position_group, eval_basis): RMSE, MAE, Pearson r,
+Spearman ρ, tier accuracy (top-12 QB/TE, top-24 RB/WR), quantile coverage, and the full
+config JSON used.

@@ -1,8 +1,8 @@
 // Shared grade display utilities — used by rankings, player detail, draft, projections, etc.
 
 export function gradeColorClass(grade: number): string {
-  if (grade >= 90) return 'text-positive-foreground font-semibold'
-  if (grade >= 70) return 'text-highlight-foreground'
+  if (grade >= 90) return 'text-positive font-semibold'
+  if (grade >= 70) return 'text-positive-foreground'
   if (grade >= 50) return ''
   return 'text-muted-foreground'
 }
@@ -26,13 +26,16 @@ export function phaseLabel(phase: string): string {
   }
 }
 
+/** Career phase is an ordinal from unproven → peak → declining, so it reads on
+ *  the two-accent axis: neutral while unproven, primary through prime, secondary
+ *  on the way down. */
 export function phaseColor(phase: string): string {
   switch (phase) {
-    case 'developing': return 'text-highlight-foreground'
+    case 'developing': return 'text-muted-foreground'
     case 'entering-prime': return 'text-positive-foreground'
     case 'prime': return 'text-positive font-medium'
-    case 'post-prime': return 'text-warning-foreground'
-    case 'late-career': return 'text-negative-foreground'
+    case 'post-prime': return 'text-negative-foreground'
+    case 'late-career': return 'text-negative'
     default: return 'text-muted-foreground'
   }
 }

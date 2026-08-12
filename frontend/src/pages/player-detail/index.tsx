@@ -158,7 +158,7 @@ export default function PlayerDetail() {
       {/* Back */}
       <button
         onClick={() => navigate(-1)}
-        className="text-sm text-muted-foreground hover:text-primary transition-colors"
+        className="text-sm text-muted-foreground hover:text-primary"
       >
         ← Back
       </button>
@@ -202,7 +202,7 @@ export default function PlayerDetail() {
               {tags.map(tag => (
                 <span
                   key={tag}
-                  className="px-2 py-0.5 rounded-full text-xs font-medium bg-highlight-light text-highlight-foreground border border-highlight-border"
+                  className="px-2 py-0.5 rounded-pill text-xs font-medium bg-secondary/15 text-secondary border border-secondary/30"
                 >
                   {tag}
                 </span>
@@ -254,10 +254,10 @@ export default function PlayerDetail() {
                   const ps = projectedSeasonRow(projection.projection, projection.target_season, projAge)
                   return (
                     <tr className="border-b border-highlight-border bg-highlight-light text-highlight-foreground">
-                      <td className="py-1.5 pr-3 tabular-nums font-medium">{ps.season}*</td>
+                      <td className="py-1.5 pr-3 font-mono tabular-nums font-medium">{ps.season}*</td>
                       <td className="py-1.5 pr-3 text-highlight-foreground/60 italic text-[10px]">projected</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums text-highlight-foreground/60">{projAge || '—'}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums text-highlight-foreground/60">{ps.games}</td>
+                      <td className="py-1.5 pr-3 text-right font-mono tabular-nums text-highlight-foreground/60">{projAge || '—'}</td>
+                      <td className="py-1.5 pr-3 text-right font-mono tabular-nums text-highlight-foreground/60">{ps.games}</td>
                       {cols.map(c => (
                         <td key={c.key} className="py-1.5 pr-3 text-right tabular-nums font-mono">
                           {(ps[c.key] as number) > 0 ? c.fmt(ps[c.key] as number) : <span className="text-highlight-foreground/20">—</span>}
@@ -274,10 +274,10 @@ export default function PlayerDetail() {
                 })()}
                 {seasons.map(s => (
                   <tr key={s.season} className="border-b border-border/30 hover:bg-muted/10">
-                    <td className="py-1.5 pr-3 tabular-nums font-medium">{s.season}</td>
+                    <td className="py-1.5 pr-3 font-mono tabular-nums font-medium">{s.season}</td>
                     <td className="py-1.5 pr-3 text-muted-foreground">{s.team || '—'}</td>
-                    <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground">{s.age || '—'}</td>
-                    <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground">{s.games}</td>
+                    <td className="py-1.5 pr-3 text-right font-mono tabular-nums text-muted-foreground">{s.age || '—'}</td>
+                    <td className="py-1.5 pr-3 text-right font-mono tabular-nums text-muted-foreground">{s.games}</td>
                     {cols.map(c => (
                       <td key={c.key} className="py-1.5 pr-3 text-right tabular-nums font-mono">
                         {(s[c.key] as number) > 0 ? c.fmt(s[c.key] as number) : <span className="text-muted-foreground/40">—</span>}
@@ -310,7 +310,7 @@ export default function PlayerDetail() {
                   <button
                     key={f.value}
                     onClick={() => setScoringFormat(f.value)}
-                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                    className={`px-3 py-1 rounded text-sm font-medium ${
                       scoringFormat === f.value
                         ? 'bg-primary text-primary-foreground'
                         : 'text-muted-foreground hover:text-foreground'
@@ -447,16 +447,16 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 
 function ConfBar({ label, value, weight }: { label: string; value: number; weight: number }) {
   const bar =
-    value >= 0.70 ? 'bg-highlight' :
-    value >= 0.45 ? 'bg-highlight/60' :
-                    'bg-highlight/30'
+    value >= 0.70 ? 'bg-positive' :
+    value >= 0.45 ? 'bg-positive/60' :
+                    'bg-positive/30'
   return (
     <div className="flex items-center gap-3 text-xs">
       <div className="w-36 text-muted-foreground shrink-0">{label}</div>
       <div className="flex-1 bg-muted/30 rounded-full h-1.5 overflow-hidden">
         <div className={`h-full rounded-full ${bar}`} style={{ width: `${Math.round(value * 100)}%` }} />
       </div>
-      <div className="text-muted-foreground w-8 text-right tabular-nums">{Math.round(value * 100)}%</div>
+      <div className="text-muted-foreground w-8 text-right font-mono tabular-nums">{Math.round(value * 100)}%</div>
       <div className="text-muted-foreground/50 w-12 text-right">{weight}% wt</div>
     </div>
   )
@@ -580,7 +580,7 @@ function ProjectionNarrative({ projection }: { projection: ProjDetailResponse })
     <div className="border-t border-border pt-3 space-y-2">
       <div className="flex items-center justify-between gap-3">
         <div className="text-xs font-semibold text-foreground">Why this projection?</div>
-        <span className={`text-xs font-semibold tabular-nums ${directionColor}`}>{directionLabel}</span>
+        <span className={`text-xs font-semibold font-mono tabular-nums ${directionColor}`}>{directionLabel}</span>
       </div>
 
       <p className="text-xs text-muted-foreground leading-relaxed">

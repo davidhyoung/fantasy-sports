@@ -30,7 +30,7 @@ export default function MatchupDetail() {
         ← League
       </RouterLink>
 
-      {error && <p className="text-red-600 dark:text-red-400 text-sm mt-4">{(error as Error).message}</p>}
+      {error && <p className="text-destructive text-sm mt-4">{(error as Error).message}</p>}
 
       {/* Matchup header with scores */}
       <div className="mt-4 mb-6">
@@ -46,7 +46,7 @@ export default function MatchupDetail() {
               )}
               <p className="text-lg font-bold text-foreground">{t1Name}</p>
             </div>
-            <p className="text-4xl font-bold tabular-nums mt-1">{t1Score?.points || '—'}</p>
+            <p className="text-4xl font-bold font-mono tabular-nums mt-1">{t1Score?.points || '—'}</p>
             {t1Score?.projected_points && (
               <p className="text-xs text-muted-foreground mt-1">proj. {t1Score.projected_points}</p>
             )}
@@ -59,7 +59,7 @@ export default function MatchupDetail() {
                 <img src={t2Score.logo_url} alt={t2Name} width={40} height={40} className="h-10 w-10 rounded object-contain shrink-0" />
               )}
             </div>
-            <p className="text-4xl font-bold tabular-nums mt-1">{t2Score?.points || '—'}</p>
+            <p className="text-4xl font-bold font-mono tabular-nums mt-1">{t2Score?.points || '—'}</p>
             {t2Score?.projected_points && (
               <p className="text-xs text-muted-foreground mt-1">proj. {t2Score.projected_points}</p>
             )}

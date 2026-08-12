@@ -15,11 +15,13 @@ const labels: Record<Uniqueness, string> = {
   unique:   'Unique',
 }
 
+/** Ordinal on how much comp support the projection has: a common archetype is
+ *  well-supported (primary accent), a unique one is thinly supported (secondary). */
 const colors: Record<Uniqueness, string> = {
-  common:   'bg-highlight-light text-highlight-foreground border-highlight-border',
+  common:   'bg-positive-light text-positive-foreground border-positive-border',
   moderate: 'bg-muted text-muted-foreground border-border',
-  rare:     'bg-warning-light text-warning-foreground border-warning-border',
-  unique:   'bg-highlight-light text-highlight-foreground border-highlight-border',
+  rare:     'bg-negative-light text-negative-foreground border-negative-border',
+  unique:   'bg-negative-light text-negative-foreground border-negative-border',
 }
 
 export default function UniquenessBadge({ value, compCount, className }: UniquenessBadgeProps) {

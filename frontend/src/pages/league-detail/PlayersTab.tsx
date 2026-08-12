@@ -248,10 +248,10 @@ export function PlayersTab({ leagueId, active, sport }: Props) {
 
                     {/* VORP / Value */}
                     {rankings && (
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell className="text-right font-mono tabular-nums">
                         {row.rp ? (
                           <span className="inline-flex items-center gap-1">
-                            <span className={row.rp.overall_score >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                            <span className={row.rp.overall_score >= 0 ? 'text-positive-foreground' : 'text-destructive'}>
                               {row.rp.overall_score > 0 ? '+' : ''}{row.rp.overall_score.toFixed(1)}
                             </span>
                             <span className="text-xs text-muted-foreground">#{row.rp.overall_rank}</span>
@@ -262,7 +262,7 @@ export function PlayersTab({ leagueId, active, sport }: Props) {
 
                     {/* Total points (NFL only) */}
                     {isPoints && (
-                      <TableCell className="text-right tabular-nums text-muted-foreground text-sm">
+                      <TableCell className="text-right font-mono tabular-nums text-muted-foreground text-sm">
                         {row.rp?.total_points != null ? row.rp.total_points.toFixed(1) : '—'}
                       </TableCell>
                     )}
@@ -271,7 +271,7 @@ export function PlayersTab({ leagueId, active, sport }: Props) {
                     {cats.map((cat) => {
                       const cs = row.rp?.category_scores?.find((c) => c.label === cat.label)
                       if (!cs) {
-                        return <TableCell key={cat.label} className="text-right text-xs tabular-nums">—</TableCell>
+                        return <TableCell key={cat.label} className="text-right text-xs font-mono tabular-nums">—</TableCell>
                       }
                       return (
                         <ZScoreCell key={cat.label} value={fmtStat(cs.value)} zScore={cs.z_score} />
@@ -282,7 +282,7 @@ export function PlayersTab({ leagueId, active, sport }: Props) {
                     {(statusFilter === 'all' || isSearchMode) && (
                       <TableCell>
                         {isAvailable ? (
-                          <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-300 dark:border-green-700 text-xs">FA</Badge>
+                          <Badge variant="blue">FA</Badge>
                         ) : null}
                       </TableCell>
                     )}

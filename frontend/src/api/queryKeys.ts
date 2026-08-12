@@ -27,8 +27,12 @@ export const keys = {
     ['rankings', season, format, position] as const,
   projectionDetail: (gsisId: string, season: number) =>
     ['projection', gsisId, season] as const,
-  draftValues: (leagueId: number, season: number, format: string, budget: number) =>
-    ['league', leagueId, 'draft-values', season, format, budget] as const,
+  // `settings` is the serialised setting override, so saving new league settings
+  // fetches a freshly scored board instead of reusing the cached one.
+  draftValues: (leagueId: number, season: number, settings: string) =>
+    ['league', leagueId, 'draft-values', season, settings] as const,
+  draftPrep: (leagueId: number, season: number) =>
+    ['league', leagueId, 'draft-prep', season] as const,
   nflPlayer: (gsisId: string) => ['nfl-player', gsisId] as const,
   grades: (season: number, position: string) =>
     ['grades', season, position] as const,

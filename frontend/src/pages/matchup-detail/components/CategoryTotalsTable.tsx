@@ -37,16 +37,16 @@ export function CategoryTotalsTable({ statLabels, accum1, accum2, teamValue, win
               const isPct = label.includes('%')
               return (
                 <TableRow key={label}>
-                  <TableCell className={`tabular-nums font-medium ${winner === 1 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                  <TableCell className={`font-mono tabular-nums font-medium ${winner === 1 ? 'text-foreground' : 'text-muted-foreground'}`}>
                     {fmt(v1, label)}
-                    {winner === 1 && <span className="ml-1.5 text-green-600 dark:text-green-400 text-xs" role="img" aria-label="Winner">✓</span>}
+                    {winner === 1 && <span className="ml-1.5 text-positive-foreground text-xs" role="img" aria-label="Winner">✓</span>}
                   </TableCell>
                   <TableCell className="text-center text-sm">
                     <span className="text-muted-foreground">{label}</span>
                     {isPct && <span className="block text-muted-foreground text-xs">avg</span>}
                   </TableCell>
-                  <TableCell className={`text-right tabular-nums font-medium ${winner === 2 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                    {winner === 2 && <span className="mr-1.5 text-green-600 dark:text-green-400 text-xs" role="img" aria-label="Winner">✓</span>}
+                  <TableCell className={`text-right font-mono tabular-nums font-medium ${winner === 2 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                    {winner === 2 && <span className="mr-1.5 text-positive-foreground text-xs" role="img" aria-label="Winner">✓</span>}
                     {fmt(v2, label)}
                   </TableCell>
                 </TableRow>

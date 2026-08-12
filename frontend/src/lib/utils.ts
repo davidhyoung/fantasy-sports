@@ -10,7 +10,7 @@ export function zScoreBg(_z: number): string {
   return ''
 }
 
-/** Directional arrow colored by z-score intensity (purple shades).
+/** Directional arrow indicating z-score intensity.
  *  Returns empty string for near-zero values (|z| < 0.5). */
 export function zScoreIndicator(z: number): string {
   if (z >= 1.5) return '▲▲'
@@ -20,12 +20,14 @@ export function zScoreIndicator(z: number): string {
   return ''
 }
 
-/** CSS class for z-score indicator color — darker highlight for stronger signal,
- *  neutral muted for zero/near-zero. */
+/** CSS class for z-score indicator color. Above average reads in the primary
+ *  accent, below average in the secondary; intensity tracks magnitude, and
+ *  zero/near-zero stays neutral. Purple is deliberately unused here — it is
+ *  reserved for projected/future data. */
 export function zScoreColor(z: number): string {
-  if (z >= 1.5) return 'text-highlight font-medium'
-  if (z >= 0.5) return 'text-highlight-foreground'
-  if (z <= -1.5) return 'text-highlight/50'
-  if (z <= -0.5) return 'text-highlight-foreground/50'
+  if (z >= 1.5) return 'text-positive font-medium'
+  if (z >= 0.5) return 'text-positive-foreground'
+  if (z <= -1.5) return 'text-negative font-medium'
+  if (z <= -0.5) return 'text-negative-foreground'
   return 'text-muted-foreground/40'
 }
