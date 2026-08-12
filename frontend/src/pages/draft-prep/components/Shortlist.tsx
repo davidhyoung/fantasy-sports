@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import type { DraftPlayer } from '@/api/client'
+import { PlayerAvatar } from '@/components/ui/table-helpers'
 import type { useDraftPrep } from '../hooks/useDraftPrep'
 import { INTEREST_LEVELS, interestTextClass } from '../lib/interest'
 
@@ -56,12 +57,13 @@ interface Props {
 }
 
 /**
- * Your shortlist: the players you've tagged, grouped, with a note each. This is
- * the part you actually read on draft night, so it sits above the full board.
+ * Your shortlist: the players you've rated, split into targets and fades, with a
+ * headshot and a note each. This is the part you actually read on draft night, so
+ * it sits above the full board.
  */
 export function Shortlist({ players, prep }: Props) {
-  const tagged = players.filter((p) => prep.entry(p.gsis_id).interest != null)
-  if (!tagged.length) {
+  const rated = players.filter((p) => prep.entry(p.gsis_id).interest != null)
+  if (!rated.length) {
     return (
       <p className="rounded-lg bg-card px-4 py-3 text-xs text-muted-foreground">
         Rate players on the board below — <span className="font-mono">+3</span> must draft down to{' '}
@@ -75,7 +77,7 @@ export function Shortlist({ players, prep }: Props) {
     <div className="grid gap-4 rounded-lg bg-card px-4 py-3 sm:grid-cols-2">
       {GROUPS.map(({ key, label, accent, want }) => {
         // Strongest feeling first, so the top of each column is what matters most.
-        const group = tagged
+        const group = rated
           .filter((p) => want(prep.entry(p.gsis_id).interest ?? 0))
           .sort((a, b) =>
             Math.abs(prep.entry(b.gsis_id).interest ?? 0) - Math.abs(prep.entry(a.gsis_id).interest ?? 0))
@@ -89,31 +91,37 @@ export function Shortlist({ players, prep }: Props) {
             ) : (
               <ul className="mt-1.5 space-y-1.5">
                 {group.map((p) => (
-                  <li key={p.gsis_id} className="border-b border-border pb-1.5 last:border-0">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="flex items-baseline gap-1.5">
-                        <span
-                          className={`font-mono text-[11px] tabular-nums ${interestTextClass(prep.entry(p.gsis_id).interest!)}`}
-                          title={INTEREST_LEVELS.find((l) => l.level === prep.entry(p.gsis_id).interest)?.label}
-                        >
-                          {INTEREST_LEVELS.find((l) => l.level === prep.entry(p.gsis_id).interest)?.short}
+                  <li key={p.gsis_id} className="flex gap-2 border-b border-border pb-1.5 last:border-0">
+                    <RouterLink to={`/players/${p.gsis_id}`} className="mt-0.5 shrink-0">
+                      <PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />
+                    </RouterLink>
+                    {/* min-w-0 so a long name truncates instead of pushing the price off. */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="flex min-w-0 items-baseline gap-1.5">
+                          <span
+                            className={`shrink-0 font-mono text-[11px] tabular-nums ${interestTextClass(prep.entry(p.gsis_id).interest!)}`}
+                            title={INTEREST_LEVELS.find((l) => l.level === prep.entry(p.gsis_id).interest)?.label}
+                          >
+                            {INTEREST_LEVELS.find((l) => l.level === prep.entry(p.gsis_id).interest)?.short}
+                          </span>
+                          <RouterLink
+                            to={`/players/${p.gsis_id}`}
+                            className="truncate font-display text-[13px] font-semibold text-foreground hover:underline"
+                          >
+                            {p.name}
+                          </RouterLink>
                         </span>
-                        <RouterLink
-                          to={`/players/${p.gsis_id}`}
-                          className="font-display text-[13px] font-semibold text-foreground hover:underline"
-                        >
-                          {p.name}
-                        </RouterLink>
-                      </span>
-                      <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
-                        {p.position_group} · ${p.auction_value}
-                      </span>
+                        <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                          {p.position_group} · ${p.auction_value}
+                        </span>
+                      </div>
+                      <NoteField
+                        value={prep.entry(p.gsis_id).note}
+                        onCommit={(next) => prep.setNote(p.gsis_id, next)}
+                        placeholder="Add a note…"
+                      />
                     </div>
-                    <NoteField
-                      value={prep.entry(p.gsis_id).note}
-                      onCommit={(next) => prep.setNote(p.gsis_id, next)}
-                      placeholder="Add a note…"
-                    />
                   </li>
                 ))}
               </ul>
