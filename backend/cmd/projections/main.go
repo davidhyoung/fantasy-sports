@@ -1573,6 +1573,20 @@ func computeProjections(ctx context.Context, pool *pgxpool.Pool, baseSeason, tar
 
 	log.Printf("  computed %d projections", len(projs))
 
+	// 5b. Incoming rookies have no season profile to grow from (they've never
+	// played an NFL down), so they were skipped by the targets loop above.
+	// Project them separately via draft-capital comps against historical
+	// rookie seasons (rookies.go).
+	log.Println("  computing rookie projections…")
+	existingTargets := make(map[string]bool, len(targets))
+	for _, t := range targets {
+		existingTargets[t.GsisID] = true
+	}
+	rookiePool := buildRookiePool(profiles)
+	rookieProjs := computeRookieProjections(targetSeason, cfg, metaMap, rookiePool, existingTargets)
+	log.Printf("  computed %d rookie projections", len(rookieProjs))
+	projs = append(projs, rookieProjs...)
+
 	// 6. Upsert projections.
 	log.Println("  upserting projections…")
 	upserted := 0

@@ -121,6 +121,39 @@ projected_PPR/G = base_PPR/G × Σ weight_i × growth_i
 - Component stats (yards, TDs, receptions, FG) are scaled by the same overall growth
   ratio — the system projects fantasy production, not independent stat shapes.
 
+## Rookie Projections
+
+Everything above requires a target's own base-season profile to grow forward — a
+player with zero NFL games has none, so incoming rookies are invisible to it.
+`rookies.go` covers that gap as an additional step inside `-project`:
+
+- **Targets:** `nfl_players` rows with `entry_year == targetSeason` that the main
+  loop didn't already project.
+- **Comp pool:** historical rookie-season profiles (`years_exp == 0`, which is
+  derived per-profile from `season - entry_year`, not "earliest season we've
+  imported"). Profiles only exist for player-seasons with ≥ `minGames` games, so
+  redshirt/zero-snap rookie years are already excluded.
+- **Similarity is draft slot only** — a Gaussian kernel (σ = 40 picks, ~1.5
+  rounds) on overall draft number. Undrafted players (target or comp) are pinned
+  to a synthetic slot past the last real pick, so UDFAs comp against UDFAs. There's
+  no stat-line to match on, since the target has never played.
+- **Projection = the comps' own rookie-season output**, similarity²-weighted —
+  not a growth rate applied to anything, since there's no prior value of the
+  target's to grow. At least `rookieMinComps` (5) comps are kept even if none
+  clear the similarity threshold (thin pools — e.g. rookie kickers — are rare in
+  the historical data but shouldn't return nothing).
+- **Confidence** reuses the same weighted formula as veteran projections, but
+  `ConfDataQuality` is pinned to 0 (the target has zero NFL seasons of their own),
+  which caps rookie confidence below a comparable veteran's.
+- Shares `nfl_projections` (same upsert, same calibration) with veteran
+  projections, so every consumer sees rookies with no query changes.
+  `base_season` is stored as `targetSeason - 1` for schema consistency only — no
+  profile backs it for rookies.
+- **Depends on current-season rosters being imported** (`make import-nfl
+  ARGS="-from N -to N -rosters-only"`) so `entry_year`/`draft_number` are
+  populated. nflverse publishes each year's roster — including that year's draft
+  class — well before Week 1, independent of stats availability.
+
 ## Outcome Distribution (uncertainty)
 
 Per `docs/stats/uncertainty-quantification.md`: the comp set is itself an empirical
