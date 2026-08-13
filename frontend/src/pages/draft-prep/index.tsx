@@ -14,16 +14,10 @@ import { TeamPanel } from './components/TeamPanel'
 import { useDraftPrep } from './hooks/useDraftPrep'
 
 const POSITIONS = ['All', 'QB', 'RB', 'WR', 'TE', 'K']
-/**
- * Six levels would make six chips, most of them empty. These are the cuts you
- * actually filter by; the level itself is visible on every row.
- */
 const VIEWS = [
   { value: 'all', label: 'All players' },
-  { value: 'must', label: 'Must draft' },
-  { value: 'positive', label: 'Targets +' },
-  { value: 'negative', label: 'Fades −' },
-  { value: 'rated', label: 'Rated' },
+  { value: 'positive', label: 'Targets' },
+  { value: 'negative', label: 'Avoids' },
 ] as const
 type View = (typeof VIEWS)[number]['value']
 
@@ -34,8 +28,8 @@ const TEAM_PANEL_KEY = 'fs.draft-prep.team-panel'
 
 /**
  * Draft Prep — the board you build before a draft: league settings you can model,
- * your own ranking, an interest level per player, and a team you can assemble at
- * planned prices. The league page's Draft tab shows the same projections
+ * your own ranking, targets and avoids, and a team you can assemble at planned
+ * prices. The league page's Draft tab shows the same projections
  * read-only; everything you can change lives here.
  */
 export default function DraftPrep() {
@@ -121,10 +115,8 @@ export default function DraftPrep() {
         if (position && p.position_group !== position && p.position !== position) return false
         const interest = prep.entry(p.gsis_id).interest
         switch (view) {
-          case 'must': return interest === 3
-          case 'positive': return interest != null && interest > 0
-          case 'negative': return interest != null && interest < 0
-          case 'rated': return interest != null
+          case 'positive': return interest === 1
+          case 'negative': return interest === -1
           default: return true
         }
       }),
@@ -169,7 +161,7 @@ export default function DraftPrep() {
           <p className="mt-1 text-sm text-muted-foreground">
             {isFetching && !isLoading
               ? 'Rescoring for your settings…'
-              : `${seasonNum} board · rate players +3 to −3, plan prices, model your league settings`}
+              : `${seasonNum} board · mark targets and avoids, plan prices, model your league settings`}
           </p>
         </div>
         <SelectControl
@@ -217,10 +209,8 @@ export default function DraftPrep() {
           {VIEWS.map((v) => (
             <FilterChip key={v.value} active={view === v.value} onClick={() => setView(v.value)}>
               {v.label}
-              {v.value === 'must' && prep.counts.mustDraft > 0 && ` ${prep.counts.mustDraft}`}
-              {v.value === 'positive' && prep.counts.positive > 0 && ` ${prep.counts.positive}`}
-              {v.value === 'negative' && prep.counts.negative > 0 && ` ${prep.counts.negative}`}
-              {v.value === 'rated' && prep.counts.rated > 0 && ` ${prep.counts.rated}`}
+              {v.value === 'positive' && prep.counts.targets > 0 && ` ${prep.counts.targets}`}
+              {v.value === 'negative' && prep.counts.avoids > 0 && ` ${prep.counts.avoids}`}
             </FilterChip>
           ))}
         </div>

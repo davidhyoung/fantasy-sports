@@ -9,8 +9,8 @@ import { keys } from '@/api/queryKeys'
 const EMPTY: DraftPrepEntry = { gsis_id: '', interest: null, custom_rank: null, note: '', planned_cost: null }
 
 /**
- * Your personal board for one league and season: an interest level per player
- * (+3 must draft … -3 do not draft), a custom ranking, notes, and planned costs.
+ * Your personal board for one league and season: targets and avoids, a custom
+ * ranking, notes, and planned costs.
  * Stored server-side, so the board you build at your desk is the one you have on
  * draft night.
  *
@@ -116,14 +116,10 @@ export function useDraftPrep(leagueId: number | null, season: number) {
   const setPlannedCost = (gsisId: string, cost: number | null) => patch(gsisId, { plannedCost: cost })
 
   const counts = useMemo(() => {
-    const c = { mustDraft: 0, positive: 0, negative: 0, rated: 0, ranked: 0, planned: 0 }
+    const c = { targets: 0, avoids: 0, ranked: 0, planned: 0 }
     for (const e of data?.players ?? []) {
-      if (e.interest != null) {
-        c.rated++
-        if (e.interest > 0) c.positive++
-        else c.negative++
-        if (e.interest === 3) c.mustDraft++
-      }
+      if (e.interest === 1) c.targets++
+      else if (e.interest === -1) c.avoids++
       if (e.custom_rank != null) c.ranked++
       if (e.planned_cost != null) c.planned++
     }

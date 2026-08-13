@@ -14,8 +14,7 @@ import (
 // actually marked have a row; everyone else is implicitly unrated and unranked.
 type draftPrepEntry struct {
 	GsisID string `json:"gsis_id"`
-	// Interest is a signed scale: +3 must draft, +2 love, +1 like,
-	// -1 dislike, -2 hate, -3 do not draft. nil = no opinion (0 is not a value).
+	// Interest is +1 to target the player, -1 to avoid him. nil = no opinion.
 	Interest   *int   `json:"interest"`
 	CustomRank *int   `json:"custom_rank"` // nil = unranked
 	Note       string `json:"note"`
@@ -29,16 +28,17 @@ type draftPrepResp struct {
 	Players []draftPrepEntry `json:"players"`
 }
 
-// interestMin/Max bound the scale. 0 is rejected rather than treated as "none"
-// so there is exactly one representation of no opinion, matching the column's
-// CHECK constraint.
+// Interest is binary. The sign is kept rather than a boolean so ordering still
+// works and widening the scale again would be a constraint change, not a schema
+// one. nil (not 0) is the single representation of "no opinion", matching the
+// column's CHECK constraint.
 const (
-	interestMin = -3
-	interestMax = 3
+	interestTarget = 1
+	interestAvoid  = -1
 )
 
 func validInterest(v *int) bool {
-	return v == nil || (*v >= interestMin && *v <= interestMax && *v != 0)
+	return v == nil || *v == interestTarget || *v == interestAvoid
 }
 
 // prepSeason resolves the ?season= parameter, defaulting to the configured season.
@@ -128,7 +128,7 @@ func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if !validInterest(body.Interest) {
-		respondError(w, http.StatusBadRequest, "interest must be -3..-1 or 1..3")
+		respondError(w, http.StatusBadRequest, "interest must be 1 (target) or -1 (avoid)")
 		return
 	}
 	if body.PlannedCost != nil && (*body.PlannedCost < 0 || *body.PlannedCost > 10000) {

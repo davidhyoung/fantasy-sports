@@ -598,11 +598,8 @@ export const getDraftValues = (leagueId: number, params: DraftValuesParams) => {
 
 // --- Draft Prep (personal board: tags + custom ranking) ---
 
-/**
- * Signed interest scale: +3 must draft, +2 love, +1 like,
- * -1 dislike, -2 hate, -3 do not draft. null = no opinion (0 is not a value).
- */
-export type InterestLevel = -3 | -2 | -1 | 1 | 2 | 3
+/** +1 target, -1 avoid. null = no opinion (0 is not a value). */
+export type InterestLevel = -1 | 1
 
 export interface DraftPrepEntry {
   gsis_id: string
