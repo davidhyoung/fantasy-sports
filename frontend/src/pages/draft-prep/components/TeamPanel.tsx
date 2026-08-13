@@ -65,8 +65,10 @@ function Stat({ label, value, tone = '' }: { label: string; value: string; tone?
  *
  * It sits next to the board rather than replacing it because it's a running
  * total of decisions made over there — you add a player on the left and watch
- * the budget move on the right. Collapsed, it stays as a narrow rail so the
- * board gets the full width when you're just reading.
+ * the budget move on the right. On wide screens it's pinned to the window edge
+ * and scrolls independently, so a long roster never drags the board with it;
+ * collapsed it shrinks to a tab. Below `lg` there's nowhere to dock, so it
+ * stacks under the board as an ordinary block.
  */
 export function TeamPanel({
   open, onToggle, plannedCount, players, replacementLevels, settings, prep,
@@ -99,7 +101,7 @@ export function TeamPanel({
         onClick={onToggle}
         aria-expanded={false}
         title="Show your team"
-        className="flex w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-card px-2 py-2 hover:bg-muted lg:sticky lg:top-[calc(var(--nav-height)+1rem)] lg:w-auto lg:flex-col lg:py-3"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-card px-2 py-2 hover:bg-muted lg:fixed lg:right-0 lg:top-[calc(var(--nav-height)+1.5rem)] lg:z-30 lg:w-auto lg:flex-col lg:rounded-l-lg lg:rounded-r-none lg:border-y lg:border-l lg:border-border lg:py-4"
       >
         <span className="font-mono text-xs text-muted-foreground">◂</span>
         <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground lg:[writing-mode:vertical-rl]">
@@ -112,8 +114,11 @@ export function TeamPanel({
   const overBudget = roster.spent > roster.budget
 
   return (
-    <aside className="w-full shrink-0 space-y-3 lg:sticky lg:top-[calc(var(--nav-height)+1rem)] lg:w-[300px] xl:w-[340px]">
-      <div className="rounded-lg bg-card">
+    <aside
+      className="w-full space-y-3 lg:fixed lg:bottom-0 lg:right-0 lg:top-[var(--nav-height)] lg:z-30 lg:w-[320px] lg:space-y-0 lg:overflow-y-auto lg:border-l lg:border-border lg:bg-background lg:p-3"
+      aria-label="Your planned team"
+    >
+      <div className="rounded-lg bg-card lg:mb-3">
         <div className="flex items-center justify-between gap-2 px-3 py-2">
           <h2 className="font-display text-sm font-semibold text-foreground">Your team</h2>
           <button
@@ -202,7 +207,7 @@ export function TeamPanel({
       </div>
 
       {roster.warnings.length > 0 && (
-        <ul className="space-y-1 rounded-lg bg-negative-light px-3 py-2">
+        <ul className="space-y-1 rounded-lg bg-negative-light px-3 py-2 lg:mb-3">
           {roster.warnings.map((w) => (
             <li key={w} className="font-display text-[11px] font-semibold text-negative-foreground">
               {w}

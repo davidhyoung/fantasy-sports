@@ -162,7 +162,7 @@ export default function DraftPrep() {
   }
 
   return (
-    <div className="max-w-6xl space-y-5">
+    <div className={`space-y-5 ${teamOpen ? 'lg:mr-[332px]' : 'lg:mr-14'}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Draft Prep</h1>
@@ -198,10 +198,9 @@ export default function DraftPrep() {
         onReset={reset}
       />
 
-      {/* Board and team side by side: the team is a running total of the board,
-          not a separate destination, so it docks rather than replacing the view. */}
-      <div className="flex flex-col items-stretch gap-5 lg:flex-row lg:items-start">
-        <div className="min-w-0 flex-1 space-y-4">
+      {/* The team panel is fixed to the window edge on wide screens, so it's out
+          of flow — the page reserves the width instead of laying it out. */}
+      <div className="min-w-0 space-y-4">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex flex-wrap gap-1.5">
             {POSITIONS.map((pos) => (
@@ -264,18 +263,17 @@ export default function DraftPrep() {
           />
         </>
       )}
-        </div>
-
-        <TeamPanel
-          open={teamOpen}
-          onToggle={toggleTeam}
-          plannedCount={prep.counts.planned}
-          players={allPlayers}
-          replacementLevels={replacementLevels}
-          settings={settings}
-          prep={prep}
-        />
       </div>
+
+      <TeamPanel
+        open={teamOpen}
+        onToggle={toggleTeam}
+        plannedCount={prep.counts.planned}
+        players={allPlayers}
+        replacementLevels={replacementLevels}
+        settings={settings}
+        prep={prep}
+      />
     </div>
   )
 }
