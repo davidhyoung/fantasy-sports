@@ -39,6 +39,25 @@ export function interestIconClass(level: InterestLevel, filled: boolean): string
   return level > 0 ? 'fill-current text-primary' : 'fill-current text-secondary'
 }
 
+/**
+ * Left edge on a rated player's row, so targets and fades are visible while
+ * scanning the board itself rather than repeated in a panel above it. Written as
+ * whole literal class names because Tailwind scans source text — a class built by
+ * concatenation at runtime never gets generated.
+ */
+const ROW_EDGE: Record<InterestLevel, string> = {
+  3: 'border-l-[3px] border-l-primary',
+  2: 'border-l-[3px] border-l-primary/70',
+  1: 'border-l-[3px] border-l-primary/40',
+  '-1': 'border-l-[3px] border-l-secondary/40',
+  '-2': 'border-l-[3px] border-l-secondary/70',
+  '-3': 'border-l-[3px] border-l-secondary',
+}
+
+export function interestRowClass(level: InterestLevel | null): string {
+  return level == null ? '' : ROW_EDGE[level]
+}
+
 /** Text-only variant for lists, where a filled chip would be too heavy. */
 export function interestTextClass(level: InterestLevel): string {
   return level > 0 ? 'text-primary' : 'text-secondary'

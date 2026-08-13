@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { getDraftValues, listLeagues, type DraftPlayer, type DraftReplacementLevel } from '@/api/client'
 import { keys } from '@/api/queryKeys'
@@ -11,8 +10,7 @@ import {
   useDraftSettings, serverSettings, draftQuery, type DraftSettings,
 } from '@/pages/league-detail/hooks/useDraftSettings'
 import { DraftBoardTable, boardOrder } from './components/DraftBoardTable'
-import { Shortlist } from './components/Shortlist'
-import { TeamBuilder } from './components/TeamBuilder'
+import { TeamPanel } from './components/TeamPanel'
 import { useDraftPrep } from './hooks/useDraftPrep'
 
 const POSITIONS = ['All', 'QB', 'RB', 'WR', 'TE', 'K']
@@ -29,16 +27,10 @@ const VIEWS = [
 ] as const
 type View = (typeof VIEWS)[number]['value']
 
-/** Board = the ranking surface; Team = what those prices add up to. */
-const SURFACES = [
-  { value: 'board', label: 'Board' },
-  { value: 'team', label: 'Team Builder' },
-] as const
-type Surface = (typeof SURFACES)[number]['value']
-
 const NO_PLAYERS: DraftPlayer[] = []
 const NO_LEVELS: DraftReplacementLevel[] = []
 const LEAGUE_KEY = 'fs.draft-prep.league'
+const TEAM_PANEL_KEY = 'fs.draft-prep.team-panel'
 
 /**
  * Draft Prep — the board you build before a draft: league settings you can model,
@@ -84,11 +76,15 @@ export default function DraftPrep() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [view, setView] = useState<View>('all')
 
-  // The surface lives in the URL so a half-built team is a link you can return to.
-  const [searchParams, setSearchParams] = useSearchParams()
-  const surface: Surface = searchParams.get('view') === 'team' ? 'team' : 'board'
-  const setSurface = (next: Surface) =>
-    setSearchParams((prev) => { prev.set('view', next); return prev }, { replace: true })
+  // Whether the team panel is docked open is a preference that should survive a
+  // reload, not a place you navigate to — so it lives in localStorage, not the URL.
+  const [teamOpen, setTeamOpen] = useState(() => localStorage.getItem(TEAM_PANEL_KEY) !== 'closed')
+  const toggleTeam = () => {
+    setTeamOpen((open) => {
+      localStorage.setItem(TEAM_PANEL_KEY, open ? 'closed' : 'open')
+      return !open
+    })
+  }
 
   const { params, key } = draftQuery(seasonNum, isCustomized ? settings : null)
   const { data, isLoading, isError, isFetching } = useQuery({
@@ -173,9 +169,7 @@ export default function DraftPrep() {
           <p className="mt-1 text-sm text-muted-foreground">
             {isFetching && !isLoading
               ? 'Rescoring for your settings…'
-              : surface === 'team'
-                ? `${seasonNum} team · what your planned prices add up to`
-                : `${seasonNum} board · rank players, rate them +3 to −3, model your league settings`}
+              : `${seasonNum} board · rate players +3 to −3, plan prices, model your league settings`}
           </p>
         </div>
         <SelectControl
@@ -204,45 +198,21 @@ export default function DraftPrep() {
         onReset={reset}
       />
 
-      <div className="flex w-fit rounded-lg bg-muted overflow-hidden">
-        {SURFACES.map((s) => (
-          <button
-            key={s.value}
-            onClick={() => setSurface(s.value)}
-            className={`px-3 py-1.5 font-display text-xs font-semibold ${
-              surface === s.value
-                ? 'bg-foreground text-background'
-                : 'bg-card text-muted-foreground hover:bg-muted'
-            }`}
-          >
-            {s.label}
-            {s.value === 'team' && prep.counts.planned > 0 && ` ${prep.counts.planned}`}
-          </button>
-        ))}
-      </div>
-
-      {surface === 'team' ? (
-        <TeamBuilder
-          players={allPlayers}
-          replacementLevels={replacementLevels}
-          settings={settings}
-          prep={prep}
-        />
-      ) : (
-      <>
-      <Shortlist players={allPlayers} prep={prep} />
-
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex flex-wrap gap-1.5">
-          {POSITIONS.map((pos) => (
-            <FilterChip
-              key={pos}
-              active={(pos === 'All' && position === '') || pos === position}
-              onClick={() => setPosition(pos === 'All' ? '' : pos)}
-            >
-              {pos}
-            </FilterChip>
-          ))}
+      {/* Board and team side by side: the team is a running total of the board,
+          not a separate destination, so it docks rather than replacing the view. */}
+      <div className="flex flex-col items-stretch gap-5 lg:flex-row lg:items-start">
+        <div className="min-w-0 flex-1 space-y-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap gap-1.5">
+            {POSITIONS.map((pos) => (
+              <FilterChip
+                key={pos}
+                active={(pos === 'All' && position === '') || pos === position}
+                onClick={() => setPosition(pos === 'All' ? '' : pos)}
+              >
+                {pos}
+              </FilterChip>
+            ))}
         </div>
         <div className="flex flex-wrap gap-1.5">
           {VIEWS.map((v) => (
@@ -288,13 +258,24 @@ export default function DraftPrep() {
               entry: prep.entry,
               setInterest: prep.setInterest,
               setPlannedCost: prep.setPlannedCost,
+              setNote: prep.setNote,
               onMove: handleMove,
             }}
           />
         </>
       )}
-      </>
-      )}
+        </div>
+
+        <TeamPanel
+          open={teamOpen}
+          onToggle={toggleTeam}
+          plannedCount={prep.counts.planned}
+          players={allPlayers}
+          replacementLevels={replacementLevels}
+          settings={settings}
+          prep={prep}
+        />
+      </div>
     </div>
   )
 }

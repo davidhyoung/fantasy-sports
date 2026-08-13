@@ -7,7 +7,8 @@ import ConfidenceBadge from '@/pages/projections/components/ConfidenceBadge'
 import UniquenessBadge from '@/pages/projections/components/UniquenessBadge'
 import { TrendSparkline } from '@/pages/league-detail/components/TrendSparkline'
 import { ThumbsUp, ThumbsDown } from 'lucide-react'
-import { INTEREST_LEVELS, SCALE_ORDER, isFilled, interestIconClass } from '../lib/interest'
+import { INTEREST_LEVELS, SCALE_ORDER, isFilled, interestIconClass, interestRowClass } from '../lib/interest'
+import { NoteField } from './NoteField'
 
 const STRING_COLS = ['name', 'pos']
 
@@ -18,6 +19,7 @@ export interface PrepControls {
   setInterest: (gsisId: string, level: InterestLevel) => void
   /** Sets the price you plan to pay; null takes the player out of the plan. */
   setPlannedCost: (gsisId: string, cost: number | null) => void
+  setNote: (gsisId: string, note: string) => void
   /**
    * Moves a player next to the row above/below it. The neighbour is passed
    * explicitly rather than a direction alone: with a position filter on, the
@@ -169,6 +171,7 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
               </SortableHead>
             )}
             {prep && <TableHead className="text-center">Plan</TableHead>}
+            {prep && <TableHead className="w-40">Note</TableHead>}
             <TableHead>Trend</TableHead>
             <SortableHead col="pos" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Pos</SortableHead>
             <SortableHead col="tier" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Tier</SortableHead>
@@ -192,7 +195,13 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
           {sorted.map((p: DraftPlayer, i) => {
             const mine = prep?.entry(p.gsis_id)
             return (
-              <ClickableRow key={p.gsis_id} href={`/players/${p.gsis_id}`}>
+              <ClickableRow
+                key={p.gsis_id}
+                href={`/players/${p.gsis_id}`}
+                // A rated player is marked on his own row rather than repeated in a
+                // panel: an accent edge whose weight tracks how strongly you feel.
+                className={interestRowClass(mine?.interest ?? null)}
+              >
                 {prep && (
                   <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
@@ -281,6 +290,14 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                         </button>
                       </span>
                     )}
+                  </TableCell>
+                )}
+                {prep && (
+                  <TableCell className="w-40" onClick={(e) => e.stopPropagation()}>
+                    <NoteField
+                      value={mine?.note ?? ''}
+                      onCommit={(next) => prep.setNote(p.gsis_id, next)}
+                    />
                   </TableCell>
                 )}
                 <TableCell>
