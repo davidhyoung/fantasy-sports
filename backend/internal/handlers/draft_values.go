@@ -498,11 +498,51 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		totalVOR += vor
 	}
 
-	// 7. Compute auction values: proportional share of total budget
+	// 7. Compute auction values: $1 reserved for every roster spot in the league
+	//    (every drafted player costs at least a dollar, VOR-positive or not — the
+	//    standard VBD convention this is meant to follow, docs/stats/auction-values.md),
+	//    then the surplus above that split proportionally by VOR. Skipping the
+	//    reservation and instead splitting the *full* nominal budget across only
+	//    the VOR-positive players — the previous behavior — systematically
+	//    overpriced the top of the board: every $1-floor bench spot was extra
+	//    money the formula never set aside, so the league's true spendable total
+	//    was smaller than what got divided among the players who actually earned
+	//    a share.
+	totalRosterSpots := 0
+	for _, count := range effectiveSlots {
+		totalRosterSpots += count
+	}
+	totalRosterSpots *= numTeams
 	totalBudget := float64(budget * numTeams)
+	surplus := totalBudget - float64(totalRosterSpots)
+	if surplus < 0 {
+		surplus = 0
+	}
+
+	// Raw VOR share is linear, which real auction rooms aren't: nobody actually
+	// bids 40-50% of a $200 budget on one player even when the points say they
+	// "should", and shallow single-QB rosters (few flex-eligible starter slots,
+	// e.g. Yahoo's RB2/WR2/FLEX1 default) concentrate VOR onto so few players
+	// that linear sharing pushes the very top of the board past $100 — well
+	// above what real bidders pay (observed ceiling: roughly $70-80 for the
+	// consensus #1 overall in a 12-team/$200 league). Raising VOR to a <1
+	// exponent before sharing compresses that spread — the top of the curve
+	// gives up relatively more than the middle, both in dollars and in the
+	// share of the pool it can command — while leaving the ranking (and the
+	// zero/non-zero VOR boundary) untouched, since x^p is monotonic for x>0.
+	// 0.75 was picked empirically against this league's board to land the top
+	// price in that observed real-world range; it isn't tuned per-league.
+	const auctionVORCompressionExponent = 0.75
+	var totalCompressedVOR float64
 	for i := range players {
-		if totalVOR > 0 && players[i].VOR > 0 {
-			dollarVal := (players[i].VOR / totalVOR) * totalBudget
+		if players[i].VOR > 0 {
+			totalCompressedVOR += math.Pow(players[i].VOR, auctionVORCompressionExponent)
+		}
+	}
+	for i := range players {
+		if totalCompressedVOR > 0 && players[i].VOR > 0 {
+			compressed := math.Pow(players[i].VOR, auctionVORCompressionExponent)
+			dollarVal := 1 + (compressed/totalCompressedVOR)*surplus
 			players[i].AuctionValue = int(math.Max(1, math.Round(dollarVal)))
 		} else {
 			players[i].AuctionValue = 1

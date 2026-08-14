@@ -23,21 +23,46 @@ Dollars are the unit a drafter actually spends.
 
 ## Technique
 
-### Our value: VOR → proportional budget share
+### Our value: VOR → compressed, budget-reserved proportional share
 
 ```
-replacement[pos] = points of the player at index ceil(starterSlots[pos] × teams)
-                   in that position, sorted by points descending
-VOR(p)           = max(0, points(p) − replacement[pos(p)]) × ageMultiplier(p)
-auction(p)       = max(1, round( VOR(p) / ΣVOR × (teams × budget) ))
+replacement[pos]  = points of the player at index ceil(starterSlots[pos] × teams)
+                    in that position, sorted by points descending
+VOR(p)            = max(0, points(p) − replacement[pos(p)]) × ageMultiplier(p)
+rosterSpots        = teams × Σ(all roster slot counts, including bench)
+surplus            = teams × budget − rosterSpots         // $1 reserved per spot up front
+compressedVOR(p)   = VOR(p) ^ 0.75                          // see "Why compress" below
+auction(p)         = max(1, round( 1 + compressedVOR(p) / ΣcompressedVOR × surplus ))
 ```
 
 `starterSlots` comes from the league's roster with flex spots split evenly across
 their eligible positions (`ranking.ComputeStarterSlots`). The `max(0, …)` floor means
-sub-replacement players contribute nothing to `ΣVOR`, and the `max(1, …)` floor means
-every rostered player costs at least a dollar. Those two floors are why the sum of
-all auction values slightly exceeds the true money pool — the $1 minimums are real
-dollars the VOR share never allocated.
+sub-replacement players contribute nothing to `ΣVOR`.
+
+**Fixed 2026-08-14: the $1 reservation.** Every rostered player costs at least a
+dollar, VOR-positive or not — standard VBD practice reserves that dollar for *every*
+roster spot (bench included) before splitting what's left by VOR share. The original
+implementation skipped the reservation: it split the *full* nominal budget across only
+the VOR-positive players, then floored everyone else at $1 on top, so the league's
+true spendable total (`teams × budget`) was smaller than what the formula divided among
+the players who actually earned a share — the sum of all auction values didn't just
+"slightly exceed" the pool, the whole board ran hot, worst at the top. Restricting to
+the players who'd actually get drafted (down to the last roster spot), the sum now
+lands within $1 of `teams × budget`, as it should.
+
+**Why compress.** Even with the reservation fixed, a shallow single-QB roster (Yahoo's
+common default: RB2/WR2/FLEX1, no superflex) leaves very few flex-eligible starter
+slots, so few players clear replacement level — and linear VOR-proportional sharing
+concentrates the *entire* pool onto that small group. That pushed the consensus #1
+overall past $100 in a 12-team/$200 league, well above what real bidders actually pay
+for one player (observed ceiling: roughly $70-80) — real drafters don't execute pure
+linear VOR math; budget-diversification instincts cap how much of $200 anyone puts on
+one player even when the math says they "should" pay more. Raising VOR to the 0.75
+power before sharing compresses that spread (the top gives up relatively more than the
+middle) while leaving rankings and the zero/non-zero VOR boundary untouched, since
+`x^p` is monotonic for `x > 0`. The exponent was picked empirically against this app's
+own board to land the top price in the observed real-world range — it is a single
+global constant, not tuned per league.
 
 ### Consensus value: our curve, the market's ranking
 
@@ -111,28 +136,35 @@ wrong at extremes (a $50 budget compresses everything toward the $1 floor).
 
 ## Worked example
 
-The 2026 mock league board (12 teams, $200, PPR), taking the four largest gaps:
+A real synced league's board (12 teams, $200, PPR, Yahoo default roster), post the
+2026-08-14 $1-reservation and compression fixes:
 
 | Player | Pos | Our rank | Cons rank | Our $ | Cons $ | Edge |
 |---|---|---|---|---|---|---|
-| Cam Skattebo | RB | 6 | 18.0 | $66 | $26 | **+$40** |
-| Justin Jefferson | WR | 17 | 6.0 | $17 | $52 | **−$35** |
-| Malik Nabers | WR | 5 | 14.0 | $57 | $23 | **+$34** |
-| Kyle Pitts | TE | 14 | 5.0 | $4 | $37 | **−$33** |
+| Kyle Pitts | TE | 13 | 5.0 | $1 | $34 | **−$33** |
+| Justin Jefferson | WR | 16 | 6.0 | $26 | $46 | **−$20** |
+| Malik Nabers | WR | 5 | 13.5 | $55 | $29 | **+$26** |
+| Cam Skattebo | RB | 17 | 18.0 | $23 | $21 | **+$2** |
 
-Read the Jefferson row: seven sources call him the WR6; our board pays $52 for its own
-WR6; our board ranks him WR17 and pays $17. We are $35 cheaper than the market on a
-player the market considers elite — the exact case `docs/algorithm-review.md` §6 flags
-as an injury-shortened base season feeding a thin comp pool. The dollar figure is what
-makes it actionable: it's a $35 mistake if we're wrong, which is 17% of a $200 budget.
+Read the Jefferson row: sources call him the WR6; our board pays $46 for its own WR6;
+our board ranks him WR16 and pays $26. We are $20 cheaper than the market on a player
+the market considers elite. The dollar figure is what makes it actionable: it's a $20
+mistake if we're wrong, 10% of a $200 budget. Skattebo (once the largest gap in the
+dataset — RB6 on a $66 valuation against a consensus RB18 read) is now within a
+rounding error of the market after the short-season shrinkage fix (`docs/algorithm-review.md`
+§6, CLAUDE.md's "Short-season shrinkage" entry) — the auction-value gap tracking the
+rank gap down is itself a sign the two fixes are consistent with each other.
 
 ## How to validate it's working
 
 - **Identity check:** with no consensus rows for a season, every consensus column is
   `—` and the board is unchanged. With rows present, coverage should be ~60–100
   players (the published depth), not the whole pool.
-- **Scale check:** doubling the budget doubles both columns (verified: Jefferson
-  $52 → $104 derived, $63 → $126 imported).
+- **Scale check:** doubling the budget roughly-but-not-exactly doubles the derived
+  column post-compression (verified: Puka Nacua $77 → $160, a 2.08× not 2.00× ratio —
+  the `1 + share × surplus` shape isn't scale-invariant the way plain proportional
+  share was). The imported-price path is untouched and still scales exactly (`price(p)
+  = median × teams×budget / (12×200)` is a plain linear rescale).
 - **Precedence check:** inserting `metric_type = 'auction'` rows flips
   `consensus_derived` to false and the value to the rescaled median.
 - **Retrospective (not yet run):** after a season, correlate `edge` at draft time with
@@ -152,9 +184,18 @@ makes it actionable: it's a $35 mistake if we're wrong, which is 17% of a $200 b
   confident, wrong dollar gap.
 - **Single-source coverage is uncorroborated** and marked with `*` in the UI, matching
   the divergence table's convention.
-- **The $1 floor and the sub-replacement clamp mean auction values don't sum to the
-  budget.** This is inherent to proportional VOR allocation, not a bug, but it means
-  the column can't be read as "spend exactly this".
+- **The compression exponent (0.75) is a single global constant, not tuned per
+  league.** It was picked to land the top price in the observed real-world range for
+  a standard 12-team/$200/single-QB board; a very different league shape (huge budget,
+  deep superflex, 30-team dynasty) has no guarantee it lands in the "right" place, and
+  there's no principled derivation for 0.75 beyond that empirical match — a different
+  real-market anchor could argue for a different exponent.
+- **Auction values now sum to within ~$1 of the true budget pool** (`teams × budget`),
+  restricted to the players who'd actually fill a roster spot — the $1-per-slot
+  reservation fixed 2026-08-14 makes that identity hold rather than merely
+  approximately hold. Summing the *whole* evaluated player pool (including everyone
+  past the last roster spot, each shown at the $1 floor) will still overshoot, since
+  those aren't real draft picks.
 
 ## References
 
