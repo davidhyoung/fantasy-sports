@@ -1,5 +1,6 @@
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
-import { PlayerCell, ClickableRow, ZScoreCell, HeaderRow } from '@/components/ui/table-helpers'
+import { PlayerCell, ClickableRow, ZScoreCell, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
+import { describeStat } from '@/lib/statDescriptions'
 import type { RosterPlayer, RankedPlayer } from '../../../api/client'
 
 interface Props {
@@ -19,11 +20,17 @@ export function RosterTable({ roster, statLabels, rankByPlayer }: Props) {
           <HeaderRow>
             <TableHead>Player</TableHead>
             <TableHead>Team</TableHead>
-            <TableHead>Pos</TableHead>
-            <TableHead>Slot</TableHead>
-            {hasRankings && <TableHead className="text-right">Value</TableHead>}
+            <TableHead><HeaderTip description="Position eligibility">Pos</HeaderTip></TableHead>
+            <TableHead><HeaderTip description="Roster slot this player currently fills">Slot</HeaderTip></TableHead>
+            {hasRankings && (
+              <TableHead className="text-right">
+                <HeaderTip description="Overall value score and rank, then position rank on the line below">Value</HeaderTip>
+              </TableHead>
+            )}
             {statLabels.map((label) => (
-              <TableHead key={label} className="text-right">{label}</TableHead>
+              <TableHead key={label} className="text-right">
+                <HeaderTip description={describeStat(label)}>{label}</HeaderTip>
+              </TableHead>
             ))}
           </HeaderRow>
         </TableHeader>

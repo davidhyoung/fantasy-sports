@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { ProjPlayerListItem } from '@/api/client'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
-import { SortableHead, useTableSort, PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
+import { SortableHead, useTableSort, PlayerCell, ClickableRow, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
 import { gradeColorClass } from '@/lib/grades'
 import ConfidenceBadge from './ConfidenceBadge'
 import UniquenessBadge from './UniquenessBadge'
@@ -80,17 +80,35 @@ export default function ProjectionTable({
       <Table>
         <TableHeader>
           <HeaderRow>
-            <SortableHead col="rank" current={sortCol} dir={sortDir} onSort={handleSort} className="w-10 text-center">#</SortableHead>
+            <SortableHead col="rank" current={sortCol} dir={sortDir} onSort={handleSort} className="w-10 text-center">
+              <HeaderTip description="Overall projection rank">#</HeaderTip>
+            </SortableHead>
             <SortableHead col="name" current={sortCol} dir={sortDir} onSort={handleSort}>Player</SortableHead>
-            <SortableHead col="pos" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Pos</SortableHead>
+            <SortableHead col="pos" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">
+              <HeaderTip description="Position group">Pos</HeaderTip>
+            </SortableHead>
             <SortableHead col="age" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Age</SortableHead>
-            <SortableHead col="grade" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Grade</SortableHead>
-            <SortableHead col="pts" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Proj Pts</SortableHead>
-            <SortableHead col="ppg" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Pts/G</SortableHead>
-            <SortableHead col="confidence" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Confidence</SortableHead>
-            <SortableHead col="consensus" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right whitespace-nowrap">Cons.</SortableHead>
-            <SortableHead col="delta" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Δ</SortableHead>
-            <TableHead>Profile</TableHead>
+            <SortableHead col="grade" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Real-life player grade (0–100 percentile), independent of fantasy scoring">Grade</HeaderTip>
+            </SortableHead>
+            <SortableHead col="pts" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Projected fantasy points for the season, in the selected scoring format">Proj Pts</HeaderTip>
+            </SortableHead>
+            <SortableHead col="ppg" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Projected points per game under full-PPR scoring, for cross-format comparison">Pts/G</HeaderTip>
+            </SortableHead>
+            <SortableHead col="confidence" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">
+              <HeaderTip description="How much the projection leans on close historical comps vs. league-average priors">Confidence</HeaderTip>
+            </SortableHead>
+            <SortableHead col="consensus" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right whitespace-nowrap">
+              <HeaderTip description="Median rank across external expert/ADP sources, within position group">Cons.</HeaderTip>
+            </SortableHead>
+            <SortableHead col="delta" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Our rank minus the consensus rank. Positive means we rank him lower than the market, negative means higher">Δ</HeaderTip>
+            </SortableHead>
+            <TableHead>
+              <HeaderTip description="How statistically unusual this player's profile is — fewer close comps means a less certain projection">Profile</HeaderTip>
+            </TableHead>
           </HeaderRow>
         </TableHeader>
         <TableBody>

@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
-import { SortableHead, useTableSort, PlayerCell, ClickableRow, ZScoreCell, HeaderRow } from '@/components/ui/table-helpers'
+import { SortableHead, useTableSort, PlayerCell, ClickableRow, ZScoreCell, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
 import { gradeColorClass, trendIndicator } from '@/lib/grades'
+import { describeStat } from '@/lib/statDescriptions'
 import { usePlayers, STATUS_FILTERS } from './hooks/usePlayers'
 import type { PlayerRow } from './hooks/usePlayers'
 
@@ -169,26 +170,34 @@ export function PlayersTab({ leagueId, active, sport }: Props) {
                   Team
                 </SortableHead>
                 <SortableHead col="position" current={sortCol} dir={sortDir} onSort={handleSort}>
-                  Pos
+                  <HeaderTip description="Position eligibility">Pos</HeaderTip>
                 </SortableHead>
                 {rankings && (
                   <SortableHead col="grade" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
-                    Grade
+                    <HeaderTip description="Real-life player grade (0–100 percentile), independent of fantasy scoring">Grade</HeaderTip>
                   </SortableHead>
                 )}
                 {rankings && (
                   <SortableHead col="trend" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
-                    Trend
+                    <HeaderTip description="Year-over-year change in the player's grade">Trend</HeaderTip>
                   </SortableHead>
                 )}
                 {rankings && (
                   <SortableHead col="vorp" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
-                    {isPoints ? 'VORP' : 'Value'}
+                    <HeaderTip
+                      description={
+                        isPoints
+                          ? 'Value Over Replacement Player — points above the last startable player at this position'
+                          : 'Overall z-score value across your league’s scoring categories'
+                      }
+                    >
+                      {isPoints ? 'VORP' : 'Value'}
+                    </HeaderTip>
                   </SortableHead>
                 )}
                 {isPoints && (
                   <SortableHead col="pts" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
-                    Pts
+                    <HeaderTip description="Total fantasy points scored in this period">Pts</HeaderTip>
                   </SortableHead>
                 )}
                 {cats.map((cat) => (
@@ -200,11 +209,13 @@ export function PlayersTab({ leagueId, active, sport }: Props) {
                     onSort={handleSort}
                     className="text-right"
                   >
-                    {cat.label}
+                    <HeaderTip description={describeStat(cat.label)}>{cat.label}</HeaderTip>
                   </SortableHead>
                 ))}
                 {(statusFilter === 'all' || isSearchMode) && (
-                  <TableHead className="whitespace-nowrap">Avail</TableHead>
+                  <TableHead className="whitespace-nowrap">
+                    <HeaderTip description="Player is currently a free agent in your league">Avail</HeaderTip>
+                  </TableHead>
                 )}
               </HeaderRow>
             </TableHeader>

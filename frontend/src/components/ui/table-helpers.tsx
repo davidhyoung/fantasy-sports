@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { TableHead, TableRow, TableCell } from '@/components/ui/table'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { zScoreIndicator, zScoreColor } from '@/lib/utils'
 
 // ── Sortable column header ──────────────────────────────────────────────────
@@ -39,6 +40,34 @@ function SortableHead({ col, current, dir, onSort, children, className }: Sortab
         )}
       </div>
     </TableHead>
+  )
+}
+
+interface HeaderTipProps {
+  children: React.ReactNode
+  /** Explanation shown on hover/focus. Omit to render the label with no tooltip. */
+  description?: string
+}
+
+/**
+ * Wraps a column-header label with a hover/focus tooltip explaining the stat.
+ * A dotted underline is the only affordance — the design system has no icon set
+ * for table headers, so discoverability is typographic, not iconographic.
+ */
+function HeaderTip({ children, description }: HeaderTipProps) {
+  if (!description) return <>{children}</>
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          tabIndex={0}
+          className="cursor-help border-b border-dotted border-muted-foreground/50 outline-none"
+        >
+          {children}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{description}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -203,6 +232,7 @@ function HeaderRow({ children, className, ...props }: React.HTMLAttributes<HTMLT
 
 export {
   SortableHead,
+  HeaderTip,
   useTableSort,
   PlayerAvatar,
   PlayerCell,

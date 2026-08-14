@@ -1,7 +1,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { PlayerAvatar, HeaderRow } from '@/components/ui/table-helpers'
+import { PlayerAvatar, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
 import { zScoreIndicator, zScoreColor } from '@/lib/utils'
 import type { DraftPick, KeeperWishlistEntry, RankedPlayer } from '../../../api/client'
 import type { WishlistPayload } from '../hooks/useKeepers'
@@ -44,10 +44,10 @@ export function KeeperDraftTable({
           <HeaderRow>
             {showTeamColumn && <TableHead>Team</TableHead>}
             <TableHead>Player</TableHead>
-            <TableHead className="text-right">Draft $</TableHead>
-            <TableHead className="text-right">Yrs Kept</TableHead>
-            <TableHead className="text-right">Keeper $</TableHead>
-            <TableHead className="text-right">Auction $</TableHead>
+            <TableHead className="text-right"><HeaderTip description="What this player cost at the original draft">Draft $</HeaderTip></TableHead>
+            <TableHead className="text-right"><HeaderTip description="Number of consecutive seasons this player has been kept">Yrs Kept</HeaderTip></TableHead>
+            <TableHead className="text-right"><HeaderTip description="What it would cost to keep this player next season, per your league's keeper rules">Keeper $</HeaderTip></TableHead>
+            <TableHead className="text-right"><HeaderTip description="Current-season auction value, for comparison against the keeper cost">Auction $</HeaderTip></TableHead>
             <TableHead>Status</TableHead>
             {showWishlistColumn && <TableHead className="text-center">Keep?</TableHead>}
           </HeaderRow>

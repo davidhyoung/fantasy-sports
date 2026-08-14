@@ -9,6 +9,8 @@ import CompCard from '@/pages/projection-detail/components/CompCard'
 import TrajectoryChart from '@/pages/projection-detail/components/TrajectoryChart'
 import ConfidenceBadge from '@/pages/projections/components/ConfidenceBadge'
 import UniquenessBadge from '@/pages/projections/components/UniquenessBadge'
+import { HeaderTip } from '@/components/ui/table-helpers'
+import { describeStat } from '@/lib/statDescriptions'
 import { Loader2 } from 'lucide-react'
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -237,14 +239,20 @@ export default function PlayerDetail() {
                   <th className="py-1.5 pr-3 text-left font-normal">Season</th>
                   <th className="py-1.5 pr-3 text-left font-normal">Team</th>
                   <th className="py-1.5 pr-3 text-right font-normal">Age</th>
-                  <th className="py-1.5 pr-3 text-right font-normal">G</th>
+                  <th className="py-1.5 pr-3 text-right font-normal">
+                    <HeaderTip description="Games played">G</HeaderTip>
+                  </th>
                   {cols.map(c => (
                     <th key={c.key} className="py-1.5 pr-3 text-right font-normal whitespace-nowrap">
-                      {c.label}
+                      <HeaderTip description={describeStat(c.label)}>{c.label}</HeaderTip>
                     </th>
                   ))}
-                  <th className="py-1.5 pr-3 text-right font-normal whitespace-nowrap">PPR Pts</th>
-                  <th className="py-1.5 text-right font-normal whitespace-nowrap">PPR/G</th>
+                  <th className="py-1.5 pr-3 text-right font-normal whitespace-nowrap">
+                    <HeaderTip description="Total fantasy points that season under full-PPR scoring">PPR Pts</HeaderTip>
+                  </th>
+                  <th className="py-1.5 text-right font-normal whitespace-nowrap">
+                    <HeaderTip description="Fantasy points per game under full-PPR scoring">PPR/G</HeaderTip>
+                  </th>
                 </tr>
               </thead>
               <tbody>

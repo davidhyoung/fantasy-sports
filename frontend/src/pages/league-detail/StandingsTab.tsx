@@ -1,7 +1,7 @@
 import { Loader2 } from 'lucide-react'
 import { Link as RouterLink } from 'react-router-dom'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { HeaderRow } from '@/components/ui/table-helpers'
+import { HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
 import { useStandings } from './hooks/useStandings'
 
 interface Props {
@@ -37,11 +37,11 @@ export function StandingsTab({ leagueId, active, yahooKeyToId }: Props) {
           <HeaderRow>
             <TableHead className="w-8">#</TableHead>
             <TableHead>Team</TableHead>
-            <TableHead className="text-center">W-L-T</TableHead>
-            <TableHead className="text-right">GB</TableHead>
-            {hasPF     && <TableHead className="text-right">PF</TableHead>}
-            {hasPA     && <TableHead className="text-right">PA</TableHead>}
-            {hasStreak && <TableHead className="text-right">Streak</TableHead>}
+            <TableHead className="text-center"><HeaderTip description="Wins–Losses–Ties">W-L-T</HeaderTip></TableHead>
+            <TableHead className="text-right"><HeaderTip description="Games Back — how far behind the leader in the standings">GB</HeaderTip></TableHead>
+            {hasPF     && <TableHead className="text-right"><HeaderTip description="Points For — total points scored this season">PF</HeaderTip></TableHead>}
+            {hasPA     && <TableHead className="text-right"><HeaderTip description="Points Against — total points allowed this season">PA</HeaderTip></TableHead>}
+            {hasStreak && <TableHead className="text-right"><HeaderTip description="Current winning or losing streak">Streak</HeaderTip></TableHead>}
           </HeaderRow>
         </TableHeader>
         <TableBody>

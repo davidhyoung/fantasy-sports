@@ -1,6 +1,6 @@
 import { GradePlayerItem } from '@/api/client'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
-import { PlayerCell, ClickableRow, HeaderRow, SortableHead, useTableSort } from '@/components/ui/table-helpers'
+import { PlayerCell, ClickableRow, HeaderRow, SortableHead, useTableSort, HeaderTip } from '@/components/ui/table-helpers'
 import { gradeColorClass, trendIndicator, phaseLabel, phaseColor } from '@/lib/grades'
 
 type SortKey = 'overall' | 'production' | 'efficiency' | 'usage' | 'durability' | 'name' | 'age' | 'trend'
@@ -34,15 +34,29 @@ export default function GradesTable({ players }: { players: GradePlayerItem[] })
           <HeaderRow>
             <TableHead className="w-10 text-center">#</TableHead>
             <SortableHead col="name" current={sortCol} dir={sortDir} onSort={handleSort}>Player</SortableHead>
-            <TableHead className="text-center">Pos</TableHead>
+            <TableHead className="text-center"><HeaderTip description="Position group">Pos</HeaderTip></TableHead>
             <SortableHead col="age" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Age</SortableHead>
-            <SortableHead col="overall" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Overall</SortableHead>
-            <SortableHead col="production" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Prod</SortableHead>
-            <SortableHead col="efficiency" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Eff</SortableHead>
-            <SortableHead col="usage" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Usage</SortableHead>
-            <SortableHead col="durability" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Dur</SortableHead>
-            <TableHead className="text-center">Phase</TableHead>
-            <SortableHead col="trend" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Trend</SortableHead>
+            <SortableHead col="overall" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Overall real-life grade (0–100 percentile) — a blend of production, efficiency, usage, and durability">Overall</HeaderTip>
+            </SortableHead>
+            <SortableHead col="production" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Production — raw statistical output relative to position peers">Prod</HeaderTip>
+            </SortableHead>
+            <SortableHead col="efficiency" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Efficiency — output per opportunity (yards per touch, catch rate, etc.), not just volume">Eff</HeaderTip>
+            </SortableHead>
+            <SortableHead col="usage" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Share of the offense's opportunities — snaps, targets, or carries relative to teammates">Usage</HeaderTip>
+            </SortableHead>
+            <SortableHead col="durability" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Durability — games played and availability across recent seasons">Dur</HeaderTip>
+            </SortableHead>
+            <TableHead className="text-center">
+              <HeaderTip description="Career stage inferred from age and grade trend (e.g. Ascending, Prime, Declining)">Phase</HeaderTip>
+            </TableHead>
+            <SortableHead col="trend" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Year-over-year change in overall grade">Trend</HeaderTip>
+            </SortableHead>
           </HeaderRow>
         </TableHeader>
         <TableBody>

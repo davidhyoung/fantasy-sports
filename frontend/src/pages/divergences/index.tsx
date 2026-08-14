@@ -8,6 +8,7 @@ import {
   PlayerCell,
   SortableHead,
   useTableSort,
+  HeaderTip,
 } from '@/components/ui/table-helpers'
 import { PROJECTION_SEASON } from '@/lib/constants'
 import type { DivergenceItem, RankingsFormat } from '@/api/client'
@@ -140,7 +141,9 @@ export default function Divergences() {
                       onSort={handleSort}
                       className="w-20 text-right"
                     >
-                      Δ
+                      <HeaderTip description="Our rank minus the consensus median rank, within position group. Positive means we rank him lower than the market">
+                        Δ
+                      </HeaderTip>
                     </SortableHead>
                     <SortableHead col="name" current={sortCol} dir={sortDir} onSort={handleSort}>
                       Player
@@ -152,7 +155,7 @@ export default function Divergences() {
                       onSort={handleSort}
                       className="w-14 text-center"
                     >
-                      Pos
+                      <HeaderTip description="Position group">Pos</HeaderTip>
                     </SortableHead>
                     <SortableHead
                       col="our"
@@ -161,7 +164,7 @@ export default function Divergences() {
                       onSort={handleSort}
                       className="w-20 text-right"
                     >
-                      Ours
+                      <HeaderTip description="Our projection rank within position group">Ours</HeaderTip>
                     </SortableHead>
                     <SortableHead
                       col="consensus"
@@ -170,7 +173,7 @@ export default function Divergences() {
                       onSort={handleSort}
                       className="w-24 text-right"
                     >
-                      Consensus
+                      <HeaderTip description="Median rank across external expert/ADP sources, within position group">Consensus</HeaderTip>
                     </SortableHead>
                     <SortableHead
                       col="sources"
@@ -179,7 +182,7 @@ export default function Divergences() {
                       onSort={handleSort}
                       className="w-20 text-right"
                     >
-                      Sources
+                      <HeaderTip description="Number of external sources that ranked this player. Fewer than 2 is treated as uncorroborated">Sources</HeaderTip>
                     </SortableHead>
                     <TableHead>Context</TableHead>
                   </HeaderRow>

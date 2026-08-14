@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { DraftPlayer, DraftPrepEntry, InterestLevel } from '@/api/client'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
-import { SortableHead, useTableSort, PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
+import { SortableHead, useTableSort, PlayerCell, ClickableRow, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
 import { gradeColorClass } from '@/lib/grades'
 import ConfidenceBadge from '@/pages/projections/components/ConfidenceBadge'
 import UniquenessBadge from '@/pages/projections/components/UniquenessBadge'
@@ -170,35 +170,67 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
           <HeaderRow>
             {prep && (
               <SortableHead col="board" current={sortCol} dir={sortDir} onSort={handleSort} className="w-20 text-center">
-                Board
+                <HeaderTip description="Your personal draft order — ranked players come first in your order, then everyone else in projection order">
+                  Board
+                </HeaderTip>
               </SortableHead>
             )}
-            <SortableHead col="rank" current={sortCol} dir={sortDir} onSort={handleSort} className="w-10 text-center">#</SortableHead>
+            <SortableHead col="rank" current={sortCol} dir={sortDir} onSort={handleSort} className="w-10 text-center">
+              <HeaderTip description="Overall projection rank">#</HeaderTip>
+            </SortableHead>
             <SortableHead col="name" current={sortCol} dir={sortDir} onSort={handleSort}>Player</SortableHead>
             {prep && (
               <SortableHead col="interest" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">
-                Interest
+                <HeaderTip description="Your target/avoid flag — click a thumb to set it, click again to clear">Interest</HeaderTip>
               </SortableHead>
             )}
-            {prep && <TableHead className="text-center">Plan</TableHead>}
+            {prep && (
+              <TableHead className="text-center">
+                <HeaderTip description="The price you're planning to pay for this player in your draft">Plan</HeaderTip>
+              </TableHead>
+            )}
             {prep && <TableHead className="w-40">Note</TableHead>}
-            <TableHead>Trend</TableHead>
-            <SortableHead col="pos" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Pos</SortableHead>
-            <SortableHead col="tier" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Tier</SortableHead>
+            <TableHead>
+              <HeaderTip description="Year-over-year trend in projected points per game, from the player's own recent seasons">Trend</HeaderTip>
+            </TableHead>
+            <SortableHead col="pos" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">
+              <HeaderTip description="Position group">Pos</HeaderTip>
+            </SortableHead>
+            <SortableHead col="tier" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">
+              <HeaderTip description="Players grouped by value within their position — everyone in a tier is close enough to be interchangeable">Tier</HeaderTip>
+            </SortableHead>
             <SortableHead col="age" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Age</SortableHead>
-            <SortableHead col="grade" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Grade</SortableHead>
-            <SortableHead col="pts" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Proj Pts</SortableHead>
-            <SortableHead col="ppr" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">PPR/G</SortableHead>
-            <SortableHead col="vor" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">VOR</SortableHead>
-            <SortableHead col="auction" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Auction $</SortableHead>
+            <SortableHead col="grade" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Real-life player grade (0–100 percentile), independent of fantasy scoring">Grade</HeaderTip>
+            </SortableHead>
+            <SortableHead col="pts" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Projected fantasy points for the full season, in this league's scoring">Proj Pts</HeaderTip>
+            </SortableHead>
+            <SortableHead col="ppr" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Projected points per game under full-PPR scoring, for cross-league comparison">PPR/G</HeaderTip>
+            </SortableHead>
+            <SortableHead col="vor" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Value Over Replacement — projected points above the last startable player at this position">VOR</HeaderTip>
+            </SortableHead>
+            <SortableHead col="auction" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Our auction value — this player's share of the league's budget, based on VOR">Auction $</HeaderTip>
+            </SortableHead>
             {showConsensus && (
               <>
-                <SortableHead col="cons" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Cons $</SortableHead>
-                <SortableHead col="edge" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Edge</SortableHead>
+                <SortableHead col="cons" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+                  <HeaderTip description="Consensus auction value — what our own price curve pays for the draft-position rank external sources give him">Cons $</HeaderTip>
+                </SortableHead>
+                <SortableHead col="edge" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+                  <HeaderTip description="Our auction value minus the consensus value. Positive means we'd pay more than the market implies">Edge</HeaderTip>
+                </SortableHead>
               </>
             )}
-            <SortableHead col="confidence" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">Confidence</SortableHead>
-            <TableHead>Profile</TableHead>
+            <SortableHead col="confidence" current={sortCol} dir={sortDir} onSort={handleSort} className="text-center">
+              <HeaderTip description="How much the projection leans on close historical comps vs. league-average priors">Confidence</HeaderTip>
+            </SortableHead>
+            <TableHead>
+              <HeaderTip description="How statistically unusual this player's profile is — fewer close comps means a less certain projection">Profile</HeaderTip>
+            </TableHead>
           </HeaderRow>
         </TableHeader>
         <TableBody>

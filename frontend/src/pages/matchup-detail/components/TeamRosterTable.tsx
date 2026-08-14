@@ -1,5 +1,6 @@
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
-import { PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
+import { PlayerCell, ClickableRow, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
+import { describeStat } from '@/lib/statDescriptions'
 import type { RosterPlayer, RosterStat } from '../../../api/client'
 
 interface Props {
@@ -18,9 +19,11 @@ export function TeamRosterTable({ teamName, roster, statLabels }: Props) {
           <TableHeader>
             <HeaderRow>
               <TableHead>Player</TableHead>
-              <TableHead>Slot</TableHead>
+              <TableHead><HeaderTip description="Roster slot this player currently fills">Slot</HeaderTip></TableHead>
               {statLabels.map((label) => (
-                <TableHead key={label} className="text-right">{label}</TableHead>
+                <TableHead key={label} className="text-right">
+                  <HeaderTip description={describeStat(label)}>{label}</HeaderTip>
+                </TableHead>
               ))}
             </HeaderRow>
           </TableHeader>
