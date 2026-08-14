@@ -394,13 +394,15 @@ func projectSeasonBacktest(cfg projConfig, allProfiles []seasonProfile, targetSe
 		}
 	}
 	groupMeans := computeGroupMeans(byGroup)
+	groupMeanProfiles := computeGroupMeanProfiles(byGroup)
 	growthBaselines := computeGrowthBaselines(historicProfiles)
 
 	var targets []*seasonProfile
 	for _, seasonMap := range byPlayerSeason {
 		if _, ok := seasonMap[baseSeason]; ok {
 			targets = append(targets, blendTargetProfile(seasonMap, baseSeason,
-				effectiveBlendDecay(seasonMap, baseSeason, cfg.TargetBlendDecay, cfg.TargetBlendDecayUp)))
+				effectiveBlendDecay(seasonMap, baseSeason, cfg.TargetBlendDecay, cfg.TargetBlendDecayUp),
+				groupMeanProfiles))
 		}
 	}
 

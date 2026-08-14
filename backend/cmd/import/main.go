@@ -206,7 +206,7 @@ func importRosters(ctx context.Context, pool *pgxpool.Pool, year int) error {
 				row["full_name"],
 				nullIfEmpty(row["position"]),
 				nullIfEmpty(row["depth_chart_position"]),
-				nullIfEmpty(row["team"]),
+				normalizeTeamPtr(nullIfEmpty(row["team"])),
 				parseDate(row["birth_date"]),
 				parseHeight(row["height"]),
 				atoi_ptr(row["weight"]),
@@ -279,7 +279,7 @@ func importStats(ctx context.Context, pool *pgxpool.Pool, year int) error {
 				row["player_display_name"],
 				nullIfEmpty(row["position"]),
 				nullIfEmpty(row["position_group"]),
-				nullIfEmpty(firstCol(row, "recent_team", "team")),
+				normalizeTeamPtr(nullIfEmpty(firstCol(row, "recent_team", "team"))),
 			)
 		}
 
@@ -529,6 +529,37 @@ func nullIfEmpty(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// teamAliases maps alternate abbreviations nflverse's roster files use for
+// the same, non-relocated franchise onto one canonical code (matching what
+// the rest of the app — situational notes, consensus imports — already uses).
+// Deliberately excludes real relocation history (SD→LAC, OAK→LV, STL/SL→LA):
+// those codes are tied to a specific era and collapsing them would corrupt
+// which city a player was actually on at the time. ARI/AZ/ARZ, BAL/BLT,
+// CLE/CLV, and HOU/HST are pure abbreviation drift across import vintages for
+// franchises that haven't moved — nfl_players.team is a single "current team"
+// snapshot, so leaving it unnormalized silently splits one team's roster
+// across two team codes (e.g. it broke team-scoped situational-note matching
+// for Arizona Cardinals rookies whose row said "AZ" while notes said "ARI").
+var teamAliases = map[string]string{
+	"AZ": "ARI", "ARZ": "ARI",
+	"BLT": "BAL",
+	"CLV": "CLE",
+	"HST": "HOU",
+}
+
+// normalizeTeamPtr applies teamAliases to a *string produced by nullIfEmpty,
+// for the nfl_players.team column specifically (not nfl_player_stats.team,
+// where the original season-vintage code is the historically correct one).
+func normalizeTeamPtr(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	if canon, ok := teamAliases[strings.ToUpper(*s)]; ok {
+		return &canon
+	}
+	return s
 }
 
 func defaultStr(s, def string) string {

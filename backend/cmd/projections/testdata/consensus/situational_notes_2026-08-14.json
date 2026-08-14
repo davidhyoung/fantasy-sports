@@ -1,0 +1,28 @@
+[
+  {
+    "player_name": "Cam Skattebo",
+    "position": "RB",
+    "team": "NYG",
+    "season": 2026,
+    "category": "injury",
+    "summary": "Suffered a dislocated right ankle, fractured fibula, and ruptured deltoid ligament in Week 8 (Oct 26, 2025) vs. the Eagles; underwent emergency surgery that night and missed the rest of his rookie season. His 2025 per-game stats reflect only 8 games, including a hot workload stretch just before the injury.",
+    "impact_direction": "negative",
+    "impact_magnitude": "major",
+    "confidence": "multi_source",
+    "source": "ESPN/NFL.com",
+    "reported_date": "2025-10-26"
+  },
+  {
+    "player_name": "Cam Skattebo",
+    "position": "RB",
+    "team": "NYG",
+    "season": 2026,
+    "category": "depth_chart",
+    "summary": "Cleared for training camp after completing rehab from his 2025 season-ending ankle injury; Giants GM Joe Schoen confirmed he's \"good to go.\" Reported to be in line for the lead back role in 2026, though camp workload has been managed coming off the major injury.",
+    "impact_direction": "positive",
+    "impact_magnitude": "moderate",
+    "confidence": "multi_source",
+    "source": "Yahoo Sports/Giants.com",
+    "reported_date": "2026-07-29"
+  }
+]

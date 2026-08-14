@@ -1,0 +1,54 @@
+[
+  {
+    "player_name": "Omarion Hampton",
+    "position": "RB",
+    "team": "LAC",
+    "season": 2026,
+    "category": "injury",
+    "summary": "Rookie 1st-rounder took over the lead-back role after Najee Harris tore his Achilles in preseason, then missed 8 games himself (Week 5 ankle injury, IR, returned Week 14). Productive when healthy (737 scrimmage yards, 5 TDs on 156 touches over 9 games) but his 2025 per-game rate is built from a workload-and-injury-interrupted rookie season.",
+    "impact_direction": "neutral",
+    "impact_magnitude": "moderate",
+    "confidence": "multi_source",
+    "source": "Yahoo Sports/NFL.com",
+    "reported_date": "2025-11-15"
+  },
+  {
+    "player_name": "Tyler Shough",
+    "position": "QB",
+    "team": "NO",
+    "season": 2026,
+    "category": "depth_chart",
+    "summary": "Rookie 2nd-rounder started 7 games after Derek Carr's May retirement (shoulder injury) and Spencer Rattler's early-season benching; went 4-3 down the stretch and drew Offensive Rookie of the Year buzz. Saints have confirmed him as the 2026 starting QB, so his 2025 per-game rate reflects only his starter stretch, not a full season.",
+    "impact_direction": "positive",
+    "impact_magnitude": "moderate",
+    "confidence": "multi_source",
+    "source": "ESPN",
+    "reported_date": "2026-01-10"
+  },
+  {
+    "player_name": "Travis Hunter",
+    "position": "WR",
+    "team": "JAX",
+    "season": 2026,
+    "category": "injury",
+    "summary": "No. 2 overall pick and two-way starter (WR/CB) tore his LCL in a noncontact practice injury and had season-ending knee surgery Oct. 31, 2025 after 7 games (28-298-1 receiving). Expected to be fully cleared for football activity within the surgery's 6-month recovery window, i.e. well before 2026 camp. His offensive snap share also competed with defensive (CB) reps as a rookie.",
+    "impact_direction": "negative",
+    "impact_magnitude": "moderate",
+    "confidence": "multi_source",
+    "source": "ESPN/NFL.com",
+    "reported_date": "2025-10-31"
+  },
+  {
+    "player_name": "Terry McLaurin",
+    "position": "WR",
+    "team": "WAS",
+    "season": 2026,
+    "category": "injury",
+    "summary": "Held out through OTAs/minicamp and into camp in a contract dispute before signing a 3-year, $97M extension in August 2025; later injured his quad diving for a TD in Week 3 and missed 7 games (a career-low 10 played), though he ranked top-5 among WRs in first downs per route run when active.",
+    "impact_direction": "negative",
+    "impact_magnitude": "moderate",
+    "confidence": "multi_source",
+    "source": "Yahoo Sports/CBS Sports",
+    "reported_date": "2025-09-20"
+  }
+]

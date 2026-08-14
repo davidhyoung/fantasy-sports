@@ -1381,6 +1381,11 @@ func computeProjections(ctx context.Context, pool *pgxpool.Pool, baseSeason, tar
 	// than projected to repeat their season verbatim).
 	groupMeans := computeGroupMeans(byGroup)
 
+	// Position-group mean production profiles — the regression target for
+	// shrinkShortSeasonTarget (short_season_shrinkage.go), used when a target
+	// has no prior season to recency-blend against.
+	groupMeanProfiles := computeGroupMeanProfiles(byGroup)
+
 	// Age/position-conditioned growth-rate baselines, for shrinking thin-comp
 	// projections (docs/stats/bayesian-shrinkage.md, growth-rate extension).
 	growthBaselines := computeGrowthBaselines(profiles)
@@ -1388,13 +1393,16 @@ func computeProjections(ctx context.Context, pool *pgxpool.Pool, baseSeason, tar
 	// 4. Identify target players: those with a profile in baseSeason. Each
 	// target profile is recency-blended with the immediately preceding season
 	// (docs/stats/recency-weighted-profiles.md) — cfg.TargetBlendDecay == 0
-	// (the seeded default) makes this an exact no-op.
+	// (the seeded default) makes this an exact no-op. Players with no prior
+	// season instead get shrinkShortSeasonTarget applied when their base
+	// season is short (short_season_shrinkage.go).
 	log.Println("  identifying target players…")
 	var targets []*seasonProfile
 	for _, seasonMap := range byPlayerSeason {
 		if _, ok := seasonMap[baseSeason]; ok {
 			targets = append(targets, blendTargetProfile(seasonMap, baseSeason,
-				effectiveBlendDecay(seasonMap, baseSeason, cfg.TargetBlendDecay, cfg.TargetBlendDecayUp)))
+				effectiveBlendDecay(seasonMap, baseSeason, cfg.TargetBlendDecay, cfg.TargetBlendDecayUp),
+				groupMeanProfiles))
 		}
 	}
 	log.Printf("  found %d players with %d base-season profiles", len(targets), baseSeason)

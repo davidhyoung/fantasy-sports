@@ -77,17 +77,27 @@ func effectiveBlendDecay(seasonMap map[int]*seasonProfile, baseSeason int, decay
 // games-weighted across the base season and (if present) the immediately
 // preceding one, discounted by decay.
 //
-// decay == 0 (the seeded default) or a missing prior-season profile makes this an
-// EXACT no-op — the base season is returned unmodified, preserving today's
-// behavior until autotune (or manual experimentation) finds a decay value that
-// actually improves held-out validation accuracy.
-func blendTargetProfile(seasonMap map[int]*seasonProfile, baseSeason int, decay float64) *seasonProfile {
+// decay <= 0 (the seeded default) makes this an EXACT no-op — the base season
+// is returned unmodified, preserving today's behavior until autotune (or
+// manual experimentation) finds a decay value that actually improves held-out
+// validation accuracy. When there is no prior season at all (rookies, or any
+// player's first tracked season), there is nothing to blend against, so
+// decay > 0 instead triggers shrinkShortSeasonTarget (short_season_shrinkage.go)
+// — the sibling fix for the same "small sample shouldn't stand alone"
+// problem when a debut season is itself short (e.g. injury-truncated).
+func blendTargetProfile(seasonMap map[int]*seasonProfile, baseSeason int, decay float64, groupMeans map[string]groupMeanProfile) *seasonProfile {
 	base := seasonMap[baseSeason]
 	if base == nil {
 		return nil
 	}
 	prior := seasonMap[baseSeason-1]
-	if prior == nil || decay <= 0 {
+	if prior == nil {
+		if decay <= 0 {
+			return base
+		}
+		return shrinkShortSeasonTarget(base, groupMeans[base.PositionGroup])
+	}
+	if decay <= 0 {
 		return base
 	}
 
