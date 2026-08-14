@@ -110,6 +110,14 @@ export function TargetList({ players, prep }: Props) {
                       >
                         ${planned ?? p.auction_value}
                       </span>
+                      <button
+                        onClick={() => prep.setInterest(p.gsis_id, 1)}
+                        title="Remove target"
+                        aria-label={`Remove ${p.name} as a target`}
+                        className="shrink-0 font-mono text-[10px] text-muted-foreground hover:text-foreground"
+                      >
+                        ×
+                      </button>
                     </li>
                   )
                 })}
