@@ -302,9 +302,10 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	}
 	scoringStats := sr.stats
 
-	// 3. Compute starter slots per position using ranking service. An override
-	//    replaces the league's roster wholesale; the flex distribution itself stays
-	//    in ComputeStarterSlots either way, so both paths score identically.
+	// 3. Resolve roster positions using ranking service. An override replaces
+	//    the league's roster wholesale; the flex/superflex pooling itself stays
+	//    in ranking.ComputeReplacementLevels either way, so both paths score
+	//    identically.
 	rankingPositions := rosterOverride
 	effectiveSlots := slotsOverride
 	if !hasSlotsOverride {
@@ -314,7 +315,6 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		}
 		effectiveSlots = slotsFromYahoo(rpr.positions)
 	}
-	starterSlots := ranking.ComputeStarterSlots(rankingPositions)
 
 	// 4. Load projections from DB (per-game rates + season totals for fallback display)
 	rows, err := h.db.Query(r.Context(), `
@@ -449,35 +449,35 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 5. Compute replacement levels per position (using league-specific points)
-	posPlayers := make(map[string][]float64)
+	// 5. Compute replacement levels per position (using league-specific points).
+	//    Flex/superflex slots pool their eligible candidates by value rather than
+	//    splitting evenly — an even split undercounts QB demand badly in
+	//    superflex leagues, since QB dwarfs WR/RB/TE per game in points formats.
+	posGroupsForRepl := make(map[string][]ranking.PlayerData)
 	for i := range players {
 		pos := primaryPosition(players[i].PositionGroup)
-		posPlayers[pos] = append(posPlayers[pos], players[i].ProjLeagueFpts)
+		posGroupsForRepl[pos] = append(posGroupsForRepl[pos], ranking.PlayerData{
+			PrimaryPos:  pos,
+			TotalPoints: players[i].ProjLeagueFpts,
+		})
 	}
-	for pos := range posPlayers {
-		sort.Sort(sort.Reverse(sort.Float64Slice(posPlayers[pos])))
+	for pos := range posGroupsForRepl {
+		sort.Slice(posGroupsForRepl[pos], func(i, j int) bool {
+			return posGroupsForRepl[pos][i].TotalPoints > posGroupsForRepl[pos][j].TotalPoints
+		})
 	}
+
+	rankLevels := ranking.ComputeReplacementLevels(rankingPositions, posGroupsForRepl, numTeams)
 
 	replLevels := make(map[string]float64)
 	var replResp []replacementLevel
-	for pos, slots := range starterSlots {
-		threshold := int(math.Ceil(slots * float64(numTeams)))
-		pts := posPlayers[pos]
-		var replPts float64
-		if threshold >= len(pts) {
-			if len(pts) > 0 {
-				replPts = pts[len(pts)-1]
-			}
-		} else {
-			replPts = pts[threshold]
-		}
-		replLevels[pos] = replPts
+	for pos, rl := range rankLevels {
+		replLevels[pos] = rl.Points
 		replResp = append(replResp, replacementLevel{
 			Position:     pos,
-			StarterSlots: slots,
-			Threshold:    threshold,
-			Points:       replPts,
+			StarterSlots: float64(rl.Threshold) / float64(numTeams),
+			Threshold:    rl.Threshold,
+			Points:       rl.Points,
 		})
 	}
 	sort.Slice(replResp, func(i, j int) bool {
@@ -534,7 +534,7 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	}
 	tierByPlayer := map[string]int{}
 	for pos, group := range byPositionForTiers {
-		draftable := int(math.Ceil(starterSlots[pos] * float64(numTeams) * 1.5))
+		draftable := int(math.Ceil(float64(rankLevels[pos].Threshold) * 1.5))
 		for id, tier := range tiers.Assign(group, tiers.Options{Draftable: draftable}) {
 			tierByPlayer[id] = tier
 		}

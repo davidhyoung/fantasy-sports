@@ -68,11 +68,19 @@ values come from `nfl_player_stats` translated through the canonical stat-ID voc
 
 ### 2. Replacement levels
 
-Starter slots per position are derived from the league's actual roster settings;
-FLEX slots (e.g. W/R/T) are split evenly among eligible positions. For each position:
+Starter demand per position is derived from the league's actual roster settings
+(`ranking.ComputeReplacementLevels`). Dedicated (single-position) slots claim
+starters directly: `count × num_teams`. Flex-type slots (`W/R/T`, `Q/W/R/T`)
+are **not** split evenly across eligible positions — that only holds up when
+the eligible positions have comparable value (true for RB/WR/TE in an ordinary
+FLEX, false for SFLEX, where QB dwarfs the other three per game in points
+formats). Instead each flex slot pools its still-unclaimed eligible candidates
+by value and lets the actual best players claim the spots, position-blind —
+so a superflex slot resolves to whichever position the numbers say, typically
+almost entirely QB, without a hand-tuned weight.
 
 ```
-threshold   = ceil(starter_slots_per_team × num_teams)
+threshold   = starters already claimed at this position (dedicated + won from flex pools)
 replacement = total_points of the (threshold+1)-th best rostered player
 VORP        = player_total_points − replacement
 ```

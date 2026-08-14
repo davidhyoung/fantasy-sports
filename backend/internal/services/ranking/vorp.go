@@ -33,12 +33,78 @@ func ComputeStarterSlots(positions []RosterPosition) map[string]float64 {
 }
 
 // ComputeReplacementLevels returns replacement level points per position.
-// Each position group must be pre-sorted by TotalPoints descending.
-// threshold = ceil(slots_per_team × numTeams); replacement = player at that index.
-func ComputeReplacementLevels(posGroups map[string][]PlayerData, starterSlots map[string]float64, numTeams int) map[string]ReplacementLevel {
+// Each position group in posGroups must be pre-sorted by TotalPoints descending.
+//
+// Dedicated (single-position) slots claim starters directly: count × numTeams
+// league-wide. Flex-type slots (e.g. "W/R/T", "Q/W/R/T") are NOT pre-split
+// evenly across their eligible positions — that approximation only holds when
+// the eligible positions have comparable value, which breaks down hard for
+// SFLEX (QB dwarfs WR/RB/TE per game in points formats, so an even split
+// drastically undercounts real QB demand). Instead each flex slot pools its
+// still-unclaimed eligible candidates by value and lets the actual best
+// players claim the spots — see poolFlexSlots.
+func ComputeReplacementLevels(positions []RosterPosition, posGroups map[string][]PlayerData, numTeams int) map[string]ReplacementLevel {
+	// cursor[pos] = how many of posGroups[pos] (sorted desc) are already
+	// claimed by some starter slot, dedicated or flex. Track it for every
+	// position mentioned by any roster slot, dedicated or flex-eligible, so
+	// the output key set matches ComputeStarterSlots' (positions with zero
+	// slots still get a threshold of 0, not omitted).
+	cursor := make(map[string]int)
+	var flexGroups []struct {
+		eligible []string
+		spots    int
+	}
+	for _, rp := range positions {
+		switch rp.Position {
+		case "BN", "IR", "IL", "IL+":
+			continue
+		}
+		eligible := ParseFlexEligible(rp.Position)
+		if len(eligible) > 0 {
+			for _, pos := range eligible {
+				if _, ok := cursor[pos]; !ok {
+					cursor[pos] = 0
+				}
+			}
+			flexGroups = append(flexGroups, struct {
+				eligible []string
+				spots    int
+			}{eligible, rp.Count * numTeams})
+			continue
+		}
+		pos := rp.Position
+		if full, ok := FlexAbbrev[pos]; ok {
+			pos = full
+		}
+		cursor[pos] += rp.Count * numTeams
+	}
+
+	// Flex groups are processed in roster order. A player pulled from position
+	// P by any flex group is always the next-highest unclaimed player at P
+	// (every candidate pool is a suffix of P's own sorted list), so a plain
+	// claimed-count per position is sufficient — no need to track identities.
+	for _, fg := range flexGroups {
+		remaining := fg.spots
+		for remaining > 0 {
+			bestPos := ""
+			bestVal := math.Inf(-1)
+			for _, pos := range fg.eligible {
+				idx := cursor[pos]
+				if idx < len(posGroups[pos]) && posGroups[pos][idx].TotalPoints > bestVal {
+					bestVal = posGroups[pos][idx].TotalPoints
+					bestPos = pos
+				}
+			}
+			if bestPos == "" {
+				break // no eligible candidates left anywhere
+			}
+			cursor[bestPos]++
+			remaining--
+		}
+	}
+
 	levels := make(map[string]ReplacementLevel)
-	for pos, slots := range starterSlots {
-		threshold := int(math.Ceil(slots * float64(numTeams)))
+	for pos, threshold := range cursor {
 		if threshold <= 0 {
 			threshold = 1
 		}
@@ -82,8 +148,7 @@ func RankByPoints(rosteredPlayers []PlayerData, faPlayers []PlayerData, catMeta 
 	}
 
 	// --- Compute replacement levels from rostered players only ---
-	starterSlots := ComputeStarterSlots(rosterPositions)
-	replLevels := ComputeReplacementLevels(posGroups, starterSlots, numTeams)
+	replLevels := ComputeReplacementLevels(rosterPositions, posGroups, numTeams)
 
 	// --- Compute per-stat mean + stdev across ROSTERED players ---
 	type catAgg struct {

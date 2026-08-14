@@ -46,12 +46,15 @@ func TestComputeReplacementLevels(t *testing.T) {
 			{PrimaryPos: "RB", TotalPoints: 180},
 		},
 	}
-	starterSlots := map[string]float64{"QB": 1.0, "RB": 2.0}
+	positions := []RosterPosition{
+		{Position: "QB", Count: 1},
+		{Position: "RB", Count: 2},
+	}
 	numTeams := 2
 
-	levels := ComputeReplacementLevels(posGroups, starterSlots, numTeams)
+	levels := ComputeReplacementLevels(positions, posGroups, numTeams)
 
-	// QB: threshold = ceil(1.0 * 2) = 2, replacement = posGroups["QB"][2] = 200
+	// QB: threshold = 1 dedicated slot × 2 teams = 2, replacement = posGroups["QB"][2] = 200
 	if got := levels["QB"].Points; got != 200 {
 		t.Errorf("QB replacement = %.0f, want 200", got)
 	}
@@ -59,9 +62,101 @@ func TestComputeReplacementLevels(t *testing.T) {
 		t.Errorf("QB threshold = %d, want 2", got)
 	}
 
-	// RB: threshold = ceil(2.0 * 2) = 4, but only 2 players → worst = 180
+	// RB: threshold = 2 dedicated slots × 2 teams = 4, but only 2 players → worst = 180
 	if got := levels["RB"].Points; got != 180 {
 		t.Errorf("RB replacement = %.0f, want 180 (fewer players than threshold)", got)
+	}
+}
+
+// A regular FLEX (W/R/T) among comparably-valued positions should still land
+// close to an even split, since that's the case the old flat-share model got
+// right.
+func TestComputeReplacementLevelsFlexPool(t *testing.T) {
+	mk := func(pos string, vals ...float64) []PlayerData {
+		out := make([]PlayerData, len(vals))
+		for i, v := range vals {
+			out[i] = PlayerData{PrimaryPos: pos, TotalPoints: v}
+		}
+		return out
+	}
+	posGroups := map[string][]PlayerData{
+		"RB": mk("RB", 200, 190, 180, 170, 160, 150, 140, 130),
+		"WR": mk("WR", 195, 185, 175, 165, 155, 145, 135, 125),
+		"TE": mk("TE", 150, 100, 90, 80, 70, 60, 50, 40),
+	}
+	positions := []RosterPosition{
+		{Position: "RB", Count: 1},
+		{Position: "WR", Count: 1},
+		{Position: "TE", Count: 1},
+		{Position: "W/R/T", Count: 1},
+	}
+	numTeams := 2
+
+	levels := ComputeReplacementLevels(positions, posGroups, numTeams)
+
+	// Dedicated: RB=2, WR=2, TE=2 (1 slot × 2 teams each). FLEX pools the
+	// remaining top players across RB/WR/TE (2 spots): RB[2]=180, WR[2]=175
+	// are next-best and comparable, TE[2]=90 is far behind, so FLEX should go
+	// to RB and WR, not TE.
+	if got := levels["RB"].Threshold; got != 3 {
+		t.Errorf("RB threshold = %d, want 3 (2 dedicated + 1 flex)", got)
+	}
+	if got := levels["WR"].Threshold; got != 3 {
+		t.Errorf("WR threshold = %d, want 3 (2 dedicated + 1 flex)", got)
+	}
+	if got := levels["TE"].Threshold; got != 2 {
+		t.Errorf("TE threshold = %d, want 2 (dedicated only, lost the flex pool)", got)
+	}
+}
+
+// A superflex slot pooled against a real value gap should go almost entirely
+// to QB, not split evenly — this is the fix for undervaluing QB in superflex
+// leagues (a flat 1/4 split only credited QB with 0.25 of a starter slot).
+func TestComputeReplacementLevelsSuperflexFavorsQB(t *testing.T) {
+	// decline generates n descending values starting at start, dropping by step
+	// each rank — enough depth (40 players) that the dedicated slots below
+	// don't exhaust any position before the flex pool gets a look.
+	decline := func(pos string, start, step float64, n int) []PlayerData {
+		out := make([]PlayerData, n)
+		for i := 0; i < n; i++ {
+			v := start - step*float64(i)
+			if v < 0 {
+				v = 0
+			}
+			out[i] = PlayerData{PrimaryPos: pos, TotalPoints: v}
+		}
+		return out
+	}
+	// QBs comfortably outscore WR/RB/TE at every comparable depth, as in a real
+	// points league (e.g. QB13-24 streamers still outscore RB/WR/TE waiver options).
+	posGroups := map[string][]PlayerData{
+		"QB": decline("QB", 380, 8, 40),
+		"RB": decline("RB", 280, 8, 40),
+		"WR": decline("WR", 260, 8, 40),
+		"TE": decline("TE", 180, 8, 40),
+	}
+	positions := []RosterPosition{
+		{Position: "QB", Count: 1},
+		{Position: "RB", Count: 2},
+		{Position: "WR", Count: 3},
+		{Position: "TE", Count: 1},
+		{Position: "Q/W/R/T", Count: 1},
+	}
+	numTeams := 12
+
+	levels := ComputeReplacementLevels(positions, posGroups, numTeams)
+
+	// Dedicated QB demand = 1 × 12 = 12. SFLEX pools 12 more spots league-wide;
+	// QB13-24 (296 down to 208) still clears every RB/WR/TE at the equivalent
+	// depth (RB25-36, WR37-48 — both already claimed by dedicated slots, so
+	// their next-available is far lower on the curve), so QB should claim most
+	// or all of the pool — well above the naive even-split's 1.25 slots/team.
+	slotsPerTeam := float64(levels["QB"].Threshold) / float64(numTeams)
+	if slotsPerTeam <= 1.25 {
+		t.Errorf("QB slots/team = %.2f, want > 1.25 (the old naive-split value) — SFLEX should skew toward QB", slotsPerTeam)
+	}
+	if levels["QB"].Threshold <= 12 {
+		t.Errorf("QB threshold = %d, want > 12 (SFLEX should award QB some of its pooled spots)", levels["QB"].Threshold)
 	}
 }
 
