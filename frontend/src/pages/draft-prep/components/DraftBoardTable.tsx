@@ -10,7 +10,10 @@ import { ThumbsUp, ThumbsDown } from 'lucide-react'
 import { INTEREST_LEVELS, interestIconClass, interestRowClass } from '../lib/interest'
 import { NoteField } from './NoteField'
 
-const STRING_COLS = ['name', 'pos']
+// Ascending-first columns: names read A→Z, and board/rank/tier are all "1 is best."
+// Everything else (points, dollars, grade, confidence…) is a magnitude where
+// bigger is more interesting, so it defaults descending.
+const ASC_COLS = ['board', 'rank', 'name', 'pos', 'tier']
 
 /** Prep controls turn the read-only board into your editable one. */
 export interface PrepControls {
@@ -91,7 +94,7 @@ export function boardOrder(players: DraftPlayer[], entry: (id: string) => DraftP
 }
 
 export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: Props) {
-  const { sortCol, sortDir, handleSort } = useTableSort(prep ? 'board' : 'rank', 'asc', STRING_COLS)
+  const { sortCol, sortDir, handleSort } = useTableSort(prep ? 'board' : 'rank', 'asc', ASC_COLS)
 
   const sorted = useMemo(() => {
     if (prep && sortCol === 'board') return boardOrder(players, prep.entry)

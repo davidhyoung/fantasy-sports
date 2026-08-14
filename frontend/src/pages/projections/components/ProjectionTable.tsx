@@ -7,7 +7,10 @@ import ConfidenceBadge from './ConfidenceBadge'
 import UniquenessBadge from './UniquenessBadge'
 import DeltaBadge from '../../divergences/components/DeltaBadge'
 
-const STRING_COLS = ['name', 'pos']
+// Ascending-first: names read A→Z; rank 1 and consensus rank 1 are the *best*,
+// not the least. Everything else (points, grade, confidence, |delta|) is a
+// magnitude where bigger is more interesting, so it defaults descending.
+const ASC_COLS = ['name', 'pos', 'rank', 'consensus']
 
 interface ProjectionTableProps {
   players: ProjPlayerListItem[]
@@ -24,7 +27,7 @@ export default function ProjectionTable({
   scoringFormat,
   divergences,
 }: ProjectionTableProps) {
-  const { sortCol, sortDir, handleSort } = useTableSort('rank', 'asc', STRING_COLS)
+  const { sortCol, sortDir, handleSort } = useTableSort('rank', 'asc', ASC_COLS)
 
   const projPts = useCallback((p: ProjPlayerListItem) => {
     switch (scoringFormat) {

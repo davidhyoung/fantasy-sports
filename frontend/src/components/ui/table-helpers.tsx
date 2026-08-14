@@ -71,12 +71,29 @@ function HeaderTip({ children, description }: HeaderTipProps) {
   )
 }
 
-/** Standard toggle handler for sortable columns.
- *  If clicking the active column, flip direction. Otherwise switch to the new column
- *  with a sensible default direction (asc for string columns, desc for numeric). */
-function useTableSort(defaultCol: string, defaultDir: SortDir = 'desc', stringCols: string[] = []) {
+/**
+ * Standard toggle handler for sortable columns.
+ * If clicking the active column, flip direction. Otherwise switch to the new column
+ * with a sensible default direction — ascending for columns where a lower value
+ * reads first (names, ranks, tiers: rank 1 / tier 1 is the *best*, not the least),
+ * descending everywhere else (points, grades, dollars — biggest first). `ascCols`
+ * names which columns are ascending-first; pass an array for a fixed set, or a
+ * predicate when the direction depends on data the table only has at render time
+ * (e.g. a stat category's `sort_order`, where a counting stat like turnovers is
+ * "lower is better").
+ */
+function useTableSort(
+  defaultCol: string,
+  defaultDir: SortDir = 'desc',
+  ascCols: string[] | ((col: string) => boolean) = []
+) {
   const [sortCol, setSortCol] = React.useState(defaultCol)
   const [sortDir, setSortDir] = React.useState<SortDir>(defaultDir)
+
+  const isAscFirst = React.useCallback(
+    (col: string) => (typeof ascCols === 'function' ? ascCols(col) : ascCols.includes(col)),
+    [ascCols]
+  )
 
   const handleSort = React.useCallback((col: string) => {
     setSortCol((prev) => {
@@ -84,10 +101,10 @@ function useTableSort(defaultCol: string, defaultDir: SortDir = 'desc', stringCo
         setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
         return prev
       }
-      setSortDir(stringCols.includes(col) ? 'asc' : 'desc')
+      setSortDir(isAscFirst(col) ? 'asc' : 'desc')
       return col
     })
-  }, [stringCols])
+  }, [isAscFirst])
 
   return { sortCol, sortDir, handleSort } as const
 }

@@ -27,7 +27,11 @@ const FORMATS: { label: string; value: RankingsFormat }[] = [
   { label: 'Standard', value: 'standard' },
 ]
 
-const STRING_COLS = ['name', 'pos']
+// Ascending-first: names read A→Z; our rank and the consensus rank are both
+// "1 is best." |delta| and source count are magnitudes where bigger is more
+// interesting (biggest disagreement / most corroborated first), so they stay
+// descending — the default already set below.
+const ASC_COLS = ['name', 'pos', 'our', 'consensus']
 
 type SortKey = 'delta' | 'name' | 'pos' | 'our' | 'consensus' | 'sources'
 
@@ -65,7 +69,7 @@ export default function Divergences() {
   const position =
     positionLabel === 'All' ? '' : (POSITION_FILTER[positionLabel] ?? positionLabel)
 
-  const { sortCol, sortDir, handleSort } = useTableSort('delta', 'desc', STRING_COLS)
+  const { sortCol, sortDir, handleSort } = useTableSort('delta', 'desc', ASC_COLS)
   const { data, isLoading, isError } = useDivergences({ format, position })
 
   const players = data ? sortRows(data.players, sortCol as SortKey, sortDir) : []

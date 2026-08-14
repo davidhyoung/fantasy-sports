@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -28,7 +28,11 @@ function fmtStat(v: number): string {
   return Math.round(v).toLocaleString()
 }
 
-const STRING_COLS = ['name', 'team', 'position']
+// Names read A→Z. Category columns are dynamic (NBA scoring categories), so
+// their direction can't be hardcoded — a counting stat like turnovers is
+// "lower is better" and should default ascending, unlike points or rebounds.
+// The API's `sort_order` ("0" = lower is better) is the source of truth for that.
+const ASC_COLS = ['name', 'team', 'position']
 
 /** Player search and available-player browse with position filter, sortable columns, and stat columns.
  *
@@ -47,11 +51,16 @@ export function PlayersTab({ leagueId, active, sport }: Props) {
     handleSearch, clearSearch,
   } = usePlayers(leagueId, active)
 
-  const { sortCol, sortDir, handleSort } = useTableSort('vorp', 'desc', STRING_COLS)
-
-  const positions = POSITIONS_BY_SPORT[sport] ?? []
   const isPoints  = rankings?.scoring_mode === 'points'
   const cats      = rankings?.categories ?? []
+
+  const isAscCol = useCallback(
+    (col: string) => ASC_COLS.includes(col) || cats.find((c) => c.label === col)?.sort_order === '0',
+    [cats]
+  )
+  const { sortCol, sortDir, handleSort } = useTableSort('vorp', 'desc', isAscCol)
+
+  const positions = POSITIONS_BY_SPORT[sport] ?? []
 
   const sortedRows = useMemo((): PlayerRow[] => {
     return [...playerRows].sort((a, b) => {
