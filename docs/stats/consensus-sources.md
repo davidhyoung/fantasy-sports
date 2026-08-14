@@ -139,10 +139,98 @@ stale snapshot is visible rather than silently trusted.
 
 Researched 2026-08-14 looking specifically for sources that would close the known
 gaps above (a `standard`-format source, a `superflex` source, a second dynasty/expert
-list, deeper positional coverage). Not yet imported — nothing below has a row in
-`nfl_consensus_rankings` today.
+list, deeper positional coverage). Nothing below has a row in `nfl_consensus_rankings`
+yet — these are candidates for the next `-import-consensus` file, evaluated by
+actually attempting a fetch, not by reputation alone.
 
-<!-- CANDIDATE_SOURCES_TABLE -->
+> **Method note.** Every "real data" claim below comes from an actual `WebFetch`
+> during this research pass, not from training-data recall — several outlets that
+> looked promising by name (Establish The Run, NFL.com, RotoBaller) turned out to be
+> dead ends the moment someone tried to fetch them, which is exactly the failure mode
+> this note is meant to catch before a row lands in the database.
+
+### Genuinely accessible — real data fetched, gap it would close
+
+| Outlet | URL | Publishes | Format | What it fetched | Currency |
+|---|---|---|---|---|---|
+| **CBS Sports** | `cbssports.com/fantasy/football/rankings/standard/top200/` and `/ppr/top200/` | Expert overall rank, top 200 | **standard** (closes our only-gap) + ppr | Top 30 fetched cleanly on both pages | Live, "updated 40s/24m ago" |
+| **FantasyFootballCalculator** | `fantasyfootballcalculator.com/adp` | Crowd ADP from mock drafts | **standard** (12-team) | Top 30 fetched, based on 1,315 mock drafts Aug 7–14 2026 | Rolling weekly window |
+| **4for4 Superflex ADP** | `4for4.com/superflex-adp` | Pick-format ADP | **superflex** (closes our only-gap) | Top 30 fetched; QBs correctly cluster rounds 1–3 as a real SF market would | "Last updated" Aug 13 2026 |
+| **RotoWire** | `rotowire.com/football/adp.php` | ADP | ppr | Top 30 fetched cleanly | Dated Aug 14 2026 |
+| **NBC Sports (Rotoworld)** | `nbcsports.com/fantasy/football/news/2026-fantasy-football-top-200-overall-rankings` | Expert overall rank, top 200 | unstated in the fetched text — **verify format before importing** | Top 30 fetched cleanly | Published Aug 5 2026 |
+| **Footballguys** | `footballguys.com/salary-cap-auction-values` | Auction values | ppr, adjustable budget | Rows 1–15 free; 16+ gated behind a paid tier | Dated August 2026 |
+| **RotoWire — Auction Values** | `rotowire.com/football/auction-values.php` | Auction values, $200 pool | unspecified | ~9 clean rows; several rows below returned "data unavailable" (partial dynamic/paywall gap) | Aug 14 2026 |
+
+CBS Sports standard, spot-checked sample (fetched live, 2026-08-14):
+
+```json
+[
+  {"rank": 1, "player": "J. Gibbs",    "pos": "RB", "team": "DET"},
+  {"rank": 2, "player": "B. Robinson", "pos": "RB", "team": "ATL"},
+  {"rank": 3, "player": "J. Chase",    "pos": "WR", "team": "CIN"},
+  {"rank": 4, "player": "J. Taylor",   "pos": "RB", "team": "IND"},
+  {"rank": 5, "player": "P. Nacua",    "pos": "WR", "team": "LAR"}
+]
+```
+
+4for4 superflex ADP, spot-checked sample — exactly the QB-heavy shape a real
+superflex market should produce, which our current sources cannot:
+
+```json
+[
+  {"rank": 1, "player": "Jahmyr Gibbs",    "pos": "RB", "team": "DET", "adp": "1.01"},
+  {"rank": 2, "player": "Josh Allen",      "pos": "QB", "team": "BUF", "adp": "1.02"},
+  {"rank": 3, "player": "Bijan Robinson",  "pos": "RB", "team": "ATL", "adp": "1.03"},
+  {"rank": 6, "player": "Lamar Jackson",   "pos": "QB", "team": "BAL", "adp": "1.06"},
+  {"rank": 7, "player": "Drake Maye",      "pos": "QB", "team": "NE",  "adp": "1.07"}
+]
+```
+
+### Confirmed real and current, but not fetchable today
+
+These are exactly the outlets that would close our remaining gaps (a true
+FantasyPros-style ECR, a second expert-authored dynasty list) — genuinely worth
+revisiting if a curator can copy the table by hand or fetch through something that
+executes JS, but a plain automated fetch could not read them:
+
+| Outlet | URL | Why it matters | What blocked it |
+|---|---|---|---|
+| **PFF** | `pff.com/news/…standard-top-200`, `…superflex-top-200`, `…dynasty-top-200`, `…ppr-rankings-for-drafts` | Would single-handedly cover standard + superflex + a second expert dynasty list from a top-tier outlet | PFF+ paywall; only 2–4 name-drops surfaced per article, not the table |
+| **FantasyPros — true ECR** (not their ADP, which we already have) | `fantasypros.com/nfl/rankings/consensus-cheatsheets.php`, `consensus-superflex-cheatsheets.php`, `dynasty-overall.php` | This is the specific gap flagged above ("no true FantasyPros expert consensus rank") | Table is JS-rendered; fetch returned page chrome only, no rows |
+| **Yahoo Fantasy consensus** | `sports.yahoo.com/fantasy/article/2026-fantasy-football-full-ppr-rankings-consensus-top-300-players` | A real second "true consensus" methodology — 6-analyst panel (Boone, Harmon, Norris, Pianowski, Smyth, Winks), published Aug 10 2026 | Table dynamically loaded; fetch returned nav/metadata only |
+| **Draft Sharks** | `draftsharks.com/adp`, `/auction-values`, `/dynasty-rankings` | Multi-format outlet | Fully client-rendered tool, no static table in page source |
+| **Dynasty League Football (DLF)** | `dynastyleaguefootball.com/rankings/dynasty-rankings/` | A second, expert-authored (not crowdsourced) dynasty source — our only dynasty source today (KeepTradeCut) is crowdsourced trade value, not an expert list | HTTP 403 — blocks bot fetches |
+| **Dynasty Nerds** | `dynastynerds.com/dynasty-rankings/` | 4-ranker consensus dynasty, 300+ players | HTTP 403 |
+
+### Dead ends, checked once and abandoned
+
+- **MyFantasyLeague ADP API** — a real endpoint exists, but the extracted sample
+  mixed linebackers into a skill-position ADP list, which isn't plausible. Not
+  trustworthy enough to report as verified; would need a direct, non-summarized fetch.
+- **Establish The Run** — real and reputable, but its rankings sit behind a flat
+  $54.99 paywall with no free tier.
+- **NFL.com** — no standalone full-rankings page surfaced; appears to no longer
+  run one, or it isn't indexed.
+- **RotoBaller** — page exists, claims PPR/non-PPR coverage, but the fetch returned
+  only site chrome (dynamic content).
+- Not chased at all, to avoid padding a focused report: The Athletic, RotoWire's
+  full rankings page (vs. its ADP page, which is covered above), numberFire (likely
+  defunct post-FanDuel), Razzball, FTN Fantasy, DynastyProcess, NFFC/RTSports raw
+  ADP feeds.
+
+### Priority if curating the next import file
+
+1. **CBS Sports standard + FantasyFootballCalculator ADP** — the only two real,
+   current, fetchable sources for the `standard` format, which we have zero coverage
+   of today.
+2. **4for4 superflex ADP** — the only real, current, fetchable source for
+   `superflex`, same situation.
+3. **RotoWire ADP (ppr)** — a tenth source for the already-covered PPR pool, useful
+   purely for corroboration depth (more sources per player pushes more rows past the
+   `source_count >= 2` bar for being taken seriously).
+4. Everything in "confirmed real but not fetchable" is worth a manual copy-paste
+   pass by a human curator rather than further automated attempts — these are the
+   outlets that would close the ECR and second-dynasty-source gaps specifically.
 
 ## When it applies in this codebase
 
