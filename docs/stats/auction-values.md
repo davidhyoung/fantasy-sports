@@ -163,4 +163,5 @@ makes it actionable: it's a $35 mistake if we're wrong, which is 17% of a $200 b
 - Harstad, Doug — "Value Based Drafting", Footballguys (1999), the original VBD
   framing that replacement-level pricing descends from.
 - See also: [consensus-ensemble.md](consensus-ensemble.md) for source handling,
-  median choice, and within-position ranking.
+  median choice, and within-position ranking; [consensus-sources.md](consensus-sources.md)
+  for the concrete source catalog and formulas.

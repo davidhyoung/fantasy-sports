@@ -167,6 +167,9 @@ snapshots the way we have historical `nfl_player_stats`. Validation plan instead
 
 ## References
 
+- [consensus-sources.md](consensus-sources.md) — the concrete source catalog (which
+  outlets, what they publish, coverage depth) and the exact divergence/auction
+  formulas this entry motivates.
 - Wisdom-of-crowds / forecast-aggregation literature generally supports **median
   over mean** for aggregating independent-ish rankings when a minority of sources
   may be extreme outliers (median breakdown point 50% vs. mean's 0%).
