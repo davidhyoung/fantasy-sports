@@ -156,7 +156,17 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
     // rather than the page.
     <div className="rounded-lg bg-card overflow-x-auto">
       <Table>
-        <TableHeader>
+        {/*
+          This wrapper's overflow-x-auto unavoidably makes it a scroll container on
+          both axes (CSS Overflow §3.5: an axis can't stay 'visible' once the other
+          isn't), so it — not the page — becomes the containing block for the
+          header's `position: sticky`. It never actually scrolls (its height just
+          grows with content), so the inherited nav-height offset was pure overlap:
+          the header rendered pushed down by that offset with nothing to stick to,
+          landing on top of row 1. top: 0 keeps it flush with its real static
+          position instead of pretending page-level stickiness works here.
+        */}
+        <TableHeader style={{ top: 0 }}>
           <HeaderRow>
             {prep && (
               <SortableHead col="board" current={sortCol} dir={sortDir} onSort={handleSort} className="w-20 text-center">
