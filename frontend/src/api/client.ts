@@ -536,6 +536,8 @@ export interface DraftPlayer {
   proj_fpts_half: number
   proj_fpts_ppr_pg: number
   proj_league_fpts: number
+  /** Per-game points in this league's actual scoring (not fixed full-PPR). */
+  proj_league_ppg: number
   confidence: number
   comp_count: number
   uniqueness: 'common' | 'moderate' | 'rare' | 'unique'
@@ -562,6 +564,8 @@ export interface DraftSettingsResponse {
   format: string
   /** Editable roster slots: QB, RB, WR, TE, FLEX, SFLEX, K, DEF. */
   slots: Record<string, number>
+  /** Points per stat category, keyed by canonical stat name (e.g. "pass_yds"). */
+  scoring: Record<string, number>
   overridden: boolean
 }
 
@@ -583,6 +587,8 @@ export interface DraftValuesParams {
   teams?: number
   /** Roster override, e.g. `QB:1,RB:2,WR:3,TE:1,FLEX:1,SFLEX:1,K:1,DEF:1`. */
   slots?: string
+  /** Per-stat point-value override, e.g. `pass_yds:0.04,pass_td:4,rec:1`. Wins over `format`. */
+  scoring?: string
 }
 
 export const getDraftValues = (leagueId: number, params: DraftValuesParams) => {
@@ -592,6 +598,7 @@ export const getDraftValues = (leagueId: number, params: DraftValuesParams) => {
   if (params.budget) qs.set('budget', String(params.budget))
   if (params.teams) qs.set('teams', String(params.teams))
   if (params.slots) qs.set('slots', params.slots)
+  if (params.scoring) qs.set('scoring', params.scoring)
   const q = qs.toString()
   return request<DraftValuesResponse>(`/leagues/${leagueId}/draft-values${q ? `?${q}` : ''}`)
 }

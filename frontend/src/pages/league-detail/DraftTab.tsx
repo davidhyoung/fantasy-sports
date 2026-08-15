@@ -122,7 +122,11 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
           <p className="text-xs text-muted-foreground">
             {filtered.length} player{filtered.length !== 1 ? 's' : ''}
             {position ? ` (${position})` : ''} ·{' '}
-            {data.scoring_format === 'league' ? 'league scoring' : `${data.scoring_format.toUpperCase()} scoring`}
+            {data.scoring_format === 'league'
+              ? 'league scoring'
+              : data.scoring_format === 'custom'
+                ? 'custom scoring'
+                : `${data.scoring_format.toUpperCase()} scoring`}
             {data.settings?.overridden && ' · your Draft Prep settings'}
           </p>
           <DraftBoardTable players={filtered} gradeRankMap={gradeRankMap} />

@@ -44,6 +44,9 @@ type draftPlayer struct {
 	Confidence     float64 `json:"confidence"`
 	CompCount      int     `json:"comp_count"`
 	Uniqueness     string  `json:"uniqueness"`
+	// League-scoring per-game figure, so PPG on the board matches Proj Pts
+	// instead of a fixed full-PPR number meant for cross-league comparison.
+	ProjLeaguePPG  float64 `json:"proj_league_ppg"`
 	VOR            float64 `json:"vor"`
 	AuctionValue   int     `json:"auction_value"`
 	OverallRank    int     `json:"overall_rank"`
@@ -69,6 +72,9 @@ type draftSettings struct {
 	Budget   int            `json:"budget"`
 	Format   string         `json:"format"`
 	Slots    map[string]int `json:"slots"`
+	// Points per stat category — the "pointing system" the settings panel edits.
+	// Keyed by the same canonical stat names the `scoring=` override uses.
+	Scoring map[string]float64 `json:"scoring"`
 	// Overridden reports whether any setting came from the query rather than the league.
 	Overridden bool `json:"overridden"`
 }
@@ -173,6 +179,62 @@ func parseSlotOverride(raw string) (map[string]int, []ranking.RosterPosition, bo
 	return slots, positions, startable > 0
 }
 
+// ── pointing system (per-stat point values) ───────────────────────────────────
+//
+// The draft-values scoring override lets the settings panel edit exactly the
+// stat categories we have per-game rate columns for (scoring.ProjectionRates):
+// passing/rushing/receiving yards and TDs, receptions, FG made, PAT made.
+// Yahoo's own FG scoring is distance-bucketed; the override collapses that into
+// one flat "FG made" value rather than exposing five more fields.
+var scoringEditableStats = []scoring.CanonicalStat{
+	scoring.StatPassYds, scoring.StatPassTD,
+	scoring.StatRushYds, scoring.StatRushTD,
+	scoring.StatRec, scoring.StatRecYds, scoring.StatRecTD,
+	scoring.StatFGMade, scoring.StatPATMade,
+}
+
+var scoringEditableSet = func() map[scoring.CanonicalStat]bool {
+	m := make(map[scoring.CanonicalStat]bool, len(scoringEditableStats))
+	for _, s := range scoringEditableStats {
+		m[s] = true
+	}
+	return m
+}()
+
+// defaultScoringFallback seeds the pointing system when a league's own Yahoo
+// scoring couldn't be fetched — a standard full-PPR point set, matching the
+// "ppr" fallback used elsewhere in this handler.
+var defaultScoringFallback = map[scoring.CanonicalStat]float64{
+	scoring.StatPassYds: 0.04, scoring.StatPassTD: 4,
+	scoring.StatRushYds: 0.1, scoring.StatRushTD: 6,
+	scoring.StatRec: 1, scoring.StatRecYds: 0.1, scoring.StatRecTD: 6,
+	scoring.StatFGMade: 3, scoring.StatPATMade: 1,
+}
+
+// parseScoringOverride reads a `scoring=pass_yds:0.04,pass_td:4,...` override
+// into canonical-stat-keyed point values. Unknown keys and unparsable values
+// are dropped rather than rejecting the whole override, same convention as
+// parseSlotOverride.
+func parseScoringOverride(raw string) (map[scoring.CanonicalStat]float64, bool) {
+	out := map[scoring.CanonicalStat]float64{}
+	for _, part := range strings.Split(raw, ",") {
+		name, valStr, ok := strings.Cut(strings.TrimSpace(part), ":")
+		if !ok {
+			continue
+		}
+		key := scoring.CanonicalStat(strings.ToLower(strings.TrimSpace(name)))
+		if !scoringEditableSet[key] {
+			continue
+		}
+		val, err := strconv.ParseFloat(strings.TrimSpace(valStr), 64)
+		if err != nil {
+			continue
+		}
+		out[key] = val
+	}
+	return out, len(out) > 0
+}
+
 // GetDraftValues returns projected players with league-specific auction draft values.
 //
 // GET /api/leagues/{id}/draft-values?season=2026&budget=200
@@ -186,6 +248,10 @@ func parseSlotOverride(raw string) (map[string]int, []ranking.RosterPosition, bo
 //	teams   team count (drives replacement levels and the money pool)
 //	format  league|ppr|half|standard — league keeps the league's own scoring
 //	slots   roster override, e.g. QB:1,RB:2,WR:3,TE:1,FLEX:1,SFLEX:1,K:1,DEF:1
+//	scoring per-stat point values, e.g. pass_yds:0.04,pass_td:4,rec:1 — present
+//	        for any of the categories in scoringEditableStats; when given it
+//	        replaces format entirely and prices every position (not just
+//	        kickers) from these exact weights
 //
 // Anything omitted falls back to the league's real settings. The response echoes
 // what was used in `settings`, in the same vocabulary, so the client never has to
@@ -236,6 +302,14 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	if s := q.Get("slots"); s != "" {
 		slotsOverride, rosterOverride, hasSlotsOverride = parseSlotOverride(s)
 		if hasSlotsOverride {
+			overridden = true
+		}
+	}
+
+	scoringOverride, hasScoringOverride := map[scoring.CanonicalStat]float64{}, false
+	if s := q.Get("scoring"); s != "" {
+		scoringOverride, hasScoringOverride = parseScoringOverride(s)
+		if hasScoringOverride {
 			overridden = true
 		}
 	}
@@ -384,6 +458,61 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	}
 	canonicalMods := scoring.CanonicalModifiersFromYahoo(yahooMods)
 
+	// The pointing system: default point values come from the league's own
+	// translated Yahoo scoring (FG's distance buckets collapse into one flat
+	// average, weighted by FGDistribution, since the panel edits a single FG
+	// value rather than five), falling back to a standard PPR set when the
+	// league's scoring couldn't be fetched. A `scoring=` override replaces
+	// individual categories on top of that.
+	defaultScoring := map[scoring.CanonicalStat]float64{}
+	if hasLeagueScoring {
+		var avgFGMod float64
+		for bucket, share := range scoring.FGDistribution {
+			avgFGMod += share * canonicalMods[bucket]
+		}
+		defaultScoring[scoring.StatPassYds] = canonicalMods[scoring.StatPassYds]
+		defaultScoring[scoring.StatPassTD] = canonicalMods[scoring.StatPassTD]
+		defaultScoring[scoring.StatRushYds] = canonicalMods[scoring.StatRushYds]
+		defaultScoring[scoring.StatRushTD] = canonicalMods[scoring.StatRushTD]
+		defaultScoring[scoring.StatRec] = canonicalMods[scoring.StatRec]
+		defaultScoring[scoring.StatRecYds] = canonicalMods[scoring.StatRecYds]
+		defaultScoring[scoring.StatRecTD] = canonicalMods[scoring.StatRecTD]
+		defaultScoring[scoring.StatFGMade] = avgFGMod
+		defaultScoring[scoring.StatPATMade] = canonicalMods[scoring.StatPATMade]
+	} else {
+		for k, v := range defaultScoringFallback {
+			defaultScoring[k] = v
+		}
+	}
+	activeScoring := map[scoring.CanonicalStat]float64{}
+	for k, v := range defaultScoring {
+		activeScoring[k] = v
+	}
+	for k, v := range scoringOverride {
+		activeScoring[k] = v
+	}
+
+	// A scoring override replaces the format entirely — "custom" reports that
+	// honestly rather than reusing the reception-derived ppr/half/standard label.
+	if hasScoringOverride {
+		scoringFormat = "custom"
+	}
+
+	// Consensus data only comes bucketed as ppr/half_ppr/standard, so custom
+	// scoring still needs a bucket to diff against; approximate it from the
+	// reception point value the same way the league's own scoring is classified.
+	consensusFormat := effectiveFormat
+	if hasScoringOverride {
+		switch {
+		case activeScoring[scoring.StatRec] >= 0.9:
+			consensusFormat = "ppr"
+		case activeScoring[scoring.StatRec] >= 0.35:
+			consensusFormat = "half"
+		default:
+			consensusFormat = "standard"
+		}
+	}
+
 	var players []draftPlayer
 	for rows.Next() {
 		var dp draftPlayer
@@ -411,6 +540,17 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		}
 
 		switch {
+		case hasScoringOverride:
+			// A custom pointing system prices every position — not just kickers —
+			// from the same rate-based math kickers always used, just with
+			// user-supplied weights instead of the league's Yahoo modifiers.
+			totals := scoring.ProjectionToCanonicalTotals(scoring.ProjectionRates{
+				PassYdsPG: passYdsPG, PassTdPG: passTdPG,
+				RushYdsPG: rushYdsPG, RushTdPG: rushTdPG,
+				RecPG: recPG, RecYdsPG: recYdsPG, RecTdPG: recTdPG,
+				FgMadePG: fgMadePG, PatMadePG: patMadePG,
+			}, float64(games))
+			dp.ProjLeagueFpts = scoring.ScoreWithModifiers(totals, activeScoring)
 		case dp.PositionGroup == "K":
 			// Kickers have no reliable generic projection total; compute from
 			// per-game rates × league modifiers. Cap unrealistic values (bad data).
@@ -440,6 +580,9 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 			default:
 				dp.ProjLeagueFpts = dp.ProjFpts
 			}
+		}
+		if games > 0 {
+			dp.ProjLeaguePPG = dp.ProjLeagueFpts / float64(games)
 		}
 
 		players = append(players, dp)
@@ -586,7 +729,7 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	// 10. Attach consensus values — what the market pays for the same players, on
 	//    this league's dollar scale. Runs after ranking, since the derived form
 	//    reads our own value-per-position-rank curve.
-	consensus := h.loadConsensusValues(r.Context(), season, effectiveFormat, players, budget*numTeams)
+	consensus := h.loadConsensusValues(r.Context(), season, consensusFormat, players, budget*numTeams)
 	for i := range players {
 		cv, ok := consensus[players[i].GsisID]
 		if !ok {
@@ -620,6 +763,11 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		replResp = []replacementLevel{}
 	}
 
+	scoringOut := make(map[string]float64, len(scoringEditableStats))
+	for _, k := range scoringEditableStats {
+		scoringOut[string(k)] = activeScoring[k]
+	}
+
 	respondJSON(w, http.StatusOK, draftValuesResp{
 		Season:        season,
 		BudgetPerTeam: budget,
@@ -630,6 +778,7 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 			Budget:     budget,
 			Format:     scoringFormat,
 			Slots:      effectiveSlots,
+			Scoring:    scoringOut,
 			Overridden: overridden,
 		},
 		ReplacementLevels: replResp,

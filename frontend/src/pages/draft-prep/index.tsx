@@ -64,7 +64,7 @@ export default function DraftPrep() {
 
   const [leagueDefaults, setLeagueDefaults] = useState<DraftSettings | null>(null)
   const {
-    settings, editing, update, setSlot, save, discard, reset,
+    settings, editing, update, setSlot, setScoring, save, discard, reset,
     isDirty, isCustomized, position, setPosition,
   } = useDraftSettings(leagueId ?? 0, leagueDefaults)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -185,6 +185,7 @@ export default function DraftPrep() {
         onToggle={() => setSettingsOpen((o) => !o)}
         onChange={update}
         onSlotChange={setSlot}
+        onScoringChange={setScoring}
         onSave={save}
         onDiscard={discard}
         onReset={reset}
@@ -233,9 +234,11 @@ export default function DraftPrep() {
           <p className="text-xs text-muted-foreground">
             {filtered.length} player{filtered.length !== 1 ? 's' : ''}
             {position ? ` (${position})` : ''} ·{' '}
-            {settings.scoringFormat === 'league'
-              ? 'league scoring'
-              : `${settings.scoringFormat.toUpperCase()} scoring`}
+            {settings.scoringCustomized
+              ? 'custom scoring'
+              : settings.scoringFormat === 'league'
+                ? 'league scoring'
+                : `${settings.scoringFormat.toUpperCase()} scoring`}
             {isCustomized && ' · custom settings'}
             {prep.counts.ranked > 0 && ` · ${prep.counts.ranked} ranked on your board`}
           </p>

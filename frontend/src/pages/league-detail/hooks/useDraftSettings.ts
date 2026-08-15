@@ -14,11 +14,35 @@ export const SLOT_LABELS: Record<SlotPosition, string> = {
   BN: 'BENCH',
 }
 
+// The "pointing system" — exactly the stat categories the backend has
+// per-game rate columns for (scoring.ProjectionRates on the Go side). FG
+// scoring collapses Yahoo's distance buckets into one flat value here.
+export const SCORING_STATS = [
+  'pass_yds', 'pass_td', 'rush_yds', 'rush_td', 'rec', 'rec_yds', 'rec_td', 'fg_made', 'pat_made',
+] as const
+export type ScoringStat = (typeof SCORING_STATS)[number]
+
+export const SCORING_LABELS: Record<ScoringStat, string> = {
+  pass_yds: 'Pass Yds', pass_td: 'Pass TD',
+  rush_yds: 'Rush Yds', rush_td: 'Rush TD',
+  rec: 'Reception', rec_yds: 'Rec Yds', rec_td: 'Rec TD',
+  fg_made: 'FG Made', pat_made: 'PAT Made',
+}
+
 export interface DraftSettings {
   numTeams: number
   budget: number
   scoringFormat: ScoringFormat
   slots: Record<SlotPosition, number>
+  /** Points per stat category — pre-filled from the league's real scoring. */
+  scoring: Record<ScoringStat, number>
+  /**
+   * True once a point value has been hand-edited. Only then does `scoring` get
+   * sent as an override; otherwise `scoringFormat` (or the league's own
+   * scoring) still governs, so merely touching Teams/Budget/Slots doesn't
+   * silently freeze scoring against a league that later changes it.
+   */
+  scoringCustomized: boolean
 }
 
 /** Used until the league's own settings arrive — a standard 12-team lineup. */
@@ -27,6 +51,13 @@ export const FALLBACK_SETTINGS: DraftSettings = {
   budget: 200,
   scoringFormat: 'league',
   slots: { QB: 1, RB: 2, WR: 3, TE: 1, FLEX: 1, SFLEX: 0, K: 1, DEF: 1, BN: 6 },
+  scoring: {
+    pass_yds: 0.04, pass_td: 4,
+    rush_yds: 0.1, rush_td: 6,
+    rec: 1, rec_yds: 0.1, rec_td: 6,
+    fg_made: 3, pat_made: 1,
+  },
+  scoringCustomized: false,
 }
 
 const settingsKey = (leagueId: number) => `fs.draft.settings.v1.${leagueId}`
@@ -58,9 +89,22 @@ function toSlots(raw: Record<string, number> | undefined): Record<SlotPosition, 
   return slots
 }
 
+/** Reads the server's scoring map into the fixed set the panel edits. */
+function toScoring(raw: Record<string, number> | undefined): Record<ScoringStat, number> {
+  const scoring = { ...FALLBACK_SETTINGS.scoring }
+  if (!raw) return scoring
+  for (const stat of SCORING_STATS) scoring[stat] = raw[stat] ?? scoring[stat]
+  return scoring
+}
+
 /** Serialises settings for the API's `slots=` override. */
 export function serializeSlots(slots: Record<SlotPosition, number>): string {
   return SLOT_POSITIONS.map((pos) => `${pos}:${slots[pos]}`).join(',')
+}
+
+/** Serialises settings for the API's `scoring=` override. */
+export function serializeScoring(scoring: Record<ScoringStat, number>): string {
+  return SCORING_STATS.map((stat) => `${stat}:${scoring[stat]}`).join(',')
 }
 
 /**
@@ -80,6 +124,9 @@ export function draftQuery(
       budget: settings.budget,
       teams: settings.numTeams,
       slots: serializeSlots(settings.slots),
+      // Only sent once a point value has actually been edited — otherwise the
+      // format above (or the league's own scoring) still drives the board.
+      ...(settings.scoringCustomized ? { scoring: serializeScoring(settings.scoring) } : {}),
     },
     key: JSON.stringify(settings),
   }
@@ -97,6 +144,8 @@ export function readSettings(leagueId: number): DraftSettings | null {
     ...FALLBACK_SETTINGS,
     ...stored,
     slots: { ...FALLBACK_SETTINGS.slots, ...(stored.slots ?? {}) },
+    scoring: { ...FALLBACK_SETTINGS.scoring, ...(stored.scoring ?? {}) },
+    scoringCustomized: stored.scoringCustomized ?? false,
   }
 }
 
@@ -112,6 +161,11 @@ export function serverSettings(data: DraftValuesResponse | undefined): DraftSett
     budget: data.settings.budget,
     scoringFormat: (data.settings.format as ScoringFormat) || 'league',
     slots: toSlots(data.settings.slots),
+    scoring: toScoring(data.settings.scoring),
+    // This describes what the board was actually computed with, not local edit
+    // intent — a customized fetch still reports false here, same as scoringFormat
+    // reflects the format used without implying the toggle was touched.
+    scoringCustomized: false,
   }
 }
 
@@ -147,6 +201,12 @@ export function useDraftSettings(leagueId: number, defaults: DraftSettings | nul
   const setSlot = (pos: SlotPosition, count: number) =>
     update({ slots: { ...editing.slots, [pos]: Math.max(0, Math.min(20, count)) } })
 
+  // Touching any point value opts into the pointing system: it now overrides
+  // the format toggle, same way an explicit slots/teams edit overrides the
+  // league's own roster.
+  const setScoring = (stat: ScoringStat, value: number) =>
+    update({ scoring: { ...editing.scoring, [stat]: value }, scoringCustomized: true })
+
   const save = () => {
     if (!draft) return
     writeJSON(settingsKey(leagueId), draft)
@@ -172,6 +232,7 @@ export function useDraftSettings(leagueId: number, defaults: DraftSettings | nul
     editing,
     update,
     setSlot,
+    setScoring,
     save,
     discard,
     reset,

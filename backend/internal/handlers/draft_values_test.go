@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/ranking"
+	"github.com/davidyoung/fantasy-sports/backend/internal/services/scoring"
 	"github.com/davidyoung/fantasy-sports/backend/internal/yahoo"
 )
 
@@ -132,6 +133,34 @@ func TestParseSlotOverrideRejectsJunk(t *testing.T) {
 		t.Error("expected no startable slots to report false")
 	}
 	if _, _, ok := parseSlotOverride("garbage"); ok {
+		t.Error("expected unparseable override to report false")
+	}
+}
+
+func TestParseScoringOverride(t *testing.T) {
+	// Unknown keys, distance-bucketed FG stats (not in the editable set) and
+	// unparsable values are dropped; what survives still parses.
+	got, ok := parseScoringOverride("pass_yds:0.04,pass_td:4,bogus:99,fg_0_19:5,rec:x")
+	if !ok {
+		t.Fatal("expected the valid entries to survive")
+	}
+	want := map[scoring.CanonicalStat]float64{
+		scoring.StatPassYds: 0.04,
+		scoring.StatPassTD:  4,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("scoring[%s] = %v, want %v", k, got[k], v)
+		}
+	}
+
+	if _, ok := parseScoringOverride("bogus:1,fg_0_19:3"); ok {
+		t.Error("expected no editable keys to report false")
+	}
+	if _, ok := parseScoringOverride("garbage"); ok {
 		t.Error("expected unparseable override to report false")
 	}
 }

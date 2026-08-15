@@ -3,9 +3,12 @@ import { Badge } from '@/components/ui/badge'
 import {
   SLOT_POSITIONS,
   SLOT_LABELS,
+  SCORING_STATS,
+  SCORING_LABELS,
   type DraftSettings,
   type ScoringFormat,
   type SlotPosition,
+  type ScoringStat,
 } from '../hooks/useDraftSettings'
 
 const FORMATS: { value: ScoringFormat; label: string }[] = [
@@ -47,6 +50,40 @@ function NumberField({
   )
 }
 
+/** Like NumberField, but for point values that need fractional precision (e.g. 0.04/yard). */
+function DecimalField({
+  label, value, onChange, min = -99, max = 99, step = 0.5, width = 'w-16',
+}: {
+  label: string
+  value: number
+  onChange: (v: number) => void
+  min?: number
+  max?: number
+  step?: number
+  width?: string
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+      <input
+        type="number"
+        inputMode="decimal"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => {
+          const next = parseFloat(e.target.value)
+          onChange(Number.isNaN(next) ? 0 : Math.max(min, Math.min(max, next)))
+        }}
+        className={`${width} h-8 rounded-md border border-input bg-background px-2 font-mono text-sm tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+      />
+    </label>
+  )
+}
+
 interface Props {
   settings: DraftSettings
   isCustomized: boolean
@@ -55,6 +92,7 @@ interface Props {
   onToggle: () => void
   onChange: (patch: Partial<DraftSettings>) => void
   onSlotChange: (pos: SlotPosition, count: number) => void
+  onScoringChange: (stat: ScoringStat, value: number) => void
   onSave: () => void
   onDiscard: () => void
   onReset: () => void
@@ -66,7 +104,8 @@ interface Props {
  * this device.
  */
 export function DraftSettingsPanel({
-  settings, isCustomized, isDirty, open, onToggle, onChange, onSlotChange, onSave, onDiscard, onReset,
+  settings, isCustomized, isDirty, open, onToggle, onChange, onSlotChange, onScoringChange,
+  onSave, onDiscard, onReset,
 }: Props) {
   const starters = SLOT_POSITIONS.reduce((sum, pos) => sum + settings.slots[pos], 0)
 
@@ -116,8 +155,13 @@ export function DraftSettingsPanel({
             <div className="flex flex-col gap-1">
               <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Scoring
+                {settings.scoringCustomized && (
+                  <span className="ml-1.5 normal-case font-sans font-normal text-muted-foreground/70">
+                    (overridden by pointing system below)
+                  </span>
+                )}
               </span>
-              <div className="flex w-fit rounded-lg bg-muted overflow-hidden">
+              <div className={`flex w-fit rounded-lg bg-muted overflow-hidden ${settings.scoringCustomized ? 'opacity-50' : ''}`}>
                 {FORMATS.map((f) => (
                   <button
                     key={f.value}
@@ -151,6 +195,29 @@ export function DraftSettingsPanel({
                 />
               ))}
             </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Pointing system
+              {settings.scoringCustomized && <Badge variant="pink" className="ml-1.5">Custom</Badge>}
+            </span>
+            <div className="flex flex-wrap gap-3">
+              {SCORING_STATS.map((stat) => (
+                <DecimalField
+                  key={stat}
+                  label={SCORING_LABELS[stat]}
+                  value={settings.scoring[stat]}
+                  step={stat.endsWith('_yds') ? 0.01 : 0.5}
+                  onChange={(v) => onScoringChange(stat, v)}
+                />
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Points per stat, pre-filled from your league's real scoring. Editing any value
+              switches the board to these exact weights instead of the Scoring format above,
+              for every position (not just kickers).
+            </p>
           </div>
 
           <div className="flex items-center gap-3 border-t border-border pt-3">

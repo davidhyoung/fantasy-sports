@@ -112,7 +112,7 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
         case 'tier':      aVal = a.tier || 99; bVal = b.tier || 99; break
         case 'age':       aVal = a.age || 0; bVal = b.age || 0; break
         case 'pts':       aVal = a.proj_league_fpts; bVal = b.proj_league_fpts; break
-        case 'ppr':       aVal = a.proj_fpts_ppr_pg; bVal = b.proj_fpts_ppr_pg; break
+        case 'ppg':       aVal = a.proj_league_ppg; bVal = b.proj_league_ppg; break
         case 'vor':       aVal = a.vor; bVal = b.vor; break
         case 'auction':   aVal = a.auction_value; bVal = b.auction_value; break
         case 'grade':      aVal = a.player_grade ?? -1; bVal = b.player_grade ?? -1; break
@@ -206,14 +206,14 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
             <SortableHead col="grade" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
               <HeaderTip description="Real-life player grade (0–100 percentile), independent of fantasy scoring">Grade</HeaderTip>
             </SortableHead>
+            <SortableHead col="vor" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Value Over Replacement — projected points above the last startable player at this position">VOR</HeaderTip>
+            </SortableHead>
             <SortableHead col="pts" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
               <HeaderTip description="Projected fantasy points for the full season, in this league's scoring">Proj Pts</HeaderTip>
             </SortableHead>
-            <SortableHead col="ppr" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
-              <HeaderTip description="Projected points per game under full-PPR scoring, for cross-league comparison">PPR/G</HeaderTip>
-            </SortableHead>
-            <SortableHead col="vor" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
-              <HeaderTip description="Value Over Replacement — projected points above the last startable player at this position">VOR</HeaderTip>
+            <SortableHead col="ppg" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+              <HeaderTip description="Projected points per game in this league's scoring">Pts/G</HeaderTip>
             </SortableHead>
             <SortableHead col="auction" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
               <HeaderTip description="Our auction value — this player's share of the league's budget, based on VOR">Auction $</HeaderTip>
@@ -358,13 +358,13 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                   )}
                 </TableCell>
                 <TableCell className="text-right tabular-nums font-mono">
+                  {p.vor.toFixed(1)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums font-mono">
                   {p.proj_league_fpts.toFixed(1)}
                 </TableCell>
                 <TableCell className="text-right tabular-nums font-mono text-muted-foreground">
-                  {p.proj_fpts_ppr_pg.toFixed(1)}
-                </TableCell>
-                <TableCell className="text-right tabular-nums font-mono">
-                  {p.vor.toFixed(1)}
+                  {p.proj_league_ppg.toFixed(1)}
                 </TableCell>
                 <TableCell className={`text-right tabular-nums font-mono ${valueTier(p.auction_value)}`}>
                   ${p.auction_value}
