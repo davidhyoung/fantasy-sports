@@ -12,6 +12,7 @@ import PlayerDetail from './pages/player-detail'
 import Statistics from './pages/statistics'
 import DraftPrep from './pages/draft-prep'
 import Divergences from './pages/divergences'
+import Wiki from './pages/wiki'
 import { getMe } from './api/client'
 import { keys } from './api/queryKeys'
 
@@ -37,6 +38,7 @@ const NAV_ITEMS = [
   { to: '/', label: 'Leagues', match: ['/', '/leagues', '/teams'] },
   { to: '/draft-prep', label: 'Draft Prep', match: ['/draft-prep'] },
   { to: '/statistics', label: 'Statistics', match: ['/statistics', '/players', '/divergences'] },
+  { to: '/wiki', label: 'Wiki', match: ['/wiki'] },
 ]
 
 export default function App() {
@@ -121,6 +123,7 @@ export default function App() {
           <Route path="/teams/:id" element={<TeamDetail />} />
           <Route path="/leagues/:leagueId/matchup/:week/:t1/:t2" element={<MatchupDetail />} />
           <Route path="/draft-prep" element={<DraftPrep />} />
+          <Route path="/wiki" element={<Wiki />} />
           <Route path="/statistics" element={<Statistics />} />
           {/* Rankings and Projections merged into Statistics as two views. */}
           <Route path="/rankings" element={<Navigate to="/statistics?view=grades" replace />} />

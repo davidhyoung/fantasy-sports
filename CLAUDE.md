@@ -70,6 +70,7 @@ frontend/  React 18 + Vite 5 + TypeScript + Tailwind CSS + shadcn/ui + TanStack 
   - `projections/` — `hooks/useProjections.ts` + `components/` (ProjectionTable, ConfidenceBadge, UniquenessBadge), consumed by `statistics/`. ProjectionTable shows Consensus/Δ columns (partial coverage, "—" where no consensus data exists)
   - `draft-prep/` — `index.tsx` (top-level `/draft-prep`) + `components/` (DraftBoardTable, TeamPanel, NoteField) + `lib/` (roster.ts, interest.ts) + `hooks/useDraftPrep.ts`. **`DraftBoardTable` is the shared draft board**, used here with prep controls and by league-detail's DraftTab without them
   - `divergences/` — `index.tsx` + `hooks/useDivergences.ts` + `components/DeltaBadge.tsx` — the full divergence table at `/divergences`. No longer in the nav: Home surfaces the top signals and links here for the rest. Single-source divergences are flagged (`1*`) since they're uncorroborated
+  - `wiki/` — `index.tsx` + `components/` (Formula, Note, Pipeline) — static reference page at `/wiki` explaining the stat engine (grades, projections, VORP/rankings, auction pricing, tiering, consensus divergence) in prose, formulas and worked examples pulled from `docs/`. No data fetching; content mirrors `docs/algorithm-review.md` + `docs/*.md` + `docs/stats/*.md` and should be updated alongside them. `Note`'s color-coded left edge (pink=fix, blue=context, purple=open/future, amber=caveat) reuses the app's semantic palette; purple is reserved for open/future items per the design system's "projected data only" rule.
 - `src/components/ui/` — shadcn/ui components (badge, button, input, table, tabs, provider) + table-helpers (SortableHead, PlayerCell, ClickableRow, ZScoreCell, HeaderRow)
 - `src/App.tsx` — router + nav (with active page highlighting) + auth check
 - `src/main.tsx` — React root, QueryClientProvider, BrowserRouter
@@ -78,10 +79,11 @@ frontend/  React 18 + Vite 5 + TypeScript + Tailwind CSS + shadcn/ui + TanStack 
 
 ## Routes
 
-Frontend (nav has three destinations: Leagues, Draft Prep and Statistics):
+Frontend (nav has four destinations: Leagues, Draft Prep, Statistics and Wiki):
 ```
 /                                       Leagues home — hero, league list, Player Outlooks
 /draft-prep                             Draft Prep — board (ranks, interest scale −3..+3, notes) + dockable team panel
+/wiki                                   Stat-engine reference — grades, projections, rankings, auction pricing, tiering, consensus (static, no auth)
 /leagues                                → redirect to /
 /leagues/{id}                           League detail (My Team/Standings/Scoreboard/Players/Draft)
 /leagues/{id}?tab=draft&sub=values|keepers  Draft tab sub-sections (?tab=keepers redirects here)
