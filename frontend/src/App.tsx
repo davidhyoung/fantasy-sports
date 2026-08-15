@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate, useParams, useLocation, Link as RouterLink } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Sun, Moon } from 'lucide-react'
+import { Sun, Moon, Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTheme } from '@/components/ui/provider'
 import Home from './pages/Home'
@@ -41,6 +42,44 @@ const NAV_ITEMS = [
   { to: '/wiki', label: 'Wiki', match: ['/wiki'] },
 ]
 
+/** Shared by the desktop pill row and the mobile stacked panel so the two
+ *  never drift out of sync on active-state logic or link set. */
+function NavLinks({
+  pathname,
+  variant,
+  onNavigate,
+}: {
+  pathname: string
+  variant: 'desktop' | 'mobile'
+  onNavigate?: () => void
+}) {
+  return (
+    <>
+      {NAV_ITEMS.map(({ to, label, match }) => {
+        const active = match.some(p => (p === '/' ? pathname === '/' : pathname.startsWith(p)))
+        return (
+          <RouterLink
+            key={to}
+            to={to}
+            onClick={onNavigate}
+            className={
+              variant === 'desktop'
+                ? `rounded-pill px-3.5 py-1.5 font-display text-xs font-semibold ${
+                    active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                  }`
+                : `rounded-md px-3 py-2.5 font-display text-sm font-semibold ${
+                    active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`
+            }
+          >
+            {label}
+          </RouterLink>
+        )
+      })}
+    </>
+  )
+}
+
 export default function App() {
   const location = useLocation()
   const { data: user, isLoading: authLoading } = useQuery({
@@ -50,6 +89,25 @@ export default function App() {
   })
   const { theme, setTheme } = useTheme()
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  // A route change is the only thing that should ever close the mobile
+  // panel on its own — closing on outside click/blur would fight the
+  // RouterLink's own click-through navigation.
+  useEffect(() => setMobileOpen(false), [location.pathname])
+
+  const authArea = authLoading ? null : user ? (
+    <div className="flex items-center gap-3">
+      <span className="font-display text-[13px] font-semibold text-foreground">{user.display_name}</span>
+      <a href="/auth/logout" className="font-display text-[13px] text-muted-foreground hover:text-foreground">
+        Logout
+      </a>
+    </div>
+  ) : (
+    <Button asChild size="sm">
+      <a href="/auth/login">Login with Yahoo</a>
+    </Button>
+  )
 
   return (
     <div className="min-h-screen bg-background">
@@ -59,57 +117,56 @@ export default function App() {
       >
         Skip to content
       </a>
-      <nav className="sticky top-0 z-40 bg-card border-b border-border px-7 py-4 flex items-center justify-between">
-        <RouterLink to="/" className="flex items-center gap-2.5">
-          <BrandMark />
-          <span className="font-display text-base font-bold text-foreground">Fantasy Sports</span>
-        </RouterLink>
+      <nav className="sticky top-0 z-40 bg-card border-b border-border px-4 sm:px-7 py-4">
+        <div className="flex items-center justify-between">
+          <RouterLink to="/" className="flex items-center gap-2.5">
+            <BrandMark />
+            <span className="font-display text-base font-bold text-foreground">Fantasy Sports</span>
+          </RouterLink>
 
-        <div className="flex items-center gap-2.5">
-          {/* Leagues, the pre-draft board, and the player-data surface. */}
-          <div className="flex items-center gap-0.5 rounded-pill bg-muted p-1">
-            {NAV_ITEMS.map(({ to, label, match }) => {
-              const active = match.some(p =>
-                p === '/' ? location.pathname === '/' : location.pathname.startsWith(p)
-              )
-              return (
-                <RouterLink
-                  key={to}
-                  to={to}
-                  className={`rounded-pill px-3.5 py-1.5 font-display text-xs font-semibold ${
-                    active
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {label}
-                </RouterLink>
-              )
-            })}
+          {/* ≥ md: full pill nav + controls inline, as before. */}
+          <div className="hidden md:flex items-center gap-2.5">
+            <div className="flex items-center gap-0.5 rounded-pill bg-muted p-1">
+              <NavLinks pathname={location.pathname} variant="desktop" />
+            </div>
+
+            <button
+              onClick={() => setTheme(isDark ? 'light' : 'dark')}
+              className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] border-input text-[11px] text-muted-foreground hover:text-foreground"
+              aria-label="Toggle theme"
+            >
+              {isDark ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+            </button>
+            {authArea}
           </div>
 
+          {/* < md: everything collapses behind a single toggle. */}
           <button
-            onClick={() => setTheme(isDark ? 'light' : 'dark')}
-            className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] border-input text-[11px] text-muted-foreground hover:text-foreground"
-            aria-label="Toggle theme"
+            onClick={() => setMobileOpen(o => !o)}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground md:hidden"
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-nav-panel"
           >
-            {isDark ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
-          {authLoading ? null : user ? (
-            <div className="flex items-center gap-3">
-              <span className="font-display text-[13px] font-semibold text-foreground">
-                {user.display_name}
-              </span>
-              <a href="/auth/logout" className="font-display text-[13px] text-muted-foreground hover:text-foreground">
-                Logout
-              </a>
-            </div>
-          ) : (
-            <Button asChild size="sm">
-              <a href="/auth/login">Login with Yahoo</a>
-            </Button>
-          )}
         </div>
+
+        {mobileOpen && (
+          <div id="mobile-nav-panel" className="mt-4 flex flex-col gap-1 border-t border-border pt-4 md:hidden">
+            <NavLinks pathname={location.pathname} variant="mobile" onNavigate={() => setMobileOpen(false)} />
+            <div className="mt-2 flex items-center justify-between border-t border-border px-3 pt-4">
+              {authArea}
+              <button
+                onClick={() => setTheme(isDark ? 'light' : 'dark')}
+                className="flex h-8 w-8 items-center justify-center rounded-full border-[1.5px] border-input text-muted-foreground hover:text-foreground"
+                aria-label="Toggle theme"
+              >
+                {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          </div>
+        )}
       </nav>
 
       <main id="main-content" className="px-6 pt-8 pb-6">
