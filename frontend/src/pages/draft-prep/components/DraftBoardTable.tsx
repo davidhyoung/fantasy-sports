@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { DraftPlayer, DraftPrepEntry, InterestLevel } from '@/api/client'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
 import { SortableHead, useTableSort, PlayerCell, ClickableRow, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
@@ -6,7 +6,7 @@ import { gradeColorClass } from '@/lib/grades'
 import ConfidenceBadge from '@/pages/projections/components/ConfidenceBadge'
 import UniquenessBadge from '@/pages/projections/components/UniquenessBadge'
 import { TrendSparkline } from '@/pages/league-detail/components/TrendSparkline'
-import { ThumbsUp, ThumbsDown } from 'lucide-react'
+import { ThumbsUp, ThumbsDown, GripVertical } from 'lucide-react'
 import { INTEREST_LEVELS, interestIconClass, interestRowClass } from '../lib/interest'
 import { NoteField } from './NoteField'
 
@@ -95,6 +95,11 @@ export function boardOrder(players: DraftPlayer[], entry: (id: string) => DraftP
 
 export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: Props) {
   const { sortCol, sortDir, handleSort } = useTableSort(prep ? 'board' : 'rank', 'asc', ASC_COLS)
+  // Drag state lives here rather than per-row: only one row can be dragged (or
+  // hovered as a drop target) at a time, and lifting it out of the row map
+  // avoids re-registering handlers for every row on every hover.
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
 
   const sorted = useMemo(() => {
     if (prep && sortCol === 'board') return boardOrder(players, prep.entry)
@@ -172,7 +177,7 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
         <TableHeader style={{ top: 0 }}>
           <HeaderRow>
             {prep && (
-              <SortableHead col="board" current={sortCol} dir={sortDir} onSort={handleSort} className="w-20 text-center">
+              <SortableHead col="board" current={sortCol} dir={sortDir} onSort={handleSort} className="w-24 text-center">
                 <HeaderTip description="Your personal draft order — ranked players come first in your order, then everyone else in projection order">
                   Board
                 </HeaderTip>
@@ -245,11 +250,42 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                 href={`/players/${p.gsis_id}`}
                 // A rated player is marked on his own row rather than repeated in a
                 // panel: an accent edge whose weight tracks how strongly you feel.
-                className={interestRowClass(mine?.interest ?? null)}
+                // The drop target gets the same treatment as a rated row would — a
+                // flat highlight, no motion — so it reads without an animation.
+                className={`${interestRowClass(mine?.interest ?? null)} ${canMove && dragOverId === p.gsis_id ? 'bg-muted' : ''}`}
+                onDragOver={canMove ? (e) => { e.preventDefault(); if (dragOverId !== p.gsis_id) setDragOverId(p.gsis_id) } : undefined}
+                onDragLeave={canMove ? () => setDragOverId((cur) => (cur === p.gsis_id ? null : cur)) : undefined}
+                onDrop={
+                  canMove
+                    ? (e) => {
+                        e.preventDefault()
+                        setDragOverId(null)
+                        if (!dragId || dragId === p.gsis_id) { setDragId(null); return }
+                        // Drop above or below the target row depending on which half
+                        // of it the pointer released over.
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        const place = e.clientY - rect.top < rect.height / 2 ? 'before' : 'after'
+                        prep!.onMove(dragId, p.gsis_id, place)
+                        setDragId(null)
+                      }
+                    : undefined
+                }
               >
                 {prep && (
                   <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
+                      {canMove && (
+                        <span
+                          draggable
+                          onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragId(p.gsis_id) }}
+                          onDragEnd={() => { setDragId(null); setDragOverId(null) }}
+                          aria-label={`Drag to reorder ${p.name}`}
+                          title="Drag to reorder"
+                          className="cursor-grab text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
+                        >
+                          <GripVertical className="h-3.5 w-3.5" />
+                        </span>
+                      )}
                       <span className="font-mono tabular-nums text-xs text-foreground w-5 text-right">
                         {mine?.custom_rank ?? i + 1}
                       </span>
