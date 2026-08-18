@@ -676,13 +676,41 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	// 0.75 was picked empirically against this league's board to land the top
 	// price in that observed real-world range; it isn't tuned per-league.
 	const auctionVORCompressionExponent = 0.75
+
+	// Kickers are excluded from the shared VOR pool and priced separately,
+	// capped to a $1-3 band. Real auction rooms don't bid up a kicker for
+	// projected points the way they do skill positions — kicker output is
+	// famously the least predictable in fantasy football, so a real bidder
+	// discounts kicker VOR far more aggressively than the shared x^0.75
+	// compression does. Sharing the same pool also meant kicker VOR — once
+	// scored correctly — quietly took dollars away from every other position's
+	// share of the surplus. $1-3 mirrors what kickers actually go for in a
+	// live 12-team draft regardless of the point spread underneath.
+	var maxKickerVOR float64
+	for i := range players {
+		if primaryPosition(players[i].PositionGroup) == "K" && players[i].VOR > maxKickerVOR {
+			maxKickerVOR = players[i].VOR
+		}
+	}
+
 	var totalCompressedVOR float64
 	for i := range players {
+		if primaryPosition(players[i].PositionGroup) == "K" {
+			continue
+		}
 		if players[i].VOR > 0 {
 			totalCompressedVOR += math.Pow(players[i].VOR, auctionVORCompressionExponent)
 		}
 	}
 	for i := range players {
+		if primaryPosition(players[i].PositionGroup) == "K" {
+			if maxKickerVOR > 0 && players[i].VOR > 0 {
+				players[i].AuctionValue = 1 + int(math.Round(2*players[i].VOR/maxKickerVOR))
+			} else {
+				players[i].AuctionValue = 1
+			}
+			continue
+		}
 		if totalCompressedVOR > 0 && players[i].VOR > 0 {
 			compressed := math.Pow(players[i].VOR, auctionVORCompressionExponent)
 			dollarVal := 1 + (compressed/totalCompressedVOR)*surplus
