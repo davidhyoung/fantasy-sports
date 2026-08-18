@@ -413,6 +413,17 @@ func mockSettingsContent() FantasyContent {
 		{"11", "Receptions", "Rec", "1", 1}, // full PPR
 		{"12", "Reception Yards", "Rec Yds", "1", 0.1},
 		{"13", "Reception Touchdowns", "Rec TD", "1", 6},
+		// FG/PAT: the roster below carries a K slot, so scoring needs to cover
+		// it too, or every kicker scores exactly zero and prices at $1
+		// regardless of the projection engine (draft_values.go's K branch
+		// scores strictly off these modifiers). Yahoo's standard default:
+		// distance-bucketed FG, flat PAT.
+		{"19", "Field Goals 0-19 Yards", "FG 0-19", "1", 3},
+		{"20", "Field Goals 20-29 Yards", "FG 20-29", "1", 3},
+		{"21", "Field Goals 30-39 Yards", "FG 30-39", "1", 3},
+		{"22", "Field Goals 40-49 Yards", "FG 40-49", "1", 4},
+		{"23", "Field Goals 50+ Yards", "FG 50+", "1", 5},
+		{"29", "Extra Points Made", "PAT Made", "1", 1},
 	}
 	stats := make([]LeagueStat, 0, len(cats))
 	mods := make([]StatModifier, 0, len(cats))
