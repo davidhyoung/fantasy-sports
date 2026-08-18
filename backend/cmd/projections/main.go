@@ -2024,9 +2024,21 @@ func computeWeightedProjection(target *seasonProfile, comps []compResult, target
 		proj.ProjFptsPPRP90 = proj.ProjFptsPPRPG
 	}
 
-	// For position-specific stats, derive from fpts growth ratio
+	// For position-specific stats, derive from fpts growth ratio. Kickers are
+	// excluded: nflverse's fantasy_points/fantasy_points_ppr columns never
+	// score kicking, so fpts_ppr_pg is 0 for essentially every kicker-season
+	// (any nonzero value is a data quirk, not signal). That makes this ratio a
+	// division of near-zero noise for kickers specifically — worse, a short
+	// base season's shrinkShortSeasonTarget blends target.FptsPPRPG toward the
+	// K group mean (itself usually pulled off-zero by a single outlier
+	// kicker-season elsewhere in the pool), while proj.ProjFptsPPRPG regresses
+	// halfway to that same mean — structurally pushing the ratio toward
+	// maxGrowthCap for any kicker whose base season was short, tripling their
+	// projected FG/PAT rate. Kicker FG/PAT rates carry their own signal
+	// directly (shrunk by shrinkShortSeasonTarget already); they don't need a
+	// growth ratio derived from a stat that was never tracking them.
 	growthRatioPPR := 1.0
-	if target.FptsPPRPG > 0 && proj.ProjFptsPPRPG > 0 {
+	if target.PositionGroup != "K" && target.FptsPPRPG > 0 && proj.ProjFptsPPRPG > 0 {
 		growthRatioPPR = proj.ProjFptsPPRPG / target.FptsPPRPG
 	}
 	growthRatioPPR = clampGrowth(growthRatioPPR)
