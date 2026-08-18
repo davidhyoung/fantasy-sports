@@ -100,6 +100,9 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
   // avoids re-registering handlers for every row on every hover.
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  // Which half of the drop-target row the pointer is over, so the insertion
+  // line can be drawn on the correct edge before the drop actually happens.
+  const [dragOverPlace, setDragOverPlace] = useState<'before' | 'after' | null>(null)
 
   const sorted = useMemo(() => {
     if (prep && sortCol === 'board') return boardOrder(players, prep.entry)
@@ -250,21 +253,39 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                 href={`/players/${p.gsis_id}`}
                 // A rated player is marked on his own row rather than repeated in a
                 // panel: an accent edge whose weight tracks how strongly you feel.
-                // The drop target gets the same treatment as a rated row would — a
-                // flat highlight, no motion — so it reads without an animation.
-                className={`${interestRowClass(mine?.interest ?? null)} ${canMove && dragOverId === p.gsis_id ? 'bg-muted' : ''}`}
-                onDragOver={canMove ? (e) => { e.preventDefault(); if (dragOverId !== p.gsis_id) setDragOverId(p.gsis_id) } : undefined}
-                onDragLeave={canMove ? () => setDragOverId((cur) => (cur === p.gsis_id ? null : cur)) : undefined}
+                // Dragging gets two static (no-transition) cues layered on top:
+                // the lifted row dims, and the row underneath the pointer gets an
+                // accent line on whichever edge it'll actually land on.
+                className={[
+                  interestRowClass(mine?.interest ?? null),
+                  canMove && dragId === p.gsis_id ? 'opacity-40' : '',
+                  canMove && dragOverId === p.gsis_id && dragOverPlace === 'before' ? 'border-t-2 border-primary' : '',
+                  canMove && dragOverId === p.gsis_id && dragOverPlace === 'after' ? 'border-b-2 border-primary' : '',
+                ].filter(Boolean).join(' ')}
+                onDragOver={
+                  canMove
+                    ? (e) => {
+                        e.preventDefault()
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        const place = e.clientY - rect.top < rect.height / 2 ? 'before' : 'after'
+                        if (dragOverId !== p.gsis_id) setDragOverId(p.gsis_id)
+                        setDragOverPlace((cur) => (cur === place ? cur : place))
+                      }
+                    : undefined
+                }
+                onDragLeave={
+                  canMove
+                    ? () => setDragOverId((cur) => (cur === p.gsis_id ? null : cur))
+                    : undefined
+                }
                 onDrop={
                   canMove
                     ? (e) => {
                         e.preventDefault()
+                        const place = dragOverPlace ?? 'before'
                         setDragOverId(null)
+                        setDragOverPlace(null)
                         if (!dragId || dragId === p.gsis_id) { setDragId(null); return }
-                        // Drop above or below the target row depending on which half
-                        // of it the pointer released over.
-                        const rect = e.currentTarget.getBoundingClientRect()
-                        const place = e.clientY - rect.top < rect.height / 2 ? 'before' : 'after'
                         prep!.onMove(dragId, p.gsis_id, place)
                         setDragId(null)
                       }
@@ -278,7 +299,7 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                         <span
                           draggable
                           onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragId(p.gsis_id) }}
-                          onDragEnd={() => { setDragId(null); setDragOverId(null) }}
+                          onDragEnd={() => { setDragId(null); setDragOverId(null); setDragOverPlace(null) }}
                           aria-label={`Drag to reorder ${p.name}`}
                           title="Drag to reorder"
                           className="cursor-grab text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
