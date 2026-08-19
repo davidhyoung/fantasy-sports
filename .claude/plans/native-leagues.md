@@ -4,8 +4,11 @@
 
 - **Phase 0 — done.** `services/leaguesettings` extracted, `draft_values.go` refactored onto it, tests moved and green, byte-identical behavior confirmed against a Yahoo league.
 - **Phase 1 — backend done, frontend not started.** Migration 000021 (`leagues.source`/`format`, `league_settings`), `POST /api/leagues` moved behind auth and rebuilt to create a native league (settings + teams, one transaction), `GET/PUT .../settings`, team CRUD, `requireCommissioner()` gate, `NativeSource`. Verified live: created a native dynasty league via curl, `GET /api/leagues/{id}/draft-values` priced a full board from local projections with zero Yahoo contact, non-owners/Yahoo leagues correctly rejected (403/422).
-- **Not started:** `/leagues/new` creation UI, hiding Scoreboard/Standings for native leagues, source badges, Phase 2 (rosters/contracts/FA pool — `analysis.go` still Yahoo-only), Phase 3 (draft picks/trades), Phase 4 (rollover).
+- **Frontend for Phase 1 — done.** `/leagues/new` creation form (name/season/format/teams/budget/slots/scoring, reusing the draft-settings vocabulary), "+ New league" on Home, Standings/Scoreboard hidden for native leagues with a stale-tab fallback to Draft, format badge in the league header. `tsc --noEmit` and `yarn build` both clean.
+- **Phase 2 — rosters/contracts backend done, `analysis.go` and frontend not started.** Migration 000022 (`league_rosters`, `league_contracts`). `league_rosters.go`: GetLeagueRosters, AssignLeagueRoster (roster row + contract row in one transaction, 409 on double-rostering), UpdateLeagueRoster (trade/slot/contract edits), DropLeagueRoster (contract cascades), GetLeagueFreeAgents (`nfl_players` minus `league_rosters`, ordered by projection). Verified live against the real dev server: assign → shows on roster + drops from FA pool → trade to another team + salary bump → drop → contract cascade-deleted + reappears in FA pool → double-assign correctly 409s → cross-league team_id correctly rejected. Cascade-cleaned the test league afterward with zero orphaned rows.
+- **Not started:** `analysis.go` native rankings (still Yahoo-only — the category-metadata shape doesn't map 1:1 onto the native league's narrower editable-scoring vocabulary, see Phase 2 write-up below), roster/contract frontend UI, Phase 3 (draft picks/trades), Phase 4 (rollover).
 - **Deviation from the original Phase 0 sketch:** `leaguesettings.Source` ended up as two independent methods (`RosterPositions`, `ScoringMods`) rather than one combined `Settings()` call, because the handler needs their failures to fail differently (a roster-fetch error is only fatal without a slots override; a scoring-fetch failure just falls back to a default pointing system). `FetchSettings()` runs both concurrently for anyone who wants both, preserving the original two-goroutine fan-out.
+- **Deviation from the original Phase 2 sketch:** `Rosters()`/`FreePool()` did *not* land on `leaguesettings.Source` — they're plain REST handlers in `league_rosters.go` (`GetLeagueRosters`, `GetLeagueFreeAgents`) instead. Reason: nothing outside this file needed the `Source` abstraction for them yet (`analysis.go` isn't wired to a native league at all, and won't be able to reuse `yahooRostersToLocalPlayerData`'s shape unchanged even once it is — see below), so adding the indirection now would be speculative. Revisit if/when `analysis.go` actually needs a provider-agnostic roster read.
 
 
 ## Context
@@ -167,13 +170,13 @@ Cap space is **derived** (`budget − SUM(salary)`), never stored.
 
 ### Wiring
 
-- `nativeSource.Rosters()` — one query grouped by team.
-- `nativeSource.FreePool()` — `nfl_players` LEFT JOIN `league_rosters` WHERE roster row IS NULL, ordered by projection.
-- `analysis.go` native rankings now light up: all four inputs are local, and the `isPointsLeague && statType == "season"` branch already sources stats locally.
-- `league_players.go` search/available get a native branch.
-- Reuse `services/keepers.ComputeKeeperCost` for contract escalation — the model (`cost_increase`, `undrafted_base`, `max_years`) is already the right one, and `keeper_rules` already exists per league.
+- ✅ Roster reads/writes — `GetLeagueRosters`, `AssignLeagueRoster`, `UpdateLeagueRoster`, `DropLeagueRoster` (`league_rosters.go`), commissioner-gated, contract row written/cascaded alongside every roster row.
+- ✅ `GetLeagueFreeAgents` — `nfl_players` LEFT JOIN `league_rosters` WHERE roster row IS NULL, ordered by projection for the league's season.
+- ⬜ `analysis.go` native rankings — **not done, and not as simple as it looked.** The Yahoo path's category metadata (`buildCategoryMeta`, from `yahoo.LeagueStat` — arbitrary stat count, names, sort order) has no native equivalent: a native league's scoring is deliberately the *narrower* `leaguesettings.ScoringEditableStats` (9 categories with rate columns), not an open-ended category list. Wiring this needs a native-specific category-meta builder off `league_settings.scoring`, not just a new roster/FA data source behind the existing shape. Deferred.
+- ⬜ `league_players.go` search/available — still Yahoo-only; a native league can use `GET .../free-agents` (added above) for the FA half, but there's no player-search equivalent yet.
+- ⬜ Contract escalation at rollover — reuse `services/keepers.ComputeKeeperCost` (model is already the right one). Belongs with Phase 4, not before there's a rollover to run it during.
 
-Frontend: a Roster/Contracts view on league detail — roster by slot, salary, years, cap space.
+Frontend: a Roster/Contracts view on league detail — roster by slot, salary, years, cap space. Not started.
 
 ---
 
