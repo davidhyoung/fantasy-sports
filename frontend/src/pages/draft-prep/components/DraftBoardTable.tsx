@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import type { DraftPlayer, DraftPrepEntry, InterestLevel } from '@/api/client'
-import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
+import { Table, TableHeader, TableBody, TableHead, TableCell, TableRow } from '@/components/ui/table'
 import { SortableHead, useTableSort, PlayerCell, ClickableRow, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
 import { gradeColorClass } from '@/lib/grades'
 import ConfidenceBadge from '@/pages/projections/components/ConfidenceBadge'
@@ -46,6 +46,17 @@ interface Props {
 /** Our price minus the market's. Positive = we're higher on him than the market. */
 function edgeOf(p: DraftPlayer): number | null {
   return p.consensus_auction_value == null ? null : p.auction_value - p.consensus_auction_value
+}
+
+/** Position group can be a comma-separated eligibility list; tiers are per this first one. */
+function primaryPos(p: DraftPlayer): string {
+  return (p.position_group || p.position || '').split(',')[0]
+}
+
+/** A custom tier overrides the algorithm's own — same convention everywhere it's read. */
+function effectiveTier(p: DraftPlayer, entry?: (gsisId: string) => DraftPrepEntry): number {
+  const custom = entry?.(p.gsis_id).custom_tier
+  return custom ?? p.tier
 }
 
 /**
@@ -225,6 +236,29 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
   // Reordering only makes sense while the rows are in board order.
   const canMove = !!prep && sortCol === 'board' && sortDir === 'asc'
 
+  // A divider marks where one position's tier changes from the last row of
+  // that same position seen above it. That only reads coherently while the
+  // list is roughly ordered by value — board order (drafting) or the
+  // read-only tab's default rank order both put a position's best players
+  // first. Any other sort scrambles tiers relative to position, so a "tier
+  // changed" line there would be noise, not signal.
+  const showTierLines = sortDir === 'asc' && (sortCol === 'board' || sortCol === 'rank')
+  const tierBoundaries = useMemo(() => {
+    if (!showTierLines) return new Set<string>()
+    const lastByPos = new Map<string, number>()
+    const boundaries = new Set<string>()
+    for (const p of sorted) {
+      const pos = primaryPos(p)
+      const tier = effectiveTier(p, prep?.entry)
+      if (tier > 0) {
+        const last = lastByPos.get(pos)
+        if (last != null && last !== tier) boundaries.add(p.gsis_id)
+        lastByPos.set(pos, tier)
+      }
+    }
+    return boundaries
+  }, [sorted, showTierLines, prep])
+
   return (
     // The consensus columns push this past a narrow viewport; scroll the table
     // rather than the page.
@@ -311,8 +345,18 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
           {sorted.map((p: DraftPlayer, i) => {
             const mine = prep?.entry(p.gsis_id)
             return (
+              <Fragment key={p.gsis_id}>
+                {tierBoundaries.has(p.gsis_id) && (
+                  <TableRow className="border-t-2 border-border bg-muted/30 hover:bg-muted/30">
+                    <TableCell
+                      colSpan={100}
+                      className="py-1 font-display text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+                    >
+                      {primaryPos(p)} tier {effectiveTier(p, prep?.entry)}
+                    </TableCell>
+                  </TableRow>
+                )}
               <ClickableRow
-                key={p.gsis_id}
                 href={`/players/${p.gsis_id}`}
                 // A rated player is marked on his own row rather than repeated in a
                 // panel: an accent edge whose weight tracks how strongly you feel.
@@ -349,6 +393,40 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                         setDragOverId(null)
                         setDragOverPlace(null)
                         if (!dragId || dragId === p.gsis_id) { setDragId(null); return }
+
+                        // Re-tier the dropped player from whichever same-position
+                        // neighbours land beside it: if both sides agree, the drop
+                        // is squarely inside that tier; if they differ (a tier
+                        // boundary), `place` — the same half-of-the-row signal that
+                        // already drives the insertion line — breaks the tie, so
+                        // dragging a little higher or lower changes which tier wins.
+                        const dragged = sorted.find((x) => x.gsis_id === dragId)
+                        if (dragged) {
+                          const pos = primaryPos(dragged)
+                          const aboveStart = place === 'before' ? i - 1 : i
+                          const belowStart = place === 'before' ? i : i + 1
+                          let above: number | null = null
+                          for (let j = aboveStart; j >= 0; j--) {
+                            if (sorted[j].gsis_id === dragId) continue
+                            const t = effectiveTier(sorted[j], prep!.entry)
+                            if (primaryPos(sorted[j]) === pos && t > 0) { above = t; break }
+                          }
+                          let below: number | null = null
+                          for (let j = belowStart; j < sorted.length; j++) {
+                            if (sorted[j].gsis_id === dragId) continue
+                            const t = effectiveTier(sorted[j], prep!.entry)
+                            if (primaryPos(sorted[j]) === pos && t > 0) { below = t; break }
+                          }
+                          const autoTier =
+                            above != null && below != null
+                              ? (above === below ? above : (place === 'before' ? above : below))
+                              : above ?? below
+                          if (autoTier != null) {
+                            const next = autoTier === dragged.tier ? null : autoTier
+                            if (next !== (prep!.entry(dragId).custom_tier ?? null)) prep!.setCustomTier(dragId, next)
+                          }
+                        }
+
                         prep!.onMove(dragId, p.gsis_id, place)
                         setDragId(null)
                       }
@@ -550,6 +628,7 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                   <UniquenessBadge value={p.uniqueness} compCount={p.comp_count} />
                 </TableCell>
               </ClickableRow>
+              </Fragment>
             )
           })}
         </TableBody>
