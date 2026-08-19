@@ -215,6 +215,58 @@ export const getAvailablePlayers = (leagueId: number, position = '', start = 0, 
   return request<LeaguePlayer[]>(`/leagues/${leagueId}/players/available${qs ? `?${qs}` : ''}`)
 }
 
+// --- Native League Rosters ---
+//
+// Native leagues have no Yahoo league behind them, so `/players` and
+// `/players/available` above (and `/rankings` below) don't work for them —
+// those hit Yahoo. These are the native-league equivalents: roster state and
+// the free-agent pool both live in this app's own DB.
+
+export interface RosterEntry {
+  gsis_id: string
+  name: string
+  position: string
+  team: string
+  headshot_url?: string
+  team_id: number
+  slot: string
+  acquired_via: string
+  acquired_at: string
+  salary: number
+  signed_season: number
+  years_total: number | null
+  years_used: number
+}
+
+export interface FreeAgent {
+  gsis_id: string
+  name: string
+  position: string
+  team: string
+  headshot_url?: string
+  proj_fpts_ppr: number | null
+}
+
+export const getLeagueRosters = (leagueId: number) =>
+  request<RosterEntry[]>(`/leagues/${leagueId}/rosters`)
+
+export const assignLeagueRoster = (
+  leagueId: number,
+  data: { gsis_id: string; team_id: number; slot?: string; acquired_via: string; salary: number; years_total?: number | null }
+) =>
+  request<{ status: string }>(`/leagues/${leagueId}/rosters`, { method: 'POST', body: JSON.stringify(data) })
+
+export const dropLeagueRoster = (leagueId: number, gsisId: string) =>
+  request<{ status: string }>(`/leagues/${leagueId}/rosters/${encodeURIComponent(gsisId)}`, { method: 'DELETE' })
+
+export const getLeagueFreeAgents = (leagueId: number, position = '', limit = 100, offset = 0) => {
+  const params = new URLSearchParams()
+  if (position) params.set('position', position)
+  params.set('limit', String(limit))
+  if (offset > 0) params.set('offset', String(offset))
+  return request<FreeAgent[]>(`/leagues/${leagueId}/free-agents?${params.toString()}`)
+}
+
 // --- Keepers ---
 
 export interface KeeperRules {

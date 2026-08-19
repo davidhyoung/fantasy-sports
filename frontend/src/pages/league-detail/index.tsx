@@ -8,6 +8,7 @@ import { MyTeamTab } from './MyTeamTab'
 import { StandingsTab } from './StandingsTab'
 import { ScoreboardTab } from './ScoreboardTab'
 import { PlayersTab } from './PlayersTab'
+import { NativePlayersTab } from './NativePlayersTab'
 import { DraftSection } from './DraftSection'
 
 const SPORT_LABEL: Record<string, string> = {
@@ -109,7 +110,11 @@ export default function LeagueDetail() {
         )}
 
         <TabsContent value="players">
-          <PlayersTab leagueId={leagueId} active={visibleTab === 'players'} sport={league.sport} />
+          {isNative ? (
+            <NativePlayersTab leagueId={leagueId} active={visibleTab === 'players'} teams={teams} />
+          ) : (
+            <PlayersTab leagueId={leagueId} active={visibleTab === 'players'} sport={league.sport} />
+          )}
         </TabsContent>
 
         <TabsContent value="draft">

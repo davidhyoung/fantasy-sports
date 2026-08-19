@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import type { DraftPlayer, DraftReplacementLevel } from '@/api/client'
+import { MobileSheet } from '@/components/ui/mobile-sheet'
 import { SLOT_LABELS, type DraftSettings } from '@/pages/league-detail/hooks/useDraftSettings'
 import { buildRoster, type PlannedPlayer } from '../lib/roster'
 import { TargetList } from './TargetList'
@@ -119,58 +120,31 @@ export function TeamPanel({
     [planned, settings, replacementByPosition],
   )
 
-  if (!open) {
-    return (
-      <button
-        onClick={onToggle}
-        aria-expanded={false}
-        title="Show your draft plan"
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-card px-2 py-2 hover:bg-muted lg:fixed lg:right-0 lg:top-[calc(var(--nav-height)+1.5rem)] lg:z-30 lg:w-auto lg:flex-col lg:rounded-l-lg lg:rounded-r-none lg:border-y lg:border-l lg:border-border lg:py-4"
-      >
-        <span className="font-mono text-xs text-muted-foreground">◂</span>
-        <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground lg:[writing-mode:vertical-rl]">
-          Plan {plannedCount > 0 ? plannedCount : ''}
-        </span>
-      </button>
-    )
-  }
-
   const overBudget = roster.spent > roster.budget
 
-  return (
-    <aside
-      className="w-full space-y-3 lg:fixed lg:bottom-0 lg:right-0 lg:top-[var(--nav-height)] lg:z-30 lg:w-[320px] lg:space-y-0 lg:overflow-y-auto lg:border-l lg:border-border lg:bg-background lg:p-3"
-      aria-label="Your draft plan"
-    >
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="flex rounded-lg bg-muted overflow-hidden">
-          {MODES.map((m) => (
-            <button
-              key={m.value}
-              onClick={() => setMode(m.value)}
-              aria-pressed={mode === m.value}
-              className={`px-2.5 py-1 font-display text-[11px] font-semibold ${
-                mode === m.value
-                  ? 'bg-foreground text-background'
-                  : 'bg-card text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {m.label}
-              {m.value === 'team' && plannedCount > 0 && ` ${plannedCount}`}
-              {m.value === 'targets' && prep.counts.targets > 0 && ` ${prep.counts.targets}`}
-            </button>
-          ))}
-        </div>
+  const modeToggle = (
+    <div className="flex rounded-lg bg-muted overflow-hidden">
+      {MODES.map((m) => (
         <button
-          onClick={onToggle}
-          aria-expanded
-          title="Hide the panel"
-          className="font-mono text-xs text-muted-foreground hover:text-foreground"
+          key={m.value}
+          onClick={() => setMode(m.value)}
+          aria-pressed={mode === m.value}
+          className={`px-2.5 py-1 font-display text-[11px] font-semibold ${
+            mode === m.value
+              ? 'bg-foreground text-background'
+              : 'bg-card text-muted-foreground hover:text-foreground'
+          }`}
         >
-          ▸
+          {m.label}
+          {m.value === 'team' && plannedCount > 0 && ` ${plannedCount}`}
+          {m.value === 'targets' && prep.counts.targets > 0 && ` ${prep.counts.targets}`}
         </button>
-      </div>
+      ))}
+    </div>
+  )
 
+  const body = (
+    <>
       {mode === 'targets' ? (
         <TargetList players={players} prep={prep} />
       ) : (
@@ -183,7 +157,8 @@ export function TeamPanel({
             </p>
           ) : (
             <>
-              <div className="grid grid-cols-3 gap-2 px-3 py-2">
+              {/* 2 columns below sm keeps mono figures legible at 375px; 3 once there's room. */}
+              <div className="grid grid-cols-2 gap-2 px-3 py-2 sm:grid-cols-3">
                 <Stat
                   label="Spent"
                   value={`$${roster.spent}`}
@@ -291,6 +266,63 @@ export function TeamPanel({
         )}
       </>
       )}
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* Desktop: docked to the window edge, or a collapsed vertical tab. */}
+      {open ? (
+        <aside
+          className="hidden lg:block lg:fixed lg:bottom-0 lg:right-0 lg:top-[var(--nav-height)] lg:z-30 lg:w-[320px] lg:overflow-y-auto lg:border-l lg:border-border lg:bg-background lg:p-3"
+          aria-label="Your draft plan"
+        >
+          <div className="mb-3 flex items-center justify-between gap-2">
+            {modeToggle}
+            <button
+              onClick={onToggle}
+              aria-expanded
+              title="Hide the panel"
+              className="font-mono text-xs text-muted-foreground hover:text-foreground"
+            >
+              ▸
+            </button>
+          </div>
+          {body}
+        </aside>
+      ) : (
+        <button
+          onClick={onToggle}
+          aria-expanded={false}
+          title="Show your draft plan"
+          className="hidden lg:fixed lg:right-0 lg:top-[calc(var(--nav-height)+1.5rem)] lg:z-30 lg:flex lg:w-auto lg:flex-col lg:items-center lg:gap-2 lg:rounded-l-lg lg:border-y lg:border-l lg:border-border lg:bg-card lg:px-2 lg:py-4 lg:hover:bg-muted"
+        >
+          <span className="font-mono text-xs text-muted-foreground">◂</span>
+          <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground lg:[writing-mode:vertical-rl]">
+            Plan {plannedCount > 0 ? plannedCount : ''}
+          </span>
+        </button>
+      )}
+
+      {/* Below lg: collapsed pill fixed bottom-right; expanded is a bottom sheet, not an
+          in-flow block, so a long roster never drags the board down with it. */}
+      <button
+        onClick={onToggle}
+        aria-expanded={open}
+        title={open ? 'Hide your draft plan' : 'Show your draft plan'}
+        className="fixed bottom-4 right-4 z-30 flex h-11 items-center gap-1.5 rounded-pill border border-border bg-card px-4 shadow-none lg:hidden"
+      >
+        <span className="font-display text-xs font-semibold text-foreground">
+          Plan {plannedCount > 0 ? plannedCount : ''}
+        </span>
+        <span className="font-mono text-xs text-muted-foreground">▸</span>
+      </button>
+      <div className="lg:hidden">
+        <MobileSheet open={open} onClose={onToggle} title="Your draft plan">
+          <div className="mb-3">{modeToggle}</div>
+          {body}
+        </MobileSheet>
+      </div>
+    </>
   )
 }

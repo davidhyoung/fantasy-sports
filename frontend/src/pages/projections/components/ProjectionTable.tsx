@@ -1,11 +1,26 @@
 import { useCallback, useMemo } from 'react'
 import { ProjPlayerListItem } from '@/api/client'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
-import { SortableHead, useTableSort, PlayerCell, ClickableRow, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
+import { SortableHead, useTableSort, PlayerCell, PlayerAvatar, ClickableRow, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
+import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-stat-card'
+import { MobileSortSheet, type MobileSortOption } from '@/components/ui/mobile-sort-sheet'
 import { gradeColorClass } from '@/lib/grades'
 import ConfidenceBadge from './ConfidenceBadge'
 import UniquenessBadge from './UniquenessBadge'
 import DeltaBadge from '../../divergences/components/DeltaBadge'
+
+const SORT_OPTIONS: MobileSortOption[] = [
+  { col: 'rank', label: '#' },
+  { col: 'name', label: 'Player' },
+  { col: 'pos', label: 'Pos' },
+  { col: 'age', label: 'Age' },
+  { col: 'grade', label: 'Grade' },
+  { col: 'pts', label: 'Proj Pts' },
+  { col: 'ppg', label: 'Pts/G' },
+  { col: 'confidence', label: 'Confidence' },
+  { col: 'consensus', label: 'Cons.' },
+  { col: 'delta', label: 'Δ' },
+]
 
 // Ascending-first: names read A→Z; rank 1 and consensus rank 1 are the *best*,
 // not the least. Everything else (points, grade, confidence, |delta|) is a
@@ -79,7 +94,50 @@ export default function ProjectionTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg bg-card">
+    <>
+      {/* Card list below md — face: Player, Proj Pts, Rank; expansion: Grade,
+          Pts/G, Confidence, Consensus rank, Δ, Profile. */}
+      <div className="space-y-2 md:hidden">
+        <div className="flex justify-end">
+          <MobileSortSheet options={SORT_OPTIONS} current={sortCol} dir={sortDir} onSort={handleSort} />
+        </div>
+        {sorted.map((p) => {
+          const div = divergences?.get(p.gsis_id)
+          const expanded: MobileStatField[] = [
+            {
+              label: 'Grade',
+              value: p.player_grade != null ? (
+                <span className={gradeColorClass(p.player_grade)}>{p.player_grade.toFixed(0)}</span>
+              ) : '—',
+            },
+            { label: 'Pts/G', value: p.proj_fpts_ppr_pg.toFixed(1) },
+            { label: 'Confidence', value: <ConfidenceBadge value={p.confidence} /> },
+            { label: 'Consensus rank', value: div ? div.consensusRank.toFixed(1) : '—' },
+            { label: 'Δ', value: div ? <DeltaBadge delta={div.delta} /> : '—' },
+            { label: 'Profile', value: <UniquenessBadge value={p.uniqueness} compCount={p.comp_count} /> },
+          ]
+          return (
+            <MobileStatCard
+              key={p.gsis_id}
+              href={`/players/${p.gsis_id}`}
+              leading={<PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />}
+              title={p.name}
+              subtitle={`${p.team ?? ''} · ${p.position_group}`}
+              face={
+                <div className="text-right">
+                  <div className="font-mono text-xs tabular-nums">{projPts(p).toFixed(1)}</div>
+                  <div className="mt-0.5 font-mono text-[11px] tabular-nums text-muted-foreground">
+                    #{p.overall_rank}
+                  </div>
+                </div>
+              }
+              expanded={expanded}
+            />
+          )
+        })}
+      </div>
+
+      <div className="hidden md:block overflow-x-auto rounded-lg bg-card">
       <Table>
         <TableHeader>
           <HeaderRow>
@@ -156,6 +214,7 @@ export default function ProjectionTable({
           ))}
         </TableBody>
       </Table>
-    </div>
+      </div>
+    </>
   )
 }

@@ -4,8 +4,11 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
-import { SortableHead, useTableSort, PlayerCell, ClickableRow, ZScoreCell, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
+import { SortableHead, useTableSort, PlayerCell, PlayerAvatar, ClickableRow, ZScoreCell, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
+import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-stat-card'
+import { MobileSortSheet, type MobileSortOption } from '@/components/ui/mobile-sort-sheet'
 import { gradeColorClass, trendIndicator } from '@/lib/grades'
+import { zScoreIndicator, zScoreColor } from '@/lib/utils'
 import { describeStat } from '@/lib/statDescriptions'
 import { usePlayers, STATUS_FILTERS } from './hooks/usePlayers'
 import type { PlayerRow } from './hooks/usePlayers'
@@ -168,7 +171,97 @@ export function PlayersTab({ leagueId, active, sport }: Props) {
           {isSearchMode ? `No players found for "${activeSearch}".` : 'No players found.'}
         </p>
       ) : (
-        <div className="rounded-lg bg-card overflow-x-auto max-w-[calc(100vw-3rem)]">
+        <>
+        {/* Card list below md — face: Player, Grade, VORP; expansion: Trend, Pts,
+            per-category z-score cells, Avail. */}
+        <div className="space-y-2 md:hidden">
+          <div className="flex justify-end">
+            <MobileSortSheet
+              options={(() => {
+                const opts: MobileSortOption[] = [
+                  { col: 'name', label: 'Player' },
+                  { col: 'team', label: 'Team' },
+                  { col: 'position', label: 'Pos' },
+                ]
+                if (rankings) opts.push({ col: 'grade', label: 'Grade' }, { col: 'trend', label: 'Trend' })
+                if (rankings) opts.push({ col: 'vorp', label: isPoints ? 'VORP' : 'Value' })
+                if (isPoints) opts.push({ col: 'pts', label: 'Pts' })
+                for (const cat of cats) opts.push({ col: cat.label, label: cat.label, description: describeStat(cat.label) })
+                return opts
+              })()}
+              current={sortCol}
+              dir={sortDir}
+              onSort={handleSort}
+            />
+          </div>
+          {sortedRows.map((row) => {
+            const canLink = !!row.gsisId
+            const isAvailable = row.ownerTeamKey === ''
+            const trend = trendIndicator(row.rp?.yoy_trend)
+            const expanded: MobileStatField[] = []
+            if (rankings) {
+              expanded.push({
+                label: 'Trend',
+                value: trend.text ? <span className={trend.color}>{trend.text}</span> : '—',
+              })
+            }
+            if (isPoints) {
+              expanded.push({
+                label: 'Pts',
+                value: row.rp?.total_points != null ? row.rp.total_points.toFixed(1) : '—',
+              })
+            }
+            for (const cat of cats) {
+              const cs = row.rp?.category_scores?.find((c) => c.label === cat.label)
+              expanded.push({
+                label: cat.label,
+                value: cs ? (
+                  <>
+                    {fmtStat(cs.value)}
+                    <span className={`ml-0.5 text-[10px] ${zScoreColor(cs.z_score)}`}>
+                      {zScoreIndicator(cs.z_score) || '●'}
+                    </span>
+                  </>
+                ) : '—',
+              })
+            }
+            if (statusFilter === 'all' || isSearchMode) {
+              expanded.push({ label: 'Avail', value: isAvailable ? <Badge variant="blue">FA</Badge> : '—' })
+            }
+            return (
+              <MobileStatCard
+                key={row.playerKey}
+                href={canLink ? `/players/${row.gsisId}` : undefined}
+                leading={<PlayerAvatar src={row.imageUrl} alt={row.name} size={28} />}
+                title={row.name}
+                subtitle={`${row.teamAbbr || '—'} · ${row.position}`}
+                face={
+                  rankings ? (
+                    <div className="text-right">
+                      <div className="font-mono text-xs tabular-nums">
+                        {row.rp?.player_grade != null ? (
+                          <span className={gradeColorClass(row.rp.player_grade)}>{row.rp.player_grade.toFixed(0)}</span>
+                        ) : (
+                          <span className="text-muted-foreground/40">—</span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 font-mono text-[11px] tabular-nums">
+                        {row.rp ? (
+                          <span className={row.rp.overall_score >= 0 ? 'text-positive-foreground' : 'text-destructive'}>
+                            {row.rp.overall_score > 0 ? '+' : ''}{row.rp.overall_score.toFixed(1)}
+                          </span>
+                        ) : '—'}
+                      </div>
+                    </div>
+                  ) : undefined
+                }
+                expanded={expanded}
+              />
+            )
+          })}
+        </div>
+
+        <div className="hidden md:block rounded-lg bg-card overflow-x-auto max-w-[calc(100vw-3rem)]">
           <Table>
             <TableHeader style={{ top: 0 }}>
               <HeaderRow>
@@ -312,6 +405,7 @@ export function PlayersTab({ leagueId, active, sport }: Props) {
             </TableBody>
           </Table>
         </div>
+        </>
       )}
     </>
   )

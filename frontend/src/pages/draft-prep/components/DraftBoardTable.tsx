@@ -9,6 +9,7 @@ import { TrendSparkline } from '@/pages/league-detail/components/TrendSparkline'
 import { ThumbsUp, ThumbsDown, GripVertical } from 'lucide-react'
 import { INTEREST_LEVELS, interestIconClass, interestRowClass } from '../lib/interest'
 import { NoteField } from './NoteField'
+import { MobileDraftBoard } from './MobileDraftBoard'
 
 // Ascending-first columns: names read A→Z, and board/rank/tier are all "1 is best."
 // Everything else (points, dollars, grade, confidence…) is a magnitude where

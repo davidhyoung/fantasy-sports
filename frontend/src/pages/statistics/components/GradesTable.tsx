@@ -1,7 +1,20 @@
 import { GradePlayerItem } from '@/api/client'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
-import { PlayerCell, ClickableRow, HeaderRow, SortableHead, useTableSort, HeaderTip } from '@/components/ui/table-helpers'
+import { PlayerCell, PlayerAvatar, ClickableRow, HeaderRow, SortableHead, useTableSort, HeaderTip } from '@/components/ui/table-helpers'
+import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-stat-card'
+import { MobileSortSheet, type MobileSortOption } from '@/components/ui/mobile-sort-sheet'
 import { gradeColorClass, trendIndicator, phaseLabel, phaseColor } from '@/lib/grades'
+
+const SORT_OPTIONS: MobileSortOption[] = [
+  { col: 'name', label: 'Player' },
+  { col: 'age', label: 'Age' },
+  { col: 'overall', label: 'Overall' },
+  { col: 'production', label: 'Prod' },
+  { col: 'efficiency', label: 'Eff' },
+  { col: 'usage', label: 'Usage' },
+  { col: 'durability', label: 'Dur' },
+  { col: 'trend', label: 'Trend' },
+]
 
 type SortKey = 'overall' | 'production' | 'efficiency' | 'usage' | 'durability' | 'name' | 'age' | 'trend'
 
@@ -28,7 +41,47 @@ export default function GradesTable({ players }: { players: GradePlayerItem[] })
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl bg-card">
+    <>
+      {/* Card list below md — face: Player, Overall, Phase; expansion: Prod, Eff,
+          Usage, Dur, Age, Trend. */}
+      <div className="space-y-2 md:hidden">
+        <div className="flex justify-end">
+          <MobileSortSheet options={SORT_OPTIONS} current={sortCol} dir={sortDir} onSort={handleSort} />
+        </div>
+        {sorted.map((p) => {
+          const trend = trendIndicator(p.yoy_trend)
+          const expanded: MobileStatField[] = [
+            { label: 'Prod', value: <span className={gradeColorClass(p.production)}>{p.production.toFixed(0)}</span> },
+            { label: 'Eff', value: <span className={gradeColorClass(p.efficiency)}>{p.efficiency.toFixed(0)}</span> },
+            { label: 'Usage', value: <span className={gradeColorClass(p.usage)}>{p.usage.toFixed(0)}</span> },
+            { label: 'Dur', value: <span className={gradeColorClass(p.durability)}>{p.durability.toFixed(0)}</span> },
+            { label: 'Age', value: p.age || '—' },
+            { label: 'Trend', value: trend.text ? <span className={trend.color}>{trend.text}</span> : '—' },
+          ]
+          return (
+            <MobileStatCard
+              key={p.gsis_id}
+              href={`/players/${p.gsis_id}`}
+              leading={<PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />}
+              title={p.name}
+              subtitle={`${p.team ?? ''} · ${p.position_group}`}
+              face={
+                <div className="text-right">
+                  <div className="font-mono text-xs tabular-nums">
+                    <span className={gradeColorClass(p.overall)}>{p.overall.toFixed(0)}</span>
+                  </div>
+                  <div className={`mt-0.5 text-[11px] font-medium ${phaseColor(p.career_phase)}`}>
+                    {phaseLabel(p.career_phase)}
+                  </div>
+                </div>
+              }
+              expanded={expanded}
+            />
+          )
+        })}
+      </div>
+
+      <div className="hidden md:block overflow-x-auto rounded-xl bg-card">
       <Table>
         <TableHeader style={{ top: 0 }}>
           <HeaderRow>
@@ -92,6 +145,7 @@ export default function GradesTable({ players }: { players: GradePlayerItem[] })
           })}
         </TableBody>
       </Table>
-    </div>
+      </div>
+    </>
   )
 }

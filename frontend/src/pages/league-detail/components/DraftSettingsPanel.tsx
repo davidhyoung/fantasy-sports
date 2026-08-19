@@ -44,7 +44,7 @@ function NumberField({
           const next = parseInt(e.target.value, 10)
           onChange(Number.isNaN(next) ? min : Math.max(min, Math.min(max, next)))
         }}
-        className={`${width} h-8 rounded-md border border-input bg-background px-2 font-mono text-sm tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+        className={`${width} h-11 sm:h-8 rounded-md border border-input bg-background px-2 font-mono text-sm tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
       />
     </label>
   )
@@ -78,7 +78,7 @@ function DecimalField({
           const next = parseFloat(e.target.value)
           onChange(Number.isNaN(next) ? 0 : Math.max(min, Math.min(max, next)))
         }}
-        className={`${width} h-8 rounded-md border border-input bg-background px-2 font-mono text-sm tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+        className={`${width} h-11 sm:h-8 rounded-md border border-input bg-background px-2 font-mono text-sm tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
       />
     </label>
   )
@@ -137,12 +137,13 @@ export function DraftSettingsPanel({
 
       {open && (
         <div className="flex flex-col gap-4 border-t border-border px-4 py-4">
-          <div className="flex flex-wrap items-end gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
             <NumberField
               label="Teams"
               value={settings.numTeams}
               min={2}
               max={32}
+              width="w-full sm:w-20"
               onChange={(v) => onChange({ numTeams: v })}
             />
             <NumberField
@@ -150,6 +151,7 @@ export function DraftSettingsPanel({
               value={settings.budget}
               min={1}
               max={10000}
+              width="w-full sm:w-20"
               onChange={(v) => onChange({ budget: v })}
             />
             <div className="flex flex-col gap-1">
@@ -183,14 +185,14 @@ export function DraftSettingsPanel({
             <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Starting lineup
             </span>
-            <div className="flex flex-wrap gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
               {SLOT_POSITIONS.map((pos) => (
                 <NumberField
                   key={pos}
                   label={SLOT_LABELS[pos]}
                   value={settings.slots[pos]}
                   max={20}
-                  width="w-14"
+                  width="w-full sm:w-14"
                   onChange={(v) => onSlotChange(pos, v)}
                 />
               ))}
@@ -202,13 +204,14 @@ export function DraftSettingsPanel({
               Pointing system
               {settings.scoringCustomized && <Badge variant="pink" className="ml-1.5">Custom</Badge>}
             </span>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:gap-3">
               {SCORING_STATS.map((stat) => (
                 <DecimalField
                   key={stat}
                   label={SCORING_LABELS[stat]}
                   value={settings.scoring[stat]}
                   step={stat.endsWith('_yds') ? 0.01 : 0.5}
+                  width="w-full sm:w-16"
                   onChange={(v) => onScoringChange(stat, v)}
                 />
               ))}
@@ -220,16 +223,17 @@ export function DraftSettingsPanel({
             </p>
           </div>
 
-          <div className="flex items-center gap-3 border-t border-border pt-3">
-            <Button size="sm" onClick={onSave} disabled={!isDirty}>
+          {/* Sticky on mobile so Save/Discard stays reachable while scrolling a long form. */}
+          <div className="-mx-4 -mb-4 flex items-center gap-3 border-t border-border px-4 py-3 sm:mx-0 sm:mb-0 sm:pt-3 sticky bottom-0 bg-card sm:static sm:bg-transparent">
+            <Button size="sm" onClick={onSave} disabled={!isDirty} className="h-11 sm:h-8">
               {isDirty ? 'Save & recalculate' : 'Saved'}
             </Button>
             {isDirty && (
-              <Button variant="text" size="sm" onClick={onDiscard}>
+              <Button variant="text" size="sm" onClick={onDiscard} className="h-11 sm:h-8">
                 Discard
               </Button>
             )}
-            <p className="text-xs text-muted-foreground">
+            <p className="hidden text-xs text-muted-foreground sm:block">
               Saving rescores VOR, auction values and ranks against these settings, and keeps them
               on this device for next time.
             </p>
