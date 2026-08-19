@@ -10,6 +10,7 @@ import TrajectoryChart from '@/pages/projection-detail/components/TrajectoryChar
 import ConfidenceBadge from '@/pages/projections/components/ConfidenceBadge'
 import UniquenessBadge from '@/pages/projections/components/UniquenessBadge'
 import { HeaderTip } from '@/components/ui/table-helpers'
+import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-stat-card'
 import { describeStat } from '@/lib/statDescriptions'
 import { Loader2 } from 'lucide-react'
 
@@ -232,7 +233,71 @@ export default function PlayerDetail() {
       {seasons.length > 0 && (
         <div className="rounded-lg bg-card p-4 space-y-3">
           <h2 className="text-base font-semibold text-foreground">Season Stats</h2>
-          <div className="overflow-x-auto">
+
+          {/* Card list below md — each row is one season; face: PPR Pts, PPR/G;
+              expansion: Age, G, plus the position-specific columns. */}
+          <div className="space-y-2 md:hidden">
+            {projection && (() => {
+              const projAge = projection.age + (projection.target_season - projection.base_season)
+              const ps = projectedSeasonRow(projection.projection, projection.target_season, projAge)
+              const expanded: MobileStatField[] = [
+                { label: 'Age', value: projAge || '—' },
+                { label: 'G', value: ps.games },
+                ...cols.map((c) => ({
+                  label: c.label,
+                  value: (ps[c.key] as number) > 0 ? c.fmt(ps[c.key] as number) : '—',
+                })),
+              ]
+              return (
+                <MobileStatCard
+                  title={`${ps.season}*`}
+                  subtitle="projected"
+                  className="border-highlight-border bg-highlight-light"
+                  face={
+                    <div className="text-right">
+                      <div className="font-mono text-xs tabular-nums text-highlight-foreground">
+                        {ps.fpts_ppr > 0 ? ps.fpts_ppr.toFixed(1) : '—'}
+                      </div>
+                      <div className="mt-0.5 font-mono text-[11px] tabular-nums text-highlight-foreground/60">
+                        {ps.fpts_ppr_pg > 0 ? `${ps.fpts_ppr_pg.toFixed(1)}/G` : '—'}
+                      </div>
+                    </div>
+                  }
+                  expanded={expanded}
+                />
+              )
+            })()}
+            {seasons.map((s) => {
+              const expanded: MobileStatField[] = [
+                { label: 'Age', value: s.age || '—' },
+                { label: 'G', value: s.games },
+                ...cols.map((c) => ({
+                  label: c.label,
+                  value: (s[c.key] as number) > 0 ? c.fmt(s[c.key] as number) : '—',
+                })),
+              ]
+              return (
+                <MobileStatCard
+                  key={s.season}
+                  title={s.season}
+                  subtitle={s.team || '—'}
+                  face={
+                    <div className="text-right">
+                      <div className="font-mono text-xs tabular-nums">
+                        {s.fpts_ppr > 0 ? s.fpts_ppr.toFixed(1) : '—'}
+                      </div>
+                      <div className="mt-0.5 font-mono text-[11px] tabular-nums text-muted-foreground">
+                        {s.fpts_ppr_pg > 0 ? `${s.fpts_ppr_pg.toFixed(1)}/G` : '—'}
+                      </div>
+                    </div>
+                  }
+                  expanded={expanded}
+                />
+              )
+            })}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="text-xs w-full">
               <thead>
                 <tr className="text-muted-foreground border-b border-border">
@@ -304,6 +369,7 @@ export default function PlayerDetail() {
           </div>
         </div>
       )}
+      {/* end Season Stats */}
 
       {/* ── Projection ── */}
       {projection && (
@@ -368,7 +434,7 @@ export default function PlayerDetail() {
               <div className="text-xs text-muted-foreground mb-2">
                 Per-game rates ({projection.projection.games} games projected)
               </div>
-              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-xs">
                 {projection.projection.pass_yds_pg > 5 && <MiniStat label="Pass Yds" value={projection.projection.pass_yds_pg.toFixed(0)} />}
                 {projection.projection.pass_td_pg > 0.05 && <MiniStat label="Pass TD" value={projection.projection.pass_td_pg.toFixed(2)} />}
                 {projection.projection.rush_yds_pg > 2 && <MiniStat label="Rush Yds" value={projection.projection.rush_yds_pg.toFixed(0)} />}

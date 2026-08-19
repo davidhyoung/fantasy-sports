@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { HeaderRow } from '@/components/ui/table-helpers'
+import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-stat-card'
 import { getKeeperSummary, submitKeepers, unsubmitKeepers } from '../../../api/client'
 import type { Team } from '../../../api/client'
 import { keys } from '../../../api/queryKeys'
@@ -121,7 +122,49 @@ export function CommissionerKeeperView({ leagueId, myTeam, active }: Props) {
       </div>
 
       {/* Per-team keeper summary */}
-      <div className="rounded-lg bg-card">
+      <div className="space-y-2 md:hidden">
+        {summary.map((entry) => {
+          const expanded: MobileStatField[] = [
+            {
+              label: 'Keepers',
+              value: entry.keepers.length === 0 ? (
+                <span className="italic text-muted-foreground">No keepers selected</span>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {entry.keepers.map((k) => (
+                    <span key={k.player_key} className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5">
+                      <span className="font-medium">{k.player_name}</span>
+                      {k.position && <span className="text-muted-foreground">{k.position}</span>}
+                      {k.draft_cost != null && <span className="text-muted-foreground">${k.draft_cost}</span>}
+                    </span>
+                  ))}
+                </div>
+              ),
+            },
+          ]
+          return (
+            <MobileStatCard
+              key={entry.team_id}
+              className={entry.team_id === myTeam?.id ? 'bg-muted/20' : undefined}
+              leading={entry.logo_url ? (
+                <img src={entry.logo_url} alt={entry.team_name} className="h-7 w-7 rounded object-contain" />
+              ) : undefined}
+              title={entry.team_name}
+              subtitle={entry.team_id === myTeam?.id ? '(you)' : undefined}
+              face={
+                entry.submitted ? (
+                  <Badge variant="pink" className="gap-1"><CheckCircle2 className="h-3 w-3" />Submitted</Badge>
+                ) : (
+                  <Badge variant="neutral" className="gap-1"><Clock className="h-3 w-3" />Pending</Badge>
+                )
+              }
+              expanded={expanded}
+            />
+          )
+        })}
+      </div>
+
+      <div className="hidden md:block rounded-lg bg-card">
         <Table>
           <TableHeader>
             <HeaderRow>

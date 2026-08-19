@@ -6,14 +6,26 @@ import {
   ClickableRow,
   HeaderRow,
   PlayerCell,
+  PlayerAvatar,
   SortableHead,
   useTableSort,
   HeaderTip,
 } from '@/components/ui/table-helpers'
+import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-stat-card'
+import { MobileSortSheet, type MobileSortOption } from '@/components/ui/mobile-sort-sheet'
 import { PROJECTION_SEASON } from '@/lib/constants'
 import type { DivergenceItem, RankingsFormat } from '@/api/client'
 import { useDivergences } from './hooks/useDivergences'
 import DeltaBadge from './components/DeltaBadge'
+
+const SORT_OPTIONS: MobileSortOption[] = [
+  { col: 'delta', label: 'Δ' },
+  { col: 'name', label: 'Player' },
+  { col: 'pos', label: 'Pos' },
+  { col: 'our', label: 'Ours' },
+  { col: 'consensus', label: 'Consensus' },
+  { col: 'sources', label: 'Sources' },
+]
 
 const POSITIONS = ['All', 'QB', 'RB', 'WR', 'TE', 'K', 'Flex', 'Superflex']
 const POSITION_FILTER: Record<string, string> = {
@@ -134,7 +146,60 @@ export default function Divergences() {
               it and re-run the diff step to populate this view.
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-lg bg-card">
+            <>
+            {/* Card list below md — face: Δ badge, Player, Ours vs Consensus rank;
+                expansion: Position, Source count, situational-note text (a
+                hover-title tooltip on desktop, so it must be visible text here). */}
+            <div className="space-y-2 md:hidden">
+              <div className="flex justify-end">
+                <MobileSortSheet options={SORT_OPTIONS} current={sortCol} dir={sortDir} onSort={handleSort} />
+              </div>
+              {players.map((p) => {
+                const expanded: MobileStatField[] = [
+                  { label: 'Position', value: p.position_group },
+                  {
+                    label: 'Sources',
+                    value: (
+                      <span title={p.source_count < 2 ? 'Uncorroborated' : undefined}>
+                        {p.source_count}{p.source_count < 2 ? '*' : ''}
+                      </span>
+                    ),
+                  },
+                  {
+                    label: 'Context',
+                    value: p.notes.length > 0 ? (
+                      <ul className="space-y-1">
+                        {p.notes.map((n, i) => (
+                          <li key={i}>
+                            [{n.scope === 'team' ? 'team' : n.category}] {n.summary}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : '—',
+                  },
+                ]
+                return (
+                  <MobileStatCard
+                    key={p.gsis_id}
+                    href={`/players/${p.gsis_id}`}
+                    leading={<PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />}
+                    title={p.name}
+                    subtitle={p.team}
+                    face={
+                      <div className="flex items-center gap-2">
+                        <DeltaBadge delta={p.rank_delta} />
+                        <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                          {p.our_rank} / {p.consensus_rank_median.toFixed(1)}
+                        </span>
+                      </div>
+                    }
+                    expanded={expanded}
+                  />
+                )
+              })}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto rounded-lg bg-card">
               <Table>
                 <TableHeader style={{ top: 0 }}>
                   <HeaderRow>
@@ -247,6 +312,7 @@ export default function Divergences() {
                 </TableBody>
               </Table>
             </div>
+            </>
           )}
         </>
       ) : null}

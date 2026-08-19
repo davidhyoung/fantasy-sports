@@ -1,5 +1,6 @@
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
-import { PlayerCell, ClickableRow, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
+import { PlayerCell, PlayerAvatar, ClickableRow, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
+import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-stat-card'
 import { describeStat } from '@/lib/statDescriptions'
 import type { RosterPlayer, RosterStat } from '../../../api/client'
 
@@ -14,7 +15,29 @@ export function TeamRosterTable({ teamName, roster, statLabels }: Props) {
   return (
     <div className="mb-8">
       <h2 className="text-base font-semibold text-foreground mb-3">{teamName}</h2>
-      <div className="rounded-lg bg-card">
+
+      {/* Card list below md — face: Player, Slot; expansion: per-category stat values. */}
+      <div className="space-y-2 md:hidden">
+        {roster.map((p) => {
+          const canLink = !!p.gsis_id
+          const expanded: MobileStatField[] = statLabels.map((label) => ({
+            label,
+            value: p.stats?.find((s: RosterStat) => s.label === label)?.value ?? '—',
+          }))
+          return (
+            <MobileStatCard
+              key={p.player_key}
+              href={canLink ? `/players/${p.gsis_id}` : undefined}
+              leading={<PlayerAvatar src={p.image_url} alt={p.name.full} size={28} />}
+              title={p.name.full}
+              subtitle={p.selected_position.position}
+              expanded={expanded}
+            />
+          )
+        })}
+      </div>
+
+      <div className="hidden md:block rounded-lg bg-card">
         <Table>
           <TableHeader>
             <HeaderRow>

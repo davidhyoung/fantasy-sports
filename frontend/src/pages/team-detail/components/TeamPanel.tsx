@@ -29,14 +29,15 @@ export function TeamPanel({ teamId }: { teamId: number }) {
       )}
 
       {/* Roster section */}
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold text-foreground">Roster</h2>
-        <div className="flex rounded-lg bg-muted overflow-hidden text-sm">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <h2 className="text-lg font-semibold text-foreground shrink-0">Roster</h2>
+        {/* Horizontal-scroll rather than wrap to two lines when the 4 options don't fit at 375px. */}
+        <div className="flex rounded-lg bg-muted overflow-x-auto text-sm max-w-full">
           {PERIODS.map((p) => (
             <button
               key={p.value}
               onClick={() => setStatPeriod(p.value)}
-              className={`px-3 py-1.5 ${
+              className={`px-3 py-1.5 whitespace-nowrap ${
                 statPeriod === p.value
                   ? 'bg-foreground text-background'
                   : 'bg-card text-muted-foreground hover:bg-muted'

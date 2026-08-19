@@ -2,6 +2,7 @@ import { Loader2 } from 'lucide-react'
 import { Link as RouterLink } from 'react-router-dom'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
+import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-stat-card'
 import { useStandings } from './hooks/useStandings'
 
 interface Props {
@@ -31,7 +32,50 @@ export function StandingsTab({ leagueId, active, yahooKeyToId }: Props) {
   const hasStreak = standings.some((s) => s.streak_value > 0)
 
   return (
-    <div className="rounded-lg bg-card">
+    <>
+      {/* Card list below md — face: Rank, Team, W-L-T; expansion: GB, PF, PA,
+          Streak (only the columns that already conditionally render). */}
+      <div className="space-y-2 md:hidden">
+        {standings.map((s) => {
+          const expanded: MobileStatField[] = [{ label: 'GB', value: gamesBack(s) }]
+          if (hasPF) expanded.push({ label: 'PF', value: s.points_for })
+          if (hasPA) expanded.push({ label: 'PA', value: s.points_against })
+          if (hasStreak) {
+            expanded.push({
+              label: 'Streak',
+              value: s.streak_value > 0 && s.streak_type
+                ? `${s.streak_value}${s.streak_type === 'win' ? 'W' : 'L'}`
+                : '—',
+            })
+          }
+          const teamId = yahooKeyToId[s.team_key]
+          return (
+            <MobileStatCard
+              key={s.team_key}
+              href={teamId ? `/teams/${teamId}` : undefined}
+              leading={
+                s.logo_url ? (
+                  <img src={s.logo_url} alt={s.name} width={28} height={28} className="h-7 w-7 rounded object-contain" />
+                ) : (
+                  <span className="flex h-7 w-7 items-center justify-center rounded bg-muted font-mono text-xs text-muted-foreground">
+                    {s.rank}
+                  </span>
+                )
+              }
+              title={s.name}
+              subtitle={`Rank #${s.rank}`}
+              face={
+                <span className="font-mono text-xs tabular-nums text-foreground">
+                  {s.wins}-{s.losses}{s.ties > 0 ? `-${s.ties}` : ''}
+                </span>
+              }
+              expanded={expanded}
+            />
+          )
+        })}
+      </div>
+
+      <div className="hidden md:block rounded-lg bg-card">
       <Table>
         <TableHeader>
           <HeaderRow>
@@ -81,6 +125,7 @@ export function StandingsTab({ leagueId, active, yahooKeyToId }: Props) {
           ))}
         </TableBody>
       </Table>
-    </div>
+      </div>
+    </>
   )
 }

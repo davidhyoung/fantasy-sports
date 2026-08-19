@@ -90,11 +90,11 @@ export function KeepersTab({ leagueId, active, teams, myTeam, season }: Props) {
       )}
 
       {/* Team selector + keeper count for your own team */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex flex-col items-start gap-2 mb-4 sm:flex-row sm:items-center sm:gap-3">
         <select
           value={effectiveTeamFilter}
           onChange={(e) => setKeeperTeamFilter(e.target.value)}
-          className="h-8 rounded-md border border-input bg-background text-foreground px-2 py-1 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-11 sm:h-8 w-full sm:w-auto rounded-md border border-input bg-background text-foreground px-2 py-1 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">All Teams</option>
           {teams.map((t) => (

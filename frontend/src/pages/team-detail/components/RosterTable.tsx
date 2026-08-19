@@ -1,6 +1,8 @@
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
-import { PlayerCell, ClickableRow, ZScoreCell, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
+import { PlayerCell, PlayerAvatar, ClickableRow, ZScoreCell, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
+import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-stat-card'
 import { describeStat } from '@/lib/statDescriptions'
+import { zScoreIndicator, zScoreColor } from '@/lib/utils'
 import type { RosterPlayer, RankedPlayer } from '../../../api/client'
 
 interface Props {
@@ -14,7 +16,58 @@ export function RosterTable({ roster, statLabels, rankByPlayer }: Props) {
   const hasRankings = rankByPlayer && rankByPlayer.size > 0
 
   return (
-    <div className="rounded-lg bg-card overflow-x-auto max-w-[calc(100vw-3rem)]">
+    <>
+      {/* Card list below md — face: Player, Slot, Value; expansion: Team, Pos,
+          per-stat z-score cells. */}
+      <div className="space-y-2 md:hidden">
+        {roster.map((p) => {
+          const rp = rankByPlayer?.get(p.player_key)
+          const canLink = !!p.gsis_id
+          const expanded: MobileStatField[] = [
+            { label: 'Team', value: p.team_abbr },
+            { label: 'Pos', value: p.display_position },
+          ]
+          for (const label of statLabels) {
+            const stat = p.stats?.find((s) => s.label === label)
+            const catScore = rp?.category_scores.find((c) => c.label === label)
+            expanded.push({
+              label,
+              value: catScore ? (
+                <>
+                  {stat?.value ?? '—'}
+                  <span className={`ml-0.5 text-[10px] ${zScoreColor(catScore.z_score)}`}>
+                    {zScoreIndicator(catScore.z_score) || '●'}
+                  </span>
+                </>
+              ) : (stat?.value ?? '—'),
+            })
+          }
+          return (
+            <MobileStatCard
+              key={p.player_key}
+              href={canLink ? `/players/${p.gsis_id}` : undefined}
+              leading={<PlayerAvatar src={p.image_url} alt={p.name.full} size={32} />}
+              title={p.name.full}
+              subtitle={p.selected_position.position}
+              face={
+                hasRankings && rp ? (
+                  <div className="text-right">
+                    <div className="font-mono text-xs tabular-nums">
+                      {rp.overall_score > 0 ? '+' : ''}{rp.overall_score.toFixed(1)}
+                    </div>
+                    <div className="mt-0.5 font-mono text-[11px] tabular-nums text-muted-foreground">
+                      #{rp.overall_rank}
+                    </div>
+                  </div>
+                ) : undefined
+              }
+              expanded={expanded}
+            />
+          )
+        })}
+      </div>
+
+      <div className="hidden md:block rounded-lg bg-card overflow-x-auto max-w-[calc(100vw-3rem)]">
       <Table>
         <TableHeader style={{ top: 0 }}>
           <HeaderRow>
@@ -81,6 +134,7 @@ export function RosterTable({ roster, statLabels, rankByPlayer }: Props) {
           })}
         </TableBody>
       </Table>
-    </div>
+      </div>
+    </>
   )
 }

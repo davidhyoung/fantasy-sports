@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { MobileSheet } from '@/components/ui/mobile-sheet'
 import Formula, { C } from './components/Formula'
 import Note from './components/Note'
 import Pipeline from './components/Pipeline'
@@ -46,6 +48,50 @@ function Toc() {
   )
 }
 
+/**
+ * Below `lg` the sidebar TOC (`Toc`, above) vanishes with nowhere to go, so
+ * this is its tap-driven replacement: a button under the `<h1>` opening a flat
+ * list of the same jump links. Tapping a link scrolls to the section (the
+ * browser's native `#hash` anchor behavior) and auto-collapses the list, since
+ * once you've navigated there's nothing left to pick from it.
+ */
+function MobileToc() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="lg:hidden">
+      <button
+        onClick={() => setOpen(true)}
+        className="inline-flex h-11 items-center gap-1.5 rounded-md border border-border bg-card px-3.5 font-display text-xs font-semibold text-foreground"
+      >
+        <span aria-hidden>☰</span> Contents <span aria-hidden className="text-[9px]">▾</span>
+      </button>
+      <MobileSheet open={open} onClose={() => setOpen(false)} title="Contents">
+        <ul>
+          {TOC.map((item) => (
+            <li key={item.href} className="border-b border-border last:border-0">
+              <a
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className={`flex min-h-[var(--tap-target-min)] items-center py-2 font-display text-sm ${
+                  item.stage
+                    ? 'font-semibold text-foreground'
+                    : item.cross
+                      ? 'font-semibold text-highlight-foreground'
+                      : item.sub
+                        ? 'pl-3 text-muted-foreground'
+                        : 'text-muted-foreground'
+                }`}
+              >
+                {item.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </MobileSheet>
+    </div>
+  )
+}
+
 function StageHead({
   num,
   title,
@@ -81,7 +127,7 @@ export default function Wiki() {
     <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-10">
       <Toc />
 
-      <div className="min-w-0 max-w-2xl space-y-16">
+      <div className="min-w-0 lg:max-w-2xl space-y-16">
         {/* ── Overview ── */}
         <div>
           <p className="font-display text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -90,6 +136,9 @@ export default function Wiki() {
           <h1 className="font-display text-[28px] font-bold text-foreground mt-1">
             Signal <span className="text-primary">&amp;</span> Noise
           </h1>
+          <div className="mt-3">
+            <MobileToc />
+          </div>
           <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
             Every number in this app — a grade, a projection, a rank, a dollar sign on
             draft day — is an attempt to separate a player's real signal from the

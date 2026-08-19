@@ -15,12 +15,17 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      'sticky top-[var(--nav-height)] z-30 bg-background pt-4 pb-3 -mx-6 px-6 flex items-center',
+      'sticky top-[var(--nav-height)] z-30 bg-background pt-4 pb-3 -mx-6 px-6 flex items-center overflow-x-auto',
       className
     )}
     {...props}
   >
-    <div className="inline-flex items-center gap-0.5 rounded-lg bg-muted p-1">{children}</div>
+    {/* Below the width this pill track fits at, the track scrolls horizontally
+        with scroll-snap rather than wrapping — same segmented-control look,
+        just reachable when there isn't room for every tab at once. */}
+    <div className="inline-flex items-center gap-0.5 rounded-lg bg-muted p-1 snap-x snap-mandatory [&>*]:snap-start">
+      {children}
+    </div>
   </TabsPrimitive.List>
 ))
 TabsList.displayName = TabsPrimitive.List.displayName

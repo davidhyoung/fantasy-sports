@@ -69,7 +69,11 @@ function NavLinks({
                     active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
                   }`
                 : `rounded-md px-3 py-2.5 font-display text-sm font-semibold ${
-                    active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    // Left accent bar is a second "you are here" cue on top of the
+                    // fill, for legibility at phone brightness/viewing angle.
+                    active
+                      ? 'border-l-2 border-l-primary bg-primary text-primary-foreground'
+                      : 'border-l-2 border-l-transparent text-muted-foreground hover:bg-muted hover:text-foreground'
                   }`
             }
           >

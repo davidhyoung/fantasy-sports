@@ -13,7 +13,7 @@ interface Props {
 /** Inline form bar for editing and saving keeper cost rules for a league. */
 export function KeeperRulesBar({ rulesForm, onChange, onSave, isPending }: Props) {
   return (
-    <div className="bg-card rounded-lg p-3 mb-4 flex flex-wrap items-center gap-3">
+    <div className="bg-card rounded-lg p-3 mb-4 flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center">
       <span className="text-sm font-medium text-foreground">Keeper Rules:</span>
 
       <label className="flex items-center gap-1 text-sm text-muted-foreground">

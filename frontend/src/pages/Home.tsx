@@ -192,7 +192,7 @@ export default function Home({ user }: { user: User | null }) {
           </RouterLink>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <div className="mt-3 flex items-center gap-1.5 overflow-x-auto whitespace-nowrap">
           {SIGNAL_FILTERS.map(f => (
             <FilterChip
               key={f.value}
