@@ -145,9 +145,14 @@ export default function Home({ user }: { user: User | null }) {
       {/* Your leagues */}
       {user && (
         <section>
-          <h2 className="font-display text-xl font-bold tracking-tight text-foreground">
-            Your leagues
-          </h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-xl font-bold tracking-tight text-foreground">
+              Your leagues
+            </h2>
+            <Button asChild variant="text" size="bare">
+              <RouterLink to="/leagues/new">+ New league</RouterLink>
+            </Button>
+          </div>
           {(leaguesError || syncMutation.error) && (
             <p className="mt-3 text-sm text-destructive">
               {(leaguesError as Error)?.message ?? (syncMutation.error as Error)?.message}

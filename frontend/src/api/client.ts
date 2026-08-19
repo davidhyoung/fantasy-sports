@@ -15,7 +15,39 @@ export interface League {
   season: string
   yahoo_key?: string
   logo_url?: string
+  // "yahoo" (synced from a live Yahoo league) or "native" (no external league
+  // at all — created and owned entirely in this app).
+  source: 'yahoo' | 'native'
+  format: 'redraft' | 'keeper' | 'dynasty'
   created_at: string
+}
+
+export interface LeagueSettings {
+  league_id: number
+  num_teams: number
+  budget: number
+  slots: Record<string, number>
+  scoring: Record<string, number>
+  taxi_slots: number
+  ir_slots: number
+}
+
+export interface CreateLeagueRequest {
+  name: string
+  sport: string
+  season: string
+  format: 'redraft' | 'keeper' | 'dynasty'
+  settings: {
+    budget: number
+    slots: Record<string, number>
+    scoring: Record<string, number>
+  }
+  teams: { name: string }[]
+}
+
+export interface CreateLeagueResponse extends League {
+  settings: LeagueSettings
+  teams: Team[]
 }
 
 export interface Team {
@@ -61,7 +93,13 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   })
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  if (!res.ok) {
+    // Every handler error is {"error": "message"} — surface it when present,
+    // since messages like "settings.num_teams must match the number of teams"
+    // are the whole point of a 400 here, not just a status code.
+    const body = await res.json().catch(() => null)
+    throw new Error(body?.error || `${res.status} ${res.statusText}`)
+  }
   return res.json()
 }
 
@@ -82,8 +120,10 @@ export const sync = () => request<League[]>('/sync', { method: 'POST' })
 
 export const listLeagues = () => request<League[]>('/leagues')
 export const getLeague = (id: number) => request<League>(`/leagues/${id}`)
-export const createLeague = (data: Omit<League, 'id' | 'created_at'>) =>
-  request<League>('/leagues', { method: 'POST', body: JSON.stringify(data) })
+// Creates a native league — no Yahoo league behind it. There is no way to
+// create a Yahoo-backed league through this API; those arrive via POST /api/sync.
+export const createLeague = (data: CreateLeagueRequest) =>
+  request<CreateLeagueResponse>('/leagues', { method: 'POST', body: JSON.stringify(data) })
 
 // --- Teams ---
 

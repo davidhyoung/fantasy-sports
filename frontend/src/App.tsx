@@ -5,6 +5,7 @@ import { Sun, Moon, Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTheme } from '@/components/ui/provider'
 import Home from './pages/Home'
+import CreateLeague from './pages/CreateLeague'
 import LeagueDetail from './pages/league-detail'
 import MyTeamRedirect from './pages/league-detail/MyTeamRedirect'
 import TeamDetail from './pages/team-detail'
@@ -174,6 +175,7 @@ export default function App() {
           <Route path="/" element={<Home user={user ?? null} />} />
           {/* The leagues list lives on the home screen now. */}
           <Route path="/leagues" element={<Navigate to="/" replace />} />
+          <Route path="/leagues/new" element={<CreateLeague />} />
           <Route path="/leagues/:id" element={<LeagueDetail />} />
           {/* Stable deep link to your own team in a league → /teams/:teamId */}
           <Route path="/leagues/:id/my-team" element={<MyTeamRedirect />} />

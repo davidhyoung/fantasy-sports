@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useParams, Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Badge } from '@/components/ui/badge'
 import { useLeagueCore } from './hooks/useLeagueCore'
 import { MyTeamTab } from './MyTeamTab'
 import { StandingsTab } from './StandingsTab'
@@ -37,11 +38,18 @@ export default function LeagueDetail() {
   const { league, teams, yahooKeyToId, error } = useLeagueCore(leagueId)
 
   const myTeam = teams.find((t) => t.user_id)
+  // Native leagues have no weekly scoring at all yet — no schedule, no live
+  // stats — so Standings/Scoreboard don't exist for them.
+  const isNative = league?.source === 'native'
 
   // The My Team tab only exists once we know you own a team here. Wait for teams
   // to load before falling back, so a `?tab=my-team` deep link isn't bounced.
   const visibleTab =
-    activeTab === 'my-team' && teams.length > 0 && !myTeam ? 'standings' : activeTab
+    activeTab === 'my-team' && teams.length > 0 && !myTeam
+      ? 'standings'
+      : isNative && (activeTab === 'standings' || activeTab === 'scoreboard')
+      ? 'draft'
+      : activeTab
 
   if (error) return <p className="text-destructive">{(error as Error).message}</p>
   if (!league) return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -59,9 +67,13 @@ export default function LeagueDetail() {
             <img src={league.logo_url} alt={league.name} className="h-14 w-14 rounded object-contain shrink-0" />
           )}
           <div>
-            <h1 className="text-2xl font-bold text-foreground">{league.name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-foreground">{league.name}</h1>
+              {isNative && <Badge variant="purple">{league.format}</Badge>}
+            </div>
             <p className="text-sm text-muted-foreground mt-1">
               {SPORT_LABEL[league.sport] ?? league.sport} · {league.season}
+              {isNative && ' · Native'}
             </p>
           </div>
         </div>
@@ -70,8 +82,9 @@ export default function LeagueDetail() {
       <Tabs value={visibleTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6">
           {myTeam && <TabsTrigger value="my-team">My Team</TabsTrigger>}
-          <TabsTrigger value="standings">Standings</TabsTrigger>
-          <TabsTrigger value="scoreboard">Scoreboard</TabsTrigger>
+          {/* Native leagues have no schedule or live stats yet. */}
+          {!isNative && <TabsTrigger value="standings">Standings</TabsTrigger>}
+          {!isNative && <TabsTrigger value="scoreboard">Scoreboard</TabsTrigger>}
           <TabsTrigger value="players">Players</TabsTrigger>
           {/* Draft covers draft values (NFL) + keepers. */}
           <TabsTrigger value="draft">Draft</TabsTrigger>
@@ -83,13 +96,17 @@ export default function LeagueDetail() {
           </TabsContent>
         )}
 
-        <TabsContent value="standings">
-          <StandingsTab leagueId={leagueId} active={visibleTab === 'standings'} yahooKeyToId={yahooKeyToId} />
-        </TabsContent>
+        {!isNative && (
+          <TabsContent value="standings">
+            <StandingsTab leagueId={leagueId} active={visibleTab === 'standings'} yahooKeyToId={yahooKeyToId} />
+          </TabsContent>
+        )}
 
-        <TabsContent value="scoreboard">
-          <ScoreboardTab leagueId={leagueId} active={visibleTab === 'scoreboard'} yahooKeyToId={yahooKeyToId} />
-        </TabsContent>
+        {!isNative && (
+          <TabsContent value="scoreboard">
+            <ScoreboardTab leagueId={leagueId} active={visibleTab === 'scoreboard'} yahooKeyToId={yahooKeyToId} />
+          </TabsContent>
+        )}
 
         <TabsContent value="players">
           <PlayersTab leagueId={leagueId} active={visibleTab === 'players'} sport={league.sport} />
