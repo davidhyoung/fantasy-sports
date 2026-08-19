@@ -174,6 +174,12 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
   // Which half of the drop-target row the pointer is over, so the insertion
   // line can be drawn on the correct edge before the drop actually happens.
   const [dragOverPlace, setDragOverPlace] = useState<'before' | 'after' | null>(null)
+  // A tier divider is its own drop target, separate from the row below it:
+  // its top half joins the tier above the boundary, its bottom half joins the
+  // tier below — the divider IS the boundary, so which half you're on is the
+  // whole answer to "which tier."
+  const [dragOverDividerId, setDragOverDividerId] = useState<string | null>(null)
+  const [dragOverDividerHalf, setDragOverDividerHalf] = useState<'top' | 'bottom' | null>(null)
 
   const sorted = useMemo(() => {
     if (prep && sortCol === 'board') return boardOrder(players, prep.entry)
@@ -243,16 +249,19 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
   // first. Any other sort scrambles tiers relative to position, so a "tier
   // changed" line there would be noise, not signal.
   const showTierLines = sortDir === 'asc' && (sortCol === 'board' || sortCol === 'rank')
+  // Keyed by the row the divider sits above; the value is the tier that ended
+  // there, so the divider's top half can offer it as a drop target without
+  // recomputing anything at drop time.
   const tierBoundaries = useMemo(() => {
-    if (!showTierLines) return new Set<string>()
+    if (!showTierLines) return new Map<string, number>()
     const lastByPos = new Map<string, number>()
-    const boundaries = new Set<string>()
+    const boundaries = new Map<string, number>()
     for (const p of sorted) {
       const pos = primaryPos(p)
       const tier = effectiveTier(p, prep?.entry)
       if (tier > 0) {
         const last = lastByPos.get(pos)
-        if (last != null && last !== tier) boundaries.add(p.gsis_id)
+        if (last != null && last !== tier) boundaries.set(p.gsis_id, last)
         lastByPos.set(pos, tier)
       }
     }
@@ -347,12 +356,64 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
             return (
               <Fragment key={p.gsis_id}>
                 {tierBoundaries.has(p.gsis_id) && (
-                  <TableRow className="border-t-2 border-border bg-muted/30 hover:bg-muted/30">
+                  <TableRow
+                    className={[
+                      'bg-muted/30 hover:bg-muted/30',
+                      canMove && dragOverDividerId === p.gsis_id && dragOverDividerHalf === 'top'
+                        ? 'border-t-2 border-t-primary'
+                        : canMove && dragOverDividerId === p.gsis_id && dragOverDividerHalf === 'bottom'
+                          ? 'border-t-2 border-t-border border-b-2 border-b-primary'
+                          : 'border-t-2 border-t-border',
+                    ].join(' ')}
+                    onDragOver={
+                      canMove
+                        ? (e) => {
+                            e.preventDefault()
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            const half = e.clientY - rect.top < rect.height / 2 ? 'top' : 'bottom'
+                            if (dragOverDividerId !== p.gsis_id) setDragOverDividerId(p.gsis_id)
+                            setDragOverDividerHalf((cur) => (cur === half ? cur : half))
+                            // The row below is a separate, overlapping drop target —
+                            // don't let both light up at once.
+                            if (dragOverId) setDragOverId(null)
+                          }
+                        : undefined
+                    }
+                    onDragLeave={
+                      canMove
+                        ? () => setDragOverDividerId((cur) => (cur === p.gsis_id ? null : cur))
+                        : undefined
+                    }
+                    onDrop={
+                      canMove
+                        ? (e) => {
+                            e.preventDefault()
+                            const half = dragOverDividerHalf ?? 'bottom'
+                            setDragOverDividerId(null)
+                            setDragOverDividerHalf(null)
+                            if (!dragId || dragId === p.gsis_id) { setDragId(null); return }
+                            // The divider IS the boundary: its top half is the tier
+                            // that just ended, its bottom half is the tier this row
+                            // starts.
+                            const aboveTier = tierBoundaries.get(p.gsis_id)!
+                            const belowTier = effectiveTier(p, prep!.entry)
+                            const targetTier = half === 'top' ? aboveTier : belowTier
+                            const dragged = sorted.find((x) => x.gsis_id === dragId)
+                            if (dragged) {
+                              const next = targetTier === dragged.tier ? null : targetTier
+                              if (next !== (prep!.entry(dragId).custom_tier ?? null)) prep!.setCustomTier(dragId, next)
+                            }
+                            prep!.onMove(dragId, p.gsis_id, 'before')
+                            setDragId(null)
+                          }
+                        : undefined
+                    }
+                  >
                     <TableCell
                       colSpan={100}
                       className="py-1 font-display text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
                     >
-                      {primaryPos(p)} tier {effectiveTier(p, prep?.entry)}
+                      Tier {effectiveTier(p, prep?.entry)}
                     </TableCell>
                   </TableRow>
                 )}
@@ -377,6 +438,9 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                         const place = e.clientY - rect.top < rect.height / 2 ? 'before' : 'after'
                         if (dragOverId !== p.gsis_id) setDragOverId(p.gsis_id)
                         setDragOverPlace((cur) => (cur === place ? cur : place))
+                        // The divider above this row is a separate, overlapping
+                        // drop target — don't let both light up at once.
+                        if (dragOverDividerId) setDragOverDividerId(null)
                       }
                     : undefined
                 }
@@ -440,7 +504,13 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                         <span
                           draggable
                           onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragId(p.gsis_id) }}
-                          onDragEnd={() => { setDragId(null); setDragOverId(null); setDragOverPlace(null) }}
+                          onDragEnd={() => {
+                            setDragId(null)
+                            setDragOverId(null)
+                            setDragOverPlace(null)
+                            setDragOverDividerId(null)
+                            setDragOverDividerHalf(null)
+                          }}
                           aria-label={`Drag to reorder ${p.name}`}
                           title="Drag to reorder"
                           className="cursor-grab text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
