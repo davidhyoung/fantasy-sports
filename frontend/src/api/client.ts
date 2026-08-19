@@ -612,6 +612,8 @@ export interface DraftPrepEntry {
   gsis_id: string
   interest: InterestLevel | null
   custom_rank: number | null
+  /** Overrides the algorithm's tier for this player. null = use the computed tier. */
+  custom_tier: number | null
   note: string
   /** What you plan to pay. null = not in the team plan ($0 is a real bid). */
   planned_cost: number | null
@@ -629,7 +631,7 @@ export const setDraftPrepPlayer = (
   leagueId: number,
   season: number,
   gsisId: string,
-  body: { interest: InterestLevel | null; custom_rank: number | null; note: string; planned_cost: number | null },
+  body: { interest: InterestLevel | null; custom_rank: number | null; custom_tier: number | null; note: string; planned_cost: number | null },
 ) =>
   request<DraftPrepEntry>(`/leagues/${leagueId}/draft-prep/${gsisId}?season=${season}`, {
     method: 'PUT',

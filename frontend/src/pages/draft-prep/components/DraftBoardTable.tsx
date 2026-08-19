@@ -23,6 +23,8 @@ export interface PrepControls {
   /** Sets the price you plan to pay; null takes the player out of the plan. */
   setPlannedCost: (gsisId: string, cost: number | null) => void
   setNote: (gsisId: string, note: string) => void
+  /** Overrides the algorithm's tier for this player; null reverts to it. */
+  setCustomTier: (gsisId: string, tier: number | null) => void
   /**
    * Moves a player next to the row above/below it. The neighbour is passed
    * explicitly rather than a direction alone: with a position filter on, the
@@ -47,23 +49,81 @@ function edgeOf(p: DraftPlayer): number | null {
 }
 
 /**
- * Tier within position. Weight steps down as the tier does, so the top of a
- * position reads as heavier than its replacement-level tail without needing a
- * different colour per tier — there are more tiers than the palette has meanings.
+ * Weight steps down as the tier does, so the top of a position reads as
+ * heavier than its replacement-level tail without needing a different colour
+ * per tier — there are more tiers than the palette has meanings. Shared by
+ * the read-only badge and the editable field so an override doesn't suddenly
+ * look different from an algorithm-assigned tier of the same number.
  */
+function tierWeightClass(tier: number): string {
+  if (tier <= 0) return 'text-muted-foreground/40'
+  if (tier <= 2) return 'bg-primary/20 text-primary font-semibold'
+  if (tier <= 4) return 'bg-muted text-foreground'
+  return 'bg-muted/60 text-muted-foreground'
+}
+
+/** Tier within position, read-only. */
 function TierBadge({ tier, position }: { tier: number; position: string }) {
   if (!tier) return <span className="text-muted-foreground/40">—</span>
-  const weight =
-    tier <= 2 ? 'bg-primary/20 text-primary font-semibold'
-    : tier <= 4 ? 'bg-muted text-foreground'
-    : 'bg-muted/60 text-muted-foreground'
   return (
     <span
       title={`${position.split(',')[0]} tier ${tier} — players in a tier are close enough in value to be interchangeable`}
-      className={`inline-block rounded px-1.5 py-0.5 font-mono text-[11px] tabular-nums ${weight}`}
+      className={`inline-block rounded px-1.5 py-0.5 font-mono text-[11px] tabular-nums ${tierWeightClass(tier)}`}
     >
       {tier}
     </span>
+  )
+}
+
+/**
+ * Editable tier badge. Typing a number different from the algorithm's own
+ * stores it as your override; typing the algorithm's number back clears it —
+ * a value that matches the algorithm again carries no information of its
+ * own, same convention the rest of the board uses for "no opinion."
+ */
+function TierField({
+  tier, position, customTier, onCommit,
+}: {
+  tier: number
+  position: string
+  customTier: number | null
+  onCommit: (next: number | null) => void
+}) {
+  const effective = customTier ?? tier
+  const [draft, setDraft] = useState(effective ? String(effective) : '')
+  // Adopt server/optimistic changes that didn't come from this field.
+  const [seen, setSeen] = useState(effective)
+  if (seen !== effective) {
+    setSeen(effective)
+    setDraft(effective ? String(effective) : '')
+  }
+
+  const commit = () => {
+    const n = parseInt(draft, 10)
+    if (!Number.isFinite(n) || n < 1 || n > 20) {
+      setDraft(effective ? String(effective) : '')
+      return
+    }
+    onCommit(n === tier ? null : n)
+  }
+
+  return (
+    <input
+      value={draft}
+      onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, '').slice(0, 2))}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') setDraft(effective ? String(effective) : '')
+      }}
+      placeholder="—"
+      title={
+        customTier != null
+          ? `Your tier override — the algorithm has him at ${position.split(',')[0]} tier ${tier || '—'}. Match that number to remove your override.`
+          : `${position.split(',')[0]} tier ${tier || '—'} — type a number to set your own`
+      }
+      className={`w-7 rounded px-1 py-0.5 text-center font-mono text-[11px] tabular-nums bg-transparent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary placeholder:text-muted-foreground/40 ${tierWeightClass(effective)}`}
+    />
   )
 }
 
@@ -117,7 +177,10 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
         // Tiers are per position, so this deliberately interleaves them: sorting
         // by tier answers "who is at the top of their own position?". Filter by
         // position to read one position's tiers in isolation.
-        case 'tier':      aVal = a.tier || 99; bVal = b.tier || 99; break
+        case 'tier':
+          aVal = (prep?.entry(a.gsis_id).custom_tier ?? a.tier) || 99
+          bVal = (prep?.entry(b.gsis_id).custom_tier ?? b.tier) || 99
+          break
         case 'age':       aVal = a.age || 0; bVal = b.age || 0; break
         case 'pts':       aVal = a.proj_league_fpts; bVal = b.proj_league_fpts; break
         case 'ppg':       aVal = a.proj_league_ppg; bVal = b.proj_league_ppg; break
@@ -398,8 +461,17 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                   <TrendSparkline points={p.trajectory ?? []} />
                 </TableCell>
                 <TableCell className="text-center text-muted-foreground">{p.position_group}</TableCell>
-                <TableCell className="text-center">
-                  <TierBadge tier={p.tier} position={p.position_group} />
+                <TableCell className="text-center" onClick={(e) => prep && e.stopPropagation()}>
+                  {prep ? (
+                    <TierField
+                      tier={p.tier}
+                      position={p.position_group}
+                      customTier={mine?.custom_tier ?? null}
+                      onCommit={(next) => prep.setCustomTier(p.gsis_id, next)}
+                    />
+                  ) : (
+                    <TierBadge tier={p.tier} position={p.position_group} />
+                  )}
                 </TableCell>
                 <TableCell className="text-center text-muted-foreground font-mono tabular-nums">{p.age || '—'}</TableCell>
                 <TableCell className="text-right tabular-nums font-mono">

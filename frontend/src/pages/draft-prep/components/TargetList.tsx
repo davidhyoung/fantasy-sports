@@ -36,7 +36,9 @@ export function TargetList({ players, prep }: Props) {
       const pos = primaryPosition(p)
       if (!byPosition.has(pos)) byPosition.set(pos, new Map())
       const tiers = byPosition.get(pos)!
-      const tier = p.tier || 99
+      // A custom tier overrides the algorithm's grouping here too, so this
+      // panel and the board never disagree about which tier a player is in.
+      const tier = prep.entry(p.gsis_id).custom_tier ?? (p.tier || 99)
       if (!tiers.has(tier)) tiers.set(tier, [])
       tiers.get(tier)!.push(p)
     }

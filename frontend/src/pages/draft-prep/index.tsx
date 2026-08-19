@@ -251,6 +251,7 @@ export default function DraftPrep() {
               setInterest: prep.setInterest,
               setPlannedCost: prep.setPlannedCost,
               setNote: prep.setNote,
+              setCustomTier: prep.setCustomTier,
               onMove: handleMove,
             }}
           />

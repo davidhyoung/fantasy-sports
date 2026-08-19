@@ -17,6 +17,9 @@ type draftPrepEntry struct {
 	// Interest is +1 to target the player, -1 to avoid him. nil = no opinion.
 	Interest   *int   `json:"interest"`
 	CustomRank *int   `json:"custom_rank"` // nil = unranked
+	// CustomTier overrides the algorithm's tier grouping for this player. nil
+	// falls back to the computed tier the draft-values response sends.
+	CustomTier *int   `json:"custom_tier"`
 	Note       string `json:"note"`
 	// PlannedCost is what you intend to pay. nil = not in the team plan at all,
 	// which is why it is not defaulted to 0 — $0 is a meaningful bid.
@@ -67,7 +70,7 @@ func (h *Handler) GetDraftPrep(w http.ResponseWriter, r *http.Request) {
 	season := h.prepSeason(r)
 
 	rows, err := h.db.Query(r.Context(), `
-		SELECT gsis_id, interest, custom_rank, note, planned_cost
+		SELECT gsis_id, interest, custom_rank, custom_tier, note, planned_cost
 		FROM draft_prep_players
 		WHERE user_id = $1 AND league_id = $2 AND season = $3
 		ORDER BY custom_rank NULLS LAST, interest DESC NULLS LAST, gsis_id
@@ -81,7 +84,7 @@ func (h *Handler) GetDraftPrep(w http.ResponseWriter, r *http.Request) {
 	players := []draftPrepEntry{}
 	for rows.Next() {
 		var e draftPrepEntry
-		if err := rows.Scan(&e.GsisID, &e.Interest, &e.CustomRank, &e.Note, &e.PlannedCost); err != nil {
+		if err := rows.Scan(&e.GsisID, &e.Interest, &e.CustomRank, &e.CustomTier, &e.Note, &e.PlannedCost); err != nil {
 			respondError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -95,13 +98,14 @@ func (h *Handler) GetDraftPrep(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, draftPrepResp{Season: season, Players: players})
 }
 
-// UpsertDraftPrepPlayer sets one player's interest level, board rank, note and
-// planned cost.
+// UpsertDraftPrepPlayer sets one player's interest level, board rank, tier
+// override, note and planned cost.
 //
 // PUT /api/leagues/{id}/draft-prep/{gsisId}?season=2026
 //
-// A player with no interest, rank, note or planned cost carries no information,
-// so that combination deletes the row instead of storing an empty one.
+// A player with no interest, rank, tier override, note or planned cost carries
+// no information, so that combination deletes the row instead of storing an
+// empty one.
 func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) {
 	user := requireUser(r)
 
@@ -120,6 +124,7 @@ func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) 
 	var body struct {
 		Interest    *int   `json:"interest"`
 		CustomRank  *int   `json:"custom_rank"`
+		CustomTier  *int   `json:"custom_tier"`
 		Note        string `json:"note"`
 		PlannedCost *int   `json:"planned_cost"`
 	}
@@ -139,11 +144,15 @@ func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusBadRequest, "custom_rank out of range")
 		return
 	}
+	if body.CustomTier != nil && (*body.CustomTier < 1 || *body.CustomTier > 20) {
+		respondError(w, http.StatusBadRequest, "custom_tier out of range")
+		return
+	}
 	if len(body.Note) > 500 {
 		body.Note = body.Note[:500]
 	}
 
-	if body.Interest == nil && body.CustomRank == nil && body.Note == "" && body.PlannedCost == nil {
+	if body.Interest == nil && body.CustomRank == nil && body.CustomTier == nil && body.Note == "" && body.PlannedCost == nil {
 		if _, err := h.db.Exec(r.Context(), `
 			DELETE FROM draft_prep_players
 			WHERE user_id = $1 AND league_id = $2 AND season = $3 AND gsis_id = $4
@@ -156,12 +165,12 @@ func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if _, err := h.db.Exec(r.Context(), `
-		INSERT INTO draft_prep_players (user_id, league_id, season, gsis_id, interest, custom_rank, note, planned_cost, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+		INSERT INTO draft_prep_players (user_id, league_id, season, gsis_id, interest, custom_rank, custom_tier, note, planned_cost, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
 		ON CONFLICT (user_id, league_id, season, gsis_id) DO UPDATE
-		SET interest = EXCLUDED.interest, custom_rank = EXCLUDED.custom_rank,
+		SET interest = EXCLUDED.interest, custom_rank = EXCLUDED.custom_rank, custom_tier = EXCLUDED.custom_tier,
 		    note = EXCLUDED.note, planned_cost = EXCLUDED.planned_cost, updated_at = NOW()
-	`, user.ID, leagueID, season, gsisID, body.Interest, body.CustomRank, body.Note, body.PlannedCost); err != nil {
+	`, user.ID, leagueID, season, gsisID, body.Interest, body.CustomRank, body.CustomTier, body.Note, body.PlannedCost); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -170,6 +179,7 @@ func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) 
 		GsisID:      gsisID,
 		Interest:    body.Interest,
 		CustomRank:  body.CustomRank,
+		CustomTier:  body.CustomTier,
 		Note:        body.Note,
 		PlannedCost: body.PlannedCost,
 	})
