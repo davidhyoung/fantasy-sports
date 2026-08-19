@@ -1,4 +1,4 @@
-package handlers
+package leaguesettings
 
 import (
 	"strconv"
@@ -6,10 +6,9 @@ import (
 
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/ranking"
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/scoring"
-	"github.com/davidyoung/fantasy-sports/backend/internal/yahoo"
 )
 
-func TestYahooToSlot(t *testing.T) {
+func TestPositionToSlot(t *testing.T) {
 	tests := []struct {
 		pos       string
 		want      string
@@ -30,15 +29,15 @@ func TestYahooToSlot(t *testing.T) {
 		{"IL+", "", false},
 	}
 	for _, tt := range tests {
-		got, ok := yahooToSlot(tt.pos)
+		got, ok := PositionToSlot(tt.pos)
 		if ok != tt.startable || got != tt.want {
-			t.Errorf("yahooToSlot(%q) = (%q, %t), want (%q, %t)", tt.pos, got, ok, tt.want, tt.startable)
+			t.Errorf("PositionToSlot(%q) = (%q, %t), want (%q, %t)", tt.pos, got, ok, tt.want, tt.startable)
 		}
 	}
 }
 
-func TestSlotsFromYahoo(t *testing.T) {
-	slots := slotsFromYahoo([]yahoo.RosterPosition{
+func TestSlotsFromPositions(t *testing.T) {
+	slots := SlotsFromPositions([]ranking.RosterPosition{
 		{Position: "QB", Count: 1},
 		{Position: "RB", Count: 2},
 		{Position: "WR", Count: 3},
@@ -64,7 +63,7 @@ func TestSlotsFromYahoo(t *testing.T) {
 // demand, since that's what replacement levels — and so every auction value —
 // are computed from.
 func TestSlotOverrideRoundTrip(t *testing.T) {
-	yahooRoster := []yahoo.RosterPosition{
+	roster := []ranking.RosterPosition{
 		{Position: "QB", Count: 1},
 		{Position: "RB", Count: 2},
 		{Position: "WR", Count: 3},
@@ -76,14 +75,10 @@ func TestSlotOverrideRoundTrip(t *testing.T) {
 		{Position: "BN", Count: 7},
 	}
 
-	direct := make([]ranking.RosterPosition, len(yahooRoster))
-	for i, rp := range yahooRoster {
-		direct[i] = ranking.RosterPosition{Position: rp.Position, Count: rp.Count}
-	}
-	want := ranking.ComputeStarterSlots(direct)
+	want := ranking.ComputeStarterSlots(roster)
 
 	// Report the roster as the API would, feed it back as an override, rescore.
-	reported := slotsFromYahoo(yahooRoster)
+	reported := SlotsFromPositions(roster)
 	var encoded string
 	for name, count := range reported {
 		if encoded != "" {
@@ -91,9 +86,9 @@ func TestSlotOverrideRoundTrip(t *testing.T) {
 		}
 		encoded += name + ":" + strconv.Itoa(count)
 	}
-	_, positions, ok := parseSlotOverride(encoded)
+	_, positions, ok := ParseSlotOverride(encoded)
 	if !ok {
-		t.Fatalf("parseSlotOverride(%q) reported no startable slots", encoded)
+		t.Fatalf("ParseSlotOverride(%q) reported no startable slots", encoded)
 	}
 	got := ranking.ComputeStarterSlots(positions)
 
@@ -110,7 +105,7 @@ func TestSlotOverrideRoundTrip(t *testing.T) {
 func TestParseSlotOverrideRejectsJunk(t *testing.T) {
 	// Unknown names, negatives, absurd counts and malformed pairs are dropped;
 	// what survives still parses.
-	slots, positions, ok := parseSlotOverride("QB:1,BOGUS:3,RB:-2,WR:999,TE:x,FLEX:1")
+	slots, positions, ok := ParseSlotOverride("QB:1,BOGUS:3,RB:-2,WR:999,TE:x,FLEX:1")
 	if !ok {
 		t.Fatal("expected the valid entries to survive")
 	}
@@ -129,10 +124,10 @@ func TestParseSlotOverrideRejectsJunk(t *testing.T) {
 
 	// A parse with nothing startable must report false, so the caller falls back to
 	// the league's roster rather than scoring against an empty lineup.
-	if _, _, ok := parseSlotOverride("BOGUS:3,QB:0"); ok {
+	if _, _, ok := ParseSlotOverride("BOGUS:3,QB:0"); ok {
 		t.Error("expected no startable slots to report false")
 	}
-	if _, _, ok := parseSlotOverride("garbage"); ok {
+	if _, _, ok := ParseSlotOverride("garbage"); ok {
 		t.Error("expected unparseable override to report false")
 	}
 }
@@ -140,7 +135,7 @@ func TestParseSlotOverrideRejectsJunk(t *testing.T) {
 func TestParseScoringOverride(t *testing.T) {
 	// Unknown keys, distance-bucketed FG stats (not in the editable set) and
 	// unparsable values are dropped; what survives still parses.
-	got, ok := parseScoringOverride("pass_yds:0.04,pass_td:4,bogus:99,fg_0_19:5,rec:x")
+	got, ok := ParseScoringOverride("pass_yds:0.04,pass_td:4,bogus:99,fg_0_19:5,rec:x")
 	if !ok {
 		t.Fatal("expected the valid entries to survive")
 	}
@@ -157,10 +152,10 @@ func TestParseScoringOverride(t *testing.T) {
 		}
 	}
 
-	if _, ok := parseScoringOverride("bogus:1,fg_0_19:3"); ok {
+	if _, ok := ParseScoringOverride("bogus:1,fg_0_19:3"); ok {
 		t.Error("expected no editable keys to report false")
 	}
-	if _, ok := parseScoringOverride("garbage"); ok {
+	if _, ok := ParseScoringOverride("garbage"); ok {
 		t.Error("expected unparseable override to report false")
 	}
 }

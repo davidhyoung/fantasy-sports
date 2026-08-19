@@ -1,160 +1,361 @@
-# Design Handoff — Fantasy Sports App
+# Design Handoff — Mobile Optimization
 
-This doc exists to give a design-focused session enough context to work on this
-app's UI without re-deriving it from the codebase. It describes **what exists
-today** — current IA, visual system, component vocabulary, and honest gaps —
-not a wishlist. Pair it with whatever specific ask prompted this handoff (a
-page redesign, a new feature's UI, a full visual refresh, etc.).
+This doc catalogs every screen and UI state in the app so a design-focused
+session (Claude Design) can produce mobile-optimized designs without having
+to re-derive the app's structure from the codebase. It describes **what
+exists today** on desktop, then enumerates **exactly what needs a mobile
+design** — not a wishlist, a checklist. The result gets handed back to an
+implementation session, so precision here saves a round trip later.
 
 ## What this product is
 
 A full-stack fantasy sports companion app (NFL primary, NBA supported) for
-people who play fantasy football/basketball in Yahoo leagues. Users log in
-with Yahoo OAuth, sync their leagues, and get two categories of value:
+people who play in Yahoo fantasy leagues. Users log in with Yahoo OAuth,
+sync their leagues, and get two categories of value:
 
-1. **Live league data**, pulled straight from Yahoo: rosters, scoreboards,
-   standings, matchups, keeper management, draft results.
+1. **Live league data** pulled from Yahoo: rosters, scoreboards, standings,
+   matchups, keeper management, draft results.
 2. **Original analysis Yahoo doesn't provide**: a comp-based NFL stat
-   projection engine (finds statistically similar historical players and
-   projects growth), real-life player grades (0–100 percentile scores
-   independent of fantasy value), VORP-based rankings and draft-value
-   calculators, and (newest) a diagnostic layer comparing our projections
-   against external consensus rankings.
+   projection engine, real-life player grades (0–100 percentile, independent
+   of fantasy scoring), VORP-based rankings and auction draft-value
+   calculators, a personal draft-prep board with drag-and-drop reordering,
+   and a diagnostic layer comparing our projections against external
+   consensus rankings.
 
-The analysis side is the more differentiated, "why would someone use this
-instead of just ESPN/Yahoo" part of the product, and it's also the more
-data-dense part of the UI — lots of numeric columns, comparison tables,
-percentile/z-score coloring, not much narrative UI at all.
+**Audience**: fantasy football players doing draft prep and in-season roster
+management. Assume moderate-to-high domain literacy (they know what VORP,
+WOPR, and target share mean) — this is a power-user tool, not a mass-market
+consumer app. Draft prep in particular happens in bursts of high engagement
+(the week or two before a live draft) where the user is frequently on their
+phone, sometimes literally *during* a live draft on another screen — mobile
+usability there is not a nice-to-have.
 
-**Audience**: fantasy football players doing draft prep and in-season
-roster management. Assume moderate-to-high domain literacy (they know what
-VORP, WOPR, and target share mean) — this is a power-user tool, not a
-mass-market consumer app. No mobile app; responsive-ish web only, primarily
-used on desktop during draft prep season.
+## Tech & platform constraints (design has to fit inside these)
 
-## Current tech stack (constraints for any design work)
+- React 18 + Vite 5 + TypeScript, React Router v6 — client-side routing, no
+  SSR, no native mobile app. **This is a responsive web app, not a
+  React-Native/Capacitor build** — "mobile" means "this same web app,
+  rendered well on a phone browser," not a separate app shell.
+- Tailwind CSS 3 (default breakpoints: `sm` 640px, `md` 768px, `lg` 1024px,
+  `xl` 1280px) + a minimal `shadcn/ui` (Radix-based) install.
+- TanStack Query v5 for all data fetching.
+- `lucide-react` icons — but see the design system note below: icons are
+  used sparingly and **never** in table headers.
+- Any design direction should assume it's implemented as Tailwind utility
+  classes against the existing token set, not a new design-token pipeline —
+  there's no Figma-to-code sync.
+- `<meta name="viewport" content="width=device-width, initial-scale=1.0">`
+  is already in place; no PWA manifest, no installability today.
 
-- React 18 + Vite 5 + TypeScript, React Router v6 (client-side routing, no SSR)
-- Tailwind CSS 3 + `shadcn/ui` (Radix-based) + `class-variance-authority`
-- TanStack Query v5 for all data fetching (30s stale time)
-- `lucide-react` for icons
-- Any design direction should assume it's implemented as Tailwind
-  utility classes + shadcn component variants, not a separate design-token
-  pipeline — there's no Figma-to-code sync or design-system package.
+## Current design system (as-built, source of truth)
 
-## Information architecture (all current routes)
+The visual system already went through one full migration pass (tokens,
+fonts, IA) and is considered done on desktop — a mobile pass should **extend
+it, not replace it**.
 
-```
-Public (no login required):
-  /                          Home — login CTA or "go to your leagues" for logged-in users
-  /leagues                   List of the user's synced Yahoo leagues
-  /leagues/:id               League detail — tabbed: Standings / Scoreboard / Players / Keepers / Rankings / Draft (NFL only)
-  /teams/:id                 Team roster detail
-  /leagues/:leagueId/matchup/:week/:t1/:t2   Head-to-head matchup detail
-  /rankings                  Standalone real-life player grades (0-100), no login, no Yahoo — Flex/Superflex filters
-  /projections               Comp-based projection rankings, no login — PPR/Half/Standard toggle
-  /players/:gsisId           Unified player detail — metadata, grade, year-over-year stats, projection + comps
-```
+- **Color**: warm near-black neutrals (dark is the designed theme; light is
+  a derived, contrast-audited inversion — not designer-specified as its own
+  thing). **One** coral-pink accent (`--primary`/`--positive`) for all
+  positive/primary meaning, a cool blue (`--secondary`/`--negative`) for
+  negative/secondary meaning, and a purple (`--highlight`) **reserved
+  strictly for projected/future data** — never used for actual results.
+  Every color is an HSL custom property consumed via `hsl(var(--x))`; raw
+  Tailwind palette classes (`text-red-600`) are not used anywhere.
+- **Type**: three families, one job each — `font-display` (Space Grotesk)
+  for headings/nav/buttons/table column labels, `font-sans` (Inter) for
+  body copy, `font-mono` (IBM Plex Mono) for **every single number** on the
+  site (a hard, consistently-applied rule — ~90 call sites).
+- **No gradients, no shadows, no CSS transitions, no animations** (loading
+  spinners are the one exception). This is deliberate and should hold on
+  mobile too — don't introduce motion to "make it feel native."
+- **No icon set in table headers or sort indicators** — sort direction is a
+  typographic glyph (▲ ▼ — ↑ →), not a lucide icon. Icons appear elsewhere
+  (nav hamburger, theme toggle, thumbs up/down) but tables stay
+  icon-free/glyph-only.
+- `--radius: 0.5rem` — moderate rounding, pill shape (`rounded-pill`) for
+  nav/segmented controls/badges only.
+- **No brand identity beyond a 4-square flat mark** (`BrandMark` in
+  `App.tsx`) + a text wordmark. No illustration, no photography except
+  player headshots.
 
-Nav bar (top, sticky): logo-less text wordmark "Fantasy Sports" + 3 links
-(Leagues / Rankings / Projections) + theme toggle + login state, all in one
-horizontal row. That's the entire global navigation — no sidebar, no
-breadcrumbs, no search.
+## Current mobile/responsive state — the honest baseline
 
-## Current visual system
+Almost none of this app has been designed for mobile; a handful of ad hoc
+Tailwind breakpoint tweaks exist, listed exhaustively below so nothing gets
+assumed that isn't there:
 
-**Color**: HSL CSS custom properties, full light/dark pairs, class-based dark
-mode (`.dark` on root, toggled by the sun/moon button in nav, persisted via
-`useTheme`). Palette:
+- **Top nav** (`App.tsx`) already collapses at `md`: below that, the pill
+  nav/theme toggle/login state disappear behind a hamburger button that
+  opens a stacked full-width panel. This is the **one genuinely
+  mobile-designed piece of UI in the app today** — worth looking at as the
+  existing pattern to extend, not replace.
+- `divergences/index.tsx`, `statistics/index.tsx`: page header row goes
+  `flex-col` → `sm:flex-row` (title/controls stack on narrow screens).
+- `player-detail/index.tsx`, `projection-detail/index.tsx`: a metadata grid
+  goes `grid-cols-4` → `sm:grid-cols-6`, and a two-column info block goes
+  `grid-cols-1` → `sm:grid-cols-2`.
+- `wiki/index.tsx`: the left section-nav sidebar is `hidden` below `lg` —
+  **currently just disappears with no mobile replacement** (no hamburger,
+  no in-page jump menu).
+- `league-detail/DraftTab.tsx`: header row and a settings summary chip stack
+  at `lg`.
+- `draft-prep/components/TeamPanel.tsx` + `draft-prep/index.tsx`: the one
+  component with real responsive *behavior* (not just reflow) — on `lg`+ it's
+  `fixed` to the right edge of the viewport as a docked panel with its own
+  scroll; below `lg` it drops into normal flow and stacks under the board as
+  a plain block. The page reserves margin for it (`lg:mr-[332px]` /
+  `lg:mr-14` when collapsed) only above that breakpoint.
+- **Everything else — every data table in the app — has zero mobile
+  treatment.** Tables sit inside a plain `overflow-x-auto` wrapper, so on a
+  phone they become a horizontally-scrolling strip with no column
+  prioritization, no reflow, no card fallback. This is not a small gap —
+  dense tables are the dominant UI pattern across essentially every screen.
 
-- **Primary**: teal (`hsl(170 90% 35%)` light / `hsl(170 90% 50%)` dark) — used for links, primary buttons, active nav state, focus rings.
-- **Secondary/Accent**: purple (`hsl(270 80% 58%)` light / `hsl(270 80% 65%)` dark) — used sparingly, mostly in the "highlight" semantic color and chart lines.
-- **Semantic stat colors** (this is the most distinctive part of the system): four named pairs — `positive` (teal-green), `highlight` (purple), `warning` (orange), `negative` (red-orange) — each with a `DEFAULT`/`foreground`/`light`/`border` set, used to color-code z-scores, grades, and confidence indicators throughout the data tables.
-- Neutral grays for background/card/border/muted, standard shadcn shape.
-- `--radius: 0.5rem` (moderate rounding, not pill-shaped, not sharp).
+## The central mobile design problem: dense tables
 
-**Typography**: Inter, system fallback stack. No display/serif pairing — one
-typeface throughout.
+The overwhelming majority of this app's screen space is **sortable data
+tables** — rosters, standings, rankings, projections, grades, draft boards,
+matchup comparisons. Real column counts, current desktop build:
 
-**No brand identity beyond color.** No logo/icon (just a text wordmark), no
-illustration, no photography except player headshots (from nflverse). This
-reads as a functional internal tool, not a consumer product — worth naming
-explicitly since it's probably one of the things a design pass would most
-want to address if "make it feel more like a product" is the goal.
+| Table | Columns | Where |
+|---|---|---|
+| Draft Prep board | 19 (with consensus columns on) | `/draft-prep` |
+| Statistics — Projections view | ~21 | `/statistics?view=projections` |
+| Statistics — Grades view | ~19 | `/statistics?view=grades` |
+| League Players tab | ~19 | `/leagues/:id?tab=players` |
+| Consensus Divergences | 15 | `/divergences` |
+| League Draft tab (read-only board) | same shape as Draft Prep, no prep controls | `/leagues/:id?tab=draft` |
+| Keeper draft results | 9 | `/leagues/:id?tab=draft&sub=keepers` |
+| Standings | 8 | `/leagues/:id?tab=standings` |
+| Team roster | 5–7 (Yahoo stat columns are dynamic, vary by league) | `/teams/:id` |
+| Matchup team roster / category totals | 4 each | `/leagues/:leagueId/matchup/...` |
 
-## Dominant UI pattern: dense data tables
+This is the single highest-leverage design problem to solve, and it needs
+**one systematic answer that every table screen reuses** — not 10 different
+one-off mobile layouts. Whatever pattern Claude Design proposes (an
+expandable-card-per-row layout, a fixed leading column + horizontal scroll
+for the rest, a column-priority system with a "more" expansion, a
+completely different information architecture for narrow screens, etc.) is
+expected to become the **one shared mobile table primitive**, analogous to
+how `table-helpers.tsx` (`SortableHead`, `PlayerCell`, `ClickableRow`,
+`HeaderRow`) is the one shared desktop table primitive today. Solve it once,
+well, generically — every table below should visibly use the same answer.
 
-The overwhelming majority of screen real estate across this app is **sortable
-data tables** — rosters, rankings, projections, standings, draft boards,
-grades. Shared table primitives already exist and are used consistently
-(`src/components/ui/table-helpers.tsx`):
+A secondary, related problem: **column priority varies by table and by
+role.** For example on the Draft Prep board, `Player`/`Auction $`/`Tier` are
+load-bearing during a live draft, while `Confidence`/`Profile`/`Trend` are
+research-phase, lower-priority-on-a-phone columns. Design should account for
+"what are the 3–4 columns a user actually needs at a glance on a phone" per
+table, not just uniformly truncate.
 
-- `SortableHead` — clickable column header with chevron sort indicator
-- `PlayerCell` — round headshot (28px, 32px for emphasis) + name + optional subtitle (team), name goes `hover:text-primary` when the row is a link
-- `ClickableRow` — whole-row navigation with keyboard support (Enter/Space), `hover:bg-muted/30`
-- `ZScoreCell` — right-aligned numeric cell with a small ▲▲/▲/▼/▼▼ glyph colored by the `highlight` semantic scale (`src/lib/utils.ts: zScoreIndicator/zScoreColor`) — this is the app's primary way of conveying "how good/bad is this number" at a glance across dozens of stat columns
-- `HeaderRow` — consistent card-colored header background with rounded top corners
+## Touch-interaction gaps to design around
 
-Grades get their own small color/label utility (`src/lib/grades.ts`):
-`gradeColorClass`, `trendIndicator`, `phaseLabel`, `phaseColor` — same idea
-(percentile → color) applied to the 0–100 grade scale instead of z-scores.
+The desktop build leans on a few interaction patterns that have **no touch
+equivalent today** — these need explicit mobile designs, not just smaller
+versions of the same control:
 
-**Any design work on this app has to reckon with this pattern seriously** —
-it's not a UI that can be redesigned into card grids or heavy visual
-storytelling without losing the actual value (scanning 15+ numeric columns
-across 50+ players quickly). The design opportunity here is more about
-information hierarchy, scannability, and making the color-coding system
-legible and consistent than about departing from tables as the core object.
+1. **Hover-only tooltips.** `HeaderTip` (in `table-helpers.tsx`) shows
+   column explanations on hover, used across nearly every table header.
+   Touch has no hover. Needs a tap-to-reveal pattern (or a persistent
+   glossary/legend surface) that works the same way everywhere it's used.
+2. **Drag-and-drop reordering.** The Draft Prep board supports dragging a
+   player to a new rank *and* dropping it on a tier-boundary divider to
+   re-tier it (top half of the divider = join the tier above, bottom half =
+   join the tier below). This is built on the native HTML5 Drag and Drop
+   API, which **does not fire on touch devices at all** — it's a
+   mouse-only browser API. On a phone today this feature is silently
+   inert. A ▲/▼ nudge-by-one-row fallback already exists in the same UI
+   (small up/down arrows next to the rank number) and works via plain
+   `onClick`, so it isn't *completely* broken — but the flagship drag
+   interaction (including the "drop on a tier boundary" tier-reassignment,
+   which has no non-drag equivalent at all right now) needs a touch-native
+   design: long-press-and-drag, a "move to position" input, an explicit
+   "set tier" action separate from reordering, etc.
+3. **Row hover states.** `ClickableRow` (whole-row navigation) and general
+   row highlighting rely on `hover:bg-muted/30`. On touch this just doesn't
+   fire before tap — not a blocker (tap still navigates), but any design
+   that leans on hover to reveal per-row actions (e.g. Draft Prep's Note
+   field, +/− interest thumbs, planned-cost `+` button, which currently sit
+   inline and only need `onClick`, not hover) should confirm those affordances
+   stay visibly tappable without a hover reveal step.
+4. **Inline-editable table cells.** Draft Prep's Tier column and Note column
+   are small always-visible `<input>` elements inside table cells (narrow —
+   the tier field is `w-7`, ~28px). That's a small tap target on mobile;
+   needs a mobile-appropriate control (larger tap target, possibly a
+   bottom-sheet/modal editor rather than an inline cell).
 
-## Component inventory (shadcn primitives currently installed)
+## Full screen inventory
 
-Only 7 files in `src/components/ui/`: `badge`, `button`, `input`, `provider`
-(theme context), `table-helpers`, `table`, `tabs`. This is a **minimal**
-shadcn install — no dialog/modal, no dropdown menu, no toast/sonner, no
-select, no card component, no tooltip. Badge variants: `default` (teal),
-`secondary` (purple), `destructive` (red), `outline`. Any new UI pattern
-(modals, toasts, comboboxes, popovers) needs its primitive added from
-scratch via the shadcn CLI — nothing to repurpose today.
+Every route in the app, grouped by nav section. Nav itself: **Leagues |
+Draft Prep | Statistics | Wiki**, plus the player-detail and matchup-detail
+drill-down pages that aren't in the nav directly.
 
-## Known gaps / where design attention would matter most
+### Leagues section
 
-Said plainly, based on what's actually in the code (not the user's stated
-priorities — confirm with them what this handoff is actually for):
+> **Out of scope for now:** the backend recently gained a "native league"
+> concept (leagues that live entirely in this app's own DB rather than
+> syncing from Yahoo — creation, settings, and team CRUD, all
+> commissioner-gated) — `POST /api/leagues`, `GetLeagueSettings`,
+> `UpdateLeagueSettings`, `CreateLeagueTeam`, etc. **There is no frontend for
+> any of it yet** — `createLeague` exists in `api/client.ts` but nothing
+> calls it. Don't design mobile mockups for league creation/settings/roster
+> management yet; there's no desktop version to extend, so there's nothing
+> to optimize. Flagging it here only so it isn't mistaken for a missed
+> screen — it'll need its own (desktop-first) design pass before a mobile
+> one makes sense.
 
-1. **No visual identity.** Text wordmark, no icon/logomark, no distinct
-   personality beyond the teal/purple palette. If the ask is "make this feel
-   like a real product," this is the highest-leverage gap.
-2. **Home page is a stub** (`Home.tsx` is ~30 lines, just a login CTA) — no
-   onboarding, no explanation of what the analysis features are, nothing
-   that would help a new user understand why the projections/grades/rankings
-   tools are valuable before they've synced a league.
-3. **Nav is minimal to the point of being easy to miss** — no active-state
-   affordance beyond a font-weight/color change, no grouping between
-   "your league data" (Leagues) and "our original analysis" (Rankings,
-   Projections), even though those are conceptually pretty different parts
-   of the product.
-4. **The z-score/grade color-coding system, while functional, has no legend
-   or onboarding anywhere** — a first-time user sees ▲▲ purple glyphs next to
-   numbers with no explanation of what they mean.
-5. **New this week, not yet in the UI at all**: the consensus-divergence
-   diagnostic layer (comparing our projections against external expert
-   rankings/ADP, surfacing situational news like injuries and camp battles)
-   exists as backend data only — `nfl_consensus_rankings`,
-   `nfl_player_situational_notes`, `nfl_projection_divergences` tables, no
-   frontend yet. If this handoff is meant to help design that surface, there
-   is no existing UI convention for "show a divergence between our number and
-   the outside world" or "show a news/context item inline with a stat row" —
-   that would be new design territory, not an extension of an existing pattern.
+- **`/` — Home.** Hero + CTA (logged out) or, logged in: your synced
+  leagues list + "Player Outlooks" signal cards (top consensus divergences,
+  with filter chips: All moves / We're higher / We're lower / Has news).
+  List-of-cards layout already, probably the least table-heavy screen —
+  still needs a mobile pass on card density and the filter-chip row.
+- **`/leagues/:id` — League detail.** Tabbed: **My Team** (only if the
+  signed-in user owns a team in this league) / Standings / Scoreboard /
+  Players / Draft. Tab bar itself is a segmented control — needs a mobile
+  treatment (horizontal scroll? dropdown? stacked?) once it doesn't fit one
+  row on a phone.
+  - **My Team / `/teams/:id` (same `TeamPanel` component, shared)**:
+    matchup summary card, roster table (5–7 dynamic Yahoo stat columns),
+    stat-period switcher (This week / Last week / Season / a specific date).
+  - **Standings**: 8-column ranked table.
+  - **Scoreboard**: week-by-week matchup cards, one per team pairing, with a
+    week selector.
+  - **Players**: ~19-column searchable/filterable roster+free-agent table.
+  - **Draft** (`DraftSection` wraps two sub-tabs, NFL-only shows both):
+    - **Draft Values**: read-only version of the Draft Prep board (same
+      table component, no editing controls) — position filter only.
+    - **Keepers**: keeper rules editor + team selector + draft-results table
+      (9 columns) + wishlist checkboxes. Commissioner view is a distinct,
+      richer variant (`CommissionerKeeperView.tsx`) — check both.
+- **`/leagues/:leagueId/matchup/:week/:t1/:t2` — Matchup detail.**
+  Head-to-head: category totals table (4 cols) + two team roster tables (4
+  cols each) side by side on desktop — this side-by-side layout is an
+  obvious stacking candidate on mobile.
 
-## Suggested angle for a design session
+### Draft Prep section
 
-Given the above, a design pass on this app is more likely to be well-spent on
-**information hierarchy and product identity** than on visual novelty — the
-underlying interaction model (dense sortable tables, drill into a player
-detail page) is probably right for the audience and shouldn't be discarded
-wholesale. The open question worth deciding explicitly with whoever's doing
-the design work: is this pass about (a) making the existing screens feel more
-like a considered product (branding, home page, nav hierarchy, legends for
-the color system), or (b) designing net-new UI for the consensus-divergence
-data that has no frontend yet, or (c) both. That scope decision changes the
-brief a lot and isn't something this doc can answer on its own.
+- **`/draft-prep`.** The single most feature-dense screen in the app:
+  - League picker, position filter chips (All/QB/RB/WR/TE/K), view filter
+    chips (All players/Targets/Avoids).
+  - Collapsible **Draft Settings panel** — a form: teams, budget, scoring
+    format (segmented control), roster slots (numeric steppers per slot
+    including QB/RB/WR/TE/FLEX/SFLEX/K/DEF), and a 9-row "pointing system"
+    editor (per-stat-category point values). This is the most complex form
+    in the app and has no mobile design today.
+  - **The 19-column board table** (see table above) — target/avoid thumbs,
+    planned-cost `+`/editable field, inline note field, drag handle + rank
+    nudge arrows, editable tier field, tier-divider rows (which are
+    themselves drop targets, see touch-interaction gaps above).
+  - **Team panel** (fixed-dock on desktop, see responsive state above) — two
+    modes (Team: assembled roster from planned prices; Targets: grouped by
+    position then tier), collapsible to a slim tab.
+- Also reachable from here: clicking any player row goes to `/players/:gsisId`.
+
+### Statistics section
+
+- **`/statistics?view=projections|grades`.** One page, a view toggle
+  (segmented control) between two ~20-column tables (comp-based projections
+  vs. real-life grades), a Year selector (Grades view only — projections are
+  pinned to next season), position filter.
+- **`/divergences`.** Full 15-column table: our projection rank vs.
+  consensus rank/ADP, by position, with inline situational notes
+  (injuries/camp battles/depth-chart news) and single-source-flag markers.
+  Linked from Home's Player Outlooks cards ("See all divergences →").
+- **`/players/:gsisId` — Player detail.** Metadata header (name, team, age,
+  physical stats — the `grid-cols-4`/`sm:grid-cols-6` grid mentioned above),
+  a Grade card (large percentile number + sub-scores + trend), a
+  year-over-year stats table, a projection block with a PPR/Half/Standard
+  toggle and a comps section (similar historical players + trajectory
+  chart), and situational notes if any exist for the player/team.
+
+### Wiki section
+
+- **`/wiki`.** Static, no data fetching — a long-form reference page
+  explaining the stat engine (grades, projections, VORP/rankings, auction
+  pricing, tiering, consensus divergence) in prose with a handful of small
+  worked-example tables (4–5 cols each) and diagrams. Two-column layout on
+  desktop: a `lg`-only left section-nav + main content. **The section-nav
+  currently just vanishes below `lg` with no replacement** — needs an
+  in-page nav pattern for mobile (jump links, a collapsible TOC, etc.), plus
+  a general reading-width pass since this is the one prose-heavy page in an
+  otherwise data-dense app.
+
+## Deliverables checklist
+
+Design the following as concrete mobile mockups/specs (phone width — treat
+`sm`/375–428px as primary target, note behavior at `md`/tablet where it
+meaningfully differs from both phone and current desktop). Ordered roughly
+by how central each is to the app's core loop:
+
+**P0 — core loop, needed first**
+1. The shared mobile table pattern (see "central mobile design problem"
+   above) — this one decision underpins everything else on this list.
+2. Draft Prep board (`/draft-prep`) including: tier dividers, inline note
+   editing, planned-cost editing, and a touch-native reorder/re-tier
+   interaction to replace drag-and-drop.
+3. Draft Settings panel (the form inside Draft Prep).
+4. Team panel (Draft Prep's docked panel, both Team and Targets modes) —
+   what replaces "fixed dock" on a phone.
+5. League Players tab + Statistics (Projections/Grades) — these three share
+   the same table-heavy shape and should visibly reuse the P0-1 pattern.
+
+**P1 — secondary flows**
+6. Home (leagues list + Player Outlooks cards).
+7. League detail tab bar (the mobile treatment for 5 tabs that don't fit
+   one row) + Standings + Scoreboard.
+8. My Team / Team detail (roster table + matchup card + period switcher).
+9. Matchup detail (category totals + two roster tables — a stacking
+   candidate).
+10. Player detail (metadata grid, grade card, YoY table, projection +
+    comps).
+11. Consensus Divergences table + situational notes.
+12. Keepers (rules editor, draft-results table, commissioner view).
+
+**P2 — lower traffic, still needs an answer**
+13. Wiki (mobile nav replacement for the vanishing sidebar + reading width).
+14. Top nav — confirm/extend the existing hamburger pattern rather than
+    redesign it; call out anything it's currently missing (e.g. no active
+    "you are here" affordance beyond a background fill that may be too
+    subtle at mobile touch-target sizes).
+
+## Constraints / guardrails for Claude Design
+
+- **Reuse the existing token system.** Every color must map to an existing
+  `--token` (or a clearly-flagged *new* token proposal, called out
+  explicitly, not silently introduced) — no new hex values, no raw Tailwind
+  palette classes.
+- **No new component library.** Mobile patterns should be expressed as new
+  variants/compositions of the existing primitives
+  (`table`, `table-helpers`, `badge`, `button`, `tabs`) or as clearly-scoped
+  new primitives in that same style — not an import of a mobile UI kit.
+- Keep the **no gradients / no shadows / no CSS transitions / no animations**
+  rule (loading spinners excepted). A mobile redesign is not license to add
+  motion polish this app has deliberately avoided everywhere else.
+- Keep **mono for every number**, **display font for headings/labels**,
+  **sans for body** — don't introduce a fourth typeface for mobile.
+- Keep the **typographic sort-glyph convention** in tables (▲ ▼ — ↑ →) — no
+  icon-based sort indicators, on any breakpoint.
+- Purple stays **reserved for projected/future data only** — don't reach for
+  it as a generic "third color" for mobile-only UI (e.g. a tab bar accent).
+- Respect the existing breakpoint vocabulary (Tailwind defaults — `sm` 640,
+  `md` 768, `lg` 1024, `xl` 1280) rather than inventing new device-based
+  breakpoints; call out explicitly which existing breakpoint each design
+  targets so implementation can match by number, not eyeball it.
+
+## What the handback should include (for the executing session)
+
+To turn designs back into code efficiently without another research round
+trip, please ensure the handback ties every mockup to:
+
+- The **exact route and component** it replaces or extends (use the names
+  in this doc — e.g. "this is `DraftBoardTable.tsx` at `sm`", not "the
+  draft board").
+- Which **existing columns/fields are kept, hidden-by-default, or moved into
+  an expansion** for any table redesign — implementation needs the mapping,
+  not just the visual result.
+- Explicit interaction specs for anything replacing a desktop-only pattern
+  (hover tooltips, drag-and-drop) — described precisely enough to build
+  without guessing (e.g. "tap the column label to open a bottom sheet with
+  the tooltip text" vs. "tap-and-hold").
+- Any newly-proposed token, spacing scale, or breakpoint, flagged as new
+  rather than left implicit.

@@ -22,11 +22,12 @@ frontend/  React 18 + Vite 5 + TypeScript + Tailwind CSS + shadcn/ui + TanStack 
   - `handlers.go` — Handler struct definition + constructor
   - `respond.go` — JSON response helpers
   - `auth.go` — Login, Callback, Me, Logout
-  - `leagues.go` — ListLeagues, CreateLeague, GetLeague
+  - `leagues.go` — ListLeagues, GetLeague, CreateLeague (creates a **native** league — settings + teams in one transaction; there is no unauthenticated or Yahoo-backed path through this endpoint, Yahoo leagues arrive only via `/api/sync`), `requireCommissioner()` (shared auth check for native-league mutations)
+  - `native_leagues.go` — GetLeagueSettings, UpdateLeagueSettings, CreateLeagueTeam, UpdateLeagueTeam, DeleteLeagueTeam: native-league-only CRUD, all commissioner-gated via `requireCommissioner()`
   - `teams.go` — ListLeagueTeams, GetTeam, GetTeamRoster (with stat period support); includes gsis_id batch lookup for player detail links
   - `players.go` — ListPlayers, CreatePlayer, GetPlayer
-  - `scoring.go` — GetLeagueScoreboard, GetLeagueStandings
-  - `yahoo_helpers.go` — `leagueYahooKey()`, `userTokens()`, `newYahooClient()` shared helpers used by multiple handlers
+  - `scoring.go` — GetLeagueScoreboard, GetLeagueStandings (Yahoo leagues only — native leagues have no weekly play yet, tabs hidden on the frontend)
+  - `yahoo_helpers.go` — `leagueYahooKey()`, `userTokens()`, `newYahooClient()` shared helpers; `leagueSettingsSource()` dispatches on `leagues.source` to resolve a `leaguesettings.Source` (native league_settings row vs. live Yahoo) — the seam that lets `draft_values.go` work identically for either
   - `sync.go` — Sync (Yahoo league+team upsert)
   - `league_players.go` — SearchLeaguePlayers, GetAvailablePlayers
   - `keepers.go` — GetKeeperRules, UpdateKeeperRules, GetLeagueDraftResults, GetLeagueKeepers, GetKeeperSummary, ListTeamKeeperWishlist, AddKeeperWishlist, RemoveKeeperWishlist, SubmitKeepers, UnsubmitKeepers
@@ -34,12 +35,12 @@ frontend/  React 18 + Vite 5 + TypeScript + Tailwind CSS + shadcn/ui + TanStack 
   - `projections.go` — ListProjections, GetProjectionDetail; serves pre-computed comp-based NFL player projections from nfl_projections table
   - `rankings_public.go` — ListPublicRankings: no-auth projection-based rankings with PPR/Half/Standard format toggle (GET /api/rankings)
   - `nfl_players.go` — GetNFLPlayer (full player detail: metadata + YoY stats + projection); GetNFLPlayerByYahooID (resolves Yahoo key → gsis_id and redirects)
-  - `draft_values.go` — GetDraftValues: league-specific auction values (VOR + $ value based on actual roster settings); uses `services/scoring` for canonical stat-ID translation and league-aware kicker scoring, and `services/tiers` to group interchangeable players within each position (`tier` on every player)
+  - `draft_values.go` — GetDraftValues: league-specific auction values (VOR + $ value based on actual roster settings); resolves roster positions + scoring via `services/leaguesettings` (Yahoo or native, transparently), uses `services/scoring` for canonical stat-ID translation and league-aware kicker scoring, and `services/tiers` to group interchangeable players within each position (`tier` on every player)
   - `grades.go` — ListGrades, GetPlayerGrades: real-life player grades (0-100 percentile) from nfl_player_grades table; supports comma-separated position filter (e.g. `?position=RB,WR,TE`)
   - `draft_prep.go` — GetDraftPrep, UpsertDraftPrepPlayer, ReorderDraftPrep: the personal draft board in `draft_prep_players`, scoped to (user, league, season) — interest level (signed −3..+3), custom rank, note, and planned cost
   - `draft_consensus.go` — `loadConsensusValues`: consensus auction value per player, on the league's dollar scale. Prefers imported `metric_type='auction'` rows (rescaled from a 12-team/$200 market pool); otherwise **derives** it by reading our own value curve at the market's median within-position rank — "what our board pays for the slot the market gives him". Same median/within-position conventions as `consensus.go`. See `docs/stats/auction-values.md`
   - `divergences.go` — ListDivergences: projection-vs-consensus rank gaps from `nfl_projection_divergences`, ordered by |delta|, each with situational notes. `loadNotesForPlayers` (shared with `nfl_players.go`) attaches both player-scoped notes and team-scoped ones matched via `nfl_players.team`
-- `internal/models/models.go` — shared domain types (User, League, Team, Player, RosterEntry)
+- `internal/models/models.go` — shared domain types (User, League, Team, Player, RosterEntry, LeagueSettings)
 - `internal/middleware/auth.go` — RequireAuth: reads session, attaches *models.User to ctx
 - `internal/yahoo/` — Yahoo Fantasy API client, OAuth config, XML types
   - `client.go` — all API methods + dbTokenSource (auto-refreshes + persists tokens)
@@ -48,6 +49,7 @@ frontend/  React 18 + Vite 5 + TypeScript + Tailwind CSS + shadcn/ui + TanStack 
 - `internal/services/scoring/` — canonical stat-ID vocabulary + Yahoo-stat-ID translation + projection→canonical-total helpers; the single place stat-ID knowledge lives
 - `internal/services/tiers/` — groups players whose value is close enough to be interchangeable. One rule: a tier's total spread stays inside a budget of `draftable range ÷ targetTiers` (default 8), so cliffs break tiers automatically and "everyone in a tier is within one budget of everyone else" is literally true. Tiering is **per position** — across positions raw points aren't comparable. See `docs/stats/tiering.md`
 - `internal/services/nflstats/` — season-level aggregation of `nfl_player_stats` keyed by gsis_id; replaces Yahoo as the NFL stats source for rankings
+- `internal/services/leaguesettings/` — the fantasy-context vocabulary (editable roster slot names, canonical per-stat point values) and a `Source` interface (`RosterPositions`, `ScoringMods`) that resolves it for one league, independent of where the league lives. `YahooSource` wraps the live Yahoo settings/scoring calls; `NativeSource` reads a native league's own `league_settings` row. `leagueSettingsSource()` (`handlers/yahoo_helpers.go`) dispatches between them by `leagues.source`, so `draft_values.go` and (eventually) `analysis.go` don't know or care which one they got. See `.claude/plans/native-leagues.md`
 - `internal/db/db.go` — pgxpool connect helper
 - `migrations/` — numbered SQL migration files
 
@@ -103,7 +105,7 @@ API:
 Public:
   GET  /auth/login, /auth/callback, /auth/logout
   GET  /api/health
-  GET/POST /api/leagues, GET /api/leagues/{id}
+  GET  /api/leagues, GET /api/leagues/{id}
   GET  /api/leagues/{id}/teams
   GET  /api/teams/{id}
   GET/POST /api/players, GET /api/players/{id}
@@ -119,6 +121,13 @@ Public:
 Protected (RequireAuth):
   GET  /api/auth/me
   POST /api/sync
+  POST /api/leagues                                      — creates a native league (settings + teams, one transaction);
+                                                             no unauthenticated or Yahoo-backed path through this endpoint
+  GET  /api/leagues/{id}/settings                         — native leagues only
+  PUT  /api/leagues/{id}/settings                         — commissioner only; replaces slots/scoring/budget/num_teams wholesale
+  POST /api/leagues/{id}/teams                            — commissioner only
+  PUT  /api/leagues/{id}/teams/{teamId}                   — commissioner only; renames a team
+  DELETE /api/leagues/{id}/teams/{teamId}                 — commissioner only
   GET  /api/leagues/{id}/scoreboard?week=N
   GET  /api/leagues/{id}/standings
   GET  /api/leagues/{id}/players?search=q
@@ -254,5 +263,6 @@ Optional (development only):
 - **My Team tab:** the league page's first tab (`?tab=my-team`), rendered only when the signed-in user owns a team in that league (`teams[].user_id`). It reuses `team-detail`'s `TeamPanel`, so the roster, matchup card and stat-period switcher are the same component as `/teams/:id` — that page is now just a header around the panel. A `?tab=my-team` URL falls back to Standings when the user owns no team here, but only *after* teams load, so deep links aren't bounced mid-fetch. `/leagues/{id}/my-team` is a stable alias that redirects to the tab.
 - **Player Grades:** Three-layer separation: (1) Player Grade — real-life quality (0-100 percentile), computed in `cmd/projections/grades.go`; (2) Stat Projections — comp-based; (3) Fantasy League Value — VORP/z-scores. Grades use position-specific sub-score weights (production, efficiency, usage, durability). Computed via `make project-nfl ARGS="-grades"`. `nfl_player_grades` table stores results. Grade z-score (`overall_grade_z`) is injected into season profiles and used as a similarity dimension for comp matching (weight 1.25). Grade YoY trend applies a bounded ±5% adjustment to projected stats. Frontend: GradeCard on player detail, Grade column on projections/draft/players tabs, Grades view on `/statistics`. Former Rankings tab absorbed into Players tab; former standalone `/rankings` page absorbed into `/statistics` (`?view=grades`).
 - **Yahoo decoupling:** Yahoo is the source of fantasy *context* (ownership, scoring categories, roster slots, FA status), not NFL *stats*. NFL season rankings pull raw stat values from `nfl_player_stats` via `services/nflstats.LoadSeasonStats` keyed on `gsis_id`, translating Yahoo stat IDs through `services/scoring.YahooToCanonical`. Yahoo-only fallbacks remain for: non-season stat types (lastweek, today), NBA leagues (no non-Yahoo stats feed yet), and live in-season keeper/roster views. See `.claude/plans/yahoo-decoupling.md`.
+- **Native leagues (started 2026-08-19):** a league with no Yahoo league behind it at all — `leagues.source = 'native'`, `leagues.format` selects the season-rollover strategy (`redraft`|`keeper`|`dynasty`, migration 000021). `POST /api/leagues` creates one: name/sport/season/format + `settings` (num_teams, budget, slots, scoring — the same vocabulary as the draft-values `?slots=&scoring=` overrides) + `teams`, all in one transaction, owned by the creator (`leagues.user_id`). Mutations (`PUT .../settings`, team CRUD) are gated by `requireCommissioner()` (`leagues.go`) — native leagues only, `leagues.user_id` must match the caller; Yahoo leagues are never editable through this API. `services/leaguesettings` is the seam: a `Source` interface (`RosterPositions`, `ScoringMods`) with two implementations — `YahooSource` (live Yahoo settings/scoring calls) and `NativeSource` (reads the league's own `league_settings` JSONB row) — resolved per-request by `leagueSettingsSource()` (`handlers/yahoo_helpers.go`), so `draft_values.go` (and every future consumer) works identically regardless of where the league lives. This is the vocabulary-extraction half of what `draft_values.go` used to own inline (`slotToYahoo`/`yahooToSlot`/`parseSlotOverride`/`parseScoringOverride` all moved into the service, exported). Draft Prep and draft-values work against a native league the moment it's created — both are already gsis-native and don't touch Yahoo. Not yet wired: `analysis.go` rankings, rosters/FA pool (`league_rosters`), draft picks/trades, season rollover, and any frontend UI — see `.claude/plans/native-leagues.md` for the phased plan and open decisions (no DST/K gsis_id, single-user auth for now).
 - **SQL approach:** handlers use raw pgx queries for all database access. This is the established pattern — do NOT introduce sqlc or an ORM. `sqlc.yaml` exists but is unused; raw queries are preferred for their directness and flexibility with pgx features (e.g. `ANY($1)` with slices). Keep queries in handler methods, not in a separate query layer.
 - **New resource checklist:** model → migration → handler → route → yahoo method (if needed) → TS interface → API function → query key → page → **update docs**

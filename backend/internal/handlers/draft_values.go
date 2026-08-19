@@ -9,15 +9,11 @@ import (
 	"strings"
 
 	"github.com/davidyoung/fantasy-sports/backend/internal/aging"
+	"github.com/davidyoung/fantasy-sports/backend/internal/services/leaguesettings"
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/ranking"
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/scoring"
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/tiers"
-	"github.com/davidyoung/fantasy-sports/backend/internal/yahoo"
 )
-
-// Yahoo reception stat ID — still referenced directly to detect PPR/Half/Standard
-// from the league scoring modifier. Other stat-ID mappings live in services/scoring.
-const yahooStatIDRec = "11"
 
 // ── response types ────────────────────────────────────────────────────────────
 
@@ -46,11 +42,11 @@ type draftPlayer struct {
 	Uniqueness     string  `json:"uniqueness"`
 	// League-scoring per-game figure, so PPG on the board matches Proj Pts
 	// instead of a fixed full-PPR number meant for cross-league comparison.
-	ProjLeaguePPG  float64 `json:"proj_league_ppg"`
-	VOR            float64 `json:"vor"`
-	AuctionValue   int     `json:"auction_value"`
-	OverallRank    int     `json:"overall_rank"`
-	PositionRank   int     `json:"position_rank"`
+	ProjLeaguePPG float64 `json:"proj_league_ppg"`
+	VOR           float64 `json:"vor"`
+	AuctionValue  int     `json:"auction_value"`
+	OverallRank   int     `json:"overall_rank"`
+	PositionRank  int     `json:"position_rank"`
 	// Tier groups players at the same position whose value is close enough that
 	// the choice between them is a coin flip. 1 = best tier.
 	Tier int `json:"tier"`
@@ -89,152 +85,6 @@ type draftValuesResp struct {
 	Players           []draftPlayer      `json:"players"`
 }
 
-// ── roster-slot vocabulary ────────────────────────────────────────────────────
-//
-// The client edits a flat set of slot names; Yahoo expresses flex spots as
-// slash-separated eligibility lists. These two helpers translate between them so
-// the flex distribution itself stays in ranking.ComputeStarterSlots.
-
-// slotToYahoo maps an editable slot name to the Yahoo roster position it stands for.
-var slotToYahoo = map[string]string{
-	"QB": "QB", "RB": "RB", "WR": "WR", "TE": "TE", "K": "K", "DEF": "DEF",
-	"FLEX":  "W/R/T",
-	"SFLEX": "Q/W/R/T",
-	// Bench starts nobody, so ComputeStarterSlots ignores it and it cannot affect
-	// replacement levels or prices. It is carried anyway because roster size is
-	// what tells the team builder how many $1 slots a budget still has to cover.
-	"BN": "BN",
-}
-
-// yahooToSlot maps a Yahoo roster position back to an editable slot name.
-// Bench and injury slots return false — they don't start anyone. Flex shapes we
-// don't model exactly (e.g. "W/R") fold into FLEX, which is what the UI offers.
-func yahooToSlot(pos string) (string, bool) {
-	switch pos {
-	case "BN":
-		return "BN", true
-	case "IR", "IL", "IL+", "NA":
-		return "", false
-	case "QB", "RB", "WR", "TE", "K":
-		return pos, true
-	case "DEF", "DST", "D":
-		return "DEF", true
-	}
-	eligible := ranking.ParseFlexEligible(pos)
-	if len(eligible) == 0 {
-		return "", false
-	}
-	for _, e := range eligible {
-		if e == "QB" {
-			return "SFLEX", true
-		}
-	}
-	return "FLEX", true
-}
-
-// slotsFromYahoo summarises a league's Yahoo roster in the editable vocabulary.
-func slotsFromYahoo(positions []yahoo.RosterPosition) map[string]int {
-	slots := map[string]int{}
-	for _, rp := range positions {
-		if name, ok := yahooToSlot(rp.Position); ok {
-			slots[name] += rp.Count
-		}
-	}
-	return slots
-}
-
-// parseSlotOverride reads a `slots=QB:1,RB:2,FLEX:1,SFLEX:1` override into both
-// the editable map and the Yahoo-shaped positions ComputeStarterSlots expects.
-func parseSlotOverride(raw string) (map[string]int, []ranking.RosterPosition, bool) {
-	slots := map[string]int{}
-	var positions []ranking.RosterPosition
-	for _, part := range strings.Split(raw, ",") {
-		name, countStr, ok := strings.Cut(strings.TrimSpace(part), ":")
-		if !ok {
-			continue
-		}
-		name = strings.ToUpper(strings.TrimSpace(name))
-		yahooPos, known := slotToYahoo[name]
-		if !known {
-			continue
-		}
-		count, err := strconv.Atoi(strings.TrimSpace(countStr))
-		if err != nil || count < 0 || count > 20 {
-			continue
-		}
-		slots[name] = count
-		if count > 0 {
-			positions = append(positions, ranking.RosterPosition{Position: yahooPos, Count: count})
-		}
-	}
-	// A parse that yielded no startable slot is treated as absent rather than as
-	// an empty roster, which would make every player worth his full point total.
-	// Bench alone doesn't count as startable, for the same reason.
-	startable := 0
-	for _, p := range positions {
-		if p.Position != "BN" {
-			startable++
-		}
-	}
-	return slots, positions, startable > 0
-}
-
-// ── pointing system (per-stat point values) ───────────────────────────────────
-//
-// The draft-values scoring override lets the settings panel edit exactly the
-// stat categories we have per-game rate columns for (scoring.ProjectionRates):
-// passing/rushing/receiving yards and TDs, receptions, FG made, PAT made.
-// Yahoo's own FG scoring is distance-bucketed; the override collapses that into
-// one flat "FG made" value rather than exposing five more fields.
-var scoringEditableStats = []scoring.CanonicalStat{
-	scoring.StatPassYds, scoring.StatPassTD,
-	scoring.StatRushYds, scoring.StatRushTD,
-	scoring.StatRec, scoring.StatRecYds, scoring.StatRecTD,
-	scoring.StatFGMade, scoring.StatPATMade,
-}
-
-var scoringEditableSet = func() map[scoring.CanonicalStat]bool {
-	m := make(map[scoring.CanonicalStat]bool, len(scoringEditableStats))
-	for _, s := range scoringEditableStats {
-		m[s] = true
-	}
-	return m
-}()
-
-// defaultScoringFallback seeds the pointing system when a league's own Yahoo
-// scoring couldn't be fetched — a standard full-PPR point set, matching the
-// "ppr" fallback used elsewhere in this handler.
-var defaultScoringFallback = map[scoring.CanonicalStat]float64{
-	scoring.StatPassYds: 0.04, scoring.StatPassTD: 4,
-	scoring.StatRushYds: 0.1, scoring.StatRushTD: 6,
-	scoring.StatRec: 1, scoring.StatRecYds: 0.1, scoring.StatRecTD: 6,
-	scoring.StatFGMade: 3, scoring.StatPATMade: 1,
-}
-
-// parseScoringOverride reads a `scoring=pass_yds:0.04,pass_td:4,...` override
-// into canonical-stat-keyed point values. Unknown keys and unparsable values
-// are dropped rather than rejecting the whole override, same convention as
-// parseSlotOverride.
-func parseScoringOverride(raw string) (map[scoring.CanonicalStat]float64, bool) {
-	out := map[scoring.CanonicalStat]float64{}
-	for _, part := range strings.Split(raw, ",") {
-		name, valStr, ok := strings.Cut(strings.TrimSpace(part), ":")
-		if !ok {
-			continue
-		}
-		key := scoring.CanonicalStat(strings.ToLower(strings.TrimSpace(name)))
-		if !scoringEditableSet[key] {
-			continue
-		}
-		val, err := strconv.ParseFloat(strings.TrimSpace(valStr), 64)
-		if err != nil {
-			continue
-		}
-		out[key] = val
-	}
-	return out, len(out) > 0
-}
-
 // GetDraftValues returns projected players with league-specific auction draft values.
 //
 // GET /api/leagues/{id}/draft-values?season=2026&budget=200
@@ -249,7 +99,7 @@ func parseScoringOverride(raw string) (map[scoring.CanonicalStat]float64, bool) 
 //	format  league|ppr|half|standard — league keeps the league's own scoring
 //	slots   roster override, e.g. QB:1,RB:2,WR:3,TE:1,FLEX:1,SFLEX:1,K:1,DEF:1
 //	scoring per-stat point values, e.g. pass_yds:0.04,pass_td:4,rec:1 — present
-//	        for any of the categories in scoringEditableStats; when given it
+//	        for any of the categories in leaguesettings.ScoringEditableStats; when given it
 //	        replaces format entirely and prices every position (not just
 //	        kickers) from these exact weights
 //
@@ -265,7 +115,7 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	yahooKey, status, msg := h.leagueYahooKey(r, leagueID)
+	src, defaultBudget, status, msg := h.leagueSettingsSource(r, user, leagueID)
 	if status != 0 {
 		respondError(w, status, msg)
 		return
@@ -281,6 +131,9 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	}
 
 	budget := h.config.DefaultBudget
+	if defaultBudget > 0 {
+		budget = defaultBudget
+	}
 	overridden := false
 	if b := q.Get("budget"); b != "" {
 		if v, err := strconv.Atoi(b); err == nil && v > 0 && v <= 100000 {
@@ -300,7 +153,7 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 
 	slotsOverride, rosterOverride, hasSlotsOverride := map[string]int{}, []ranking.RosterPosition(nil), false
 	if s := q.Get("slots"); s != "" {
-		slotsOverride, rosterOverride, hasSlotsOverride = parseSlotOverride(s)
+		slotsOverride, rosterOverride, hasSlotsOverride = leaguesettings.ParseSlotOverride(s)
 		if hasSlotsOverride {
 			overridden = true
 		}
@@ -308,7 +161,7 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 
 	scoringOverride, hasScoringOverride := map[scoring.CanonicalStat]float64{}, false
 	if s := q.Get("scoring"); s != "" {
-		scoringOverride, hasScoringOverride = parseScoringOverride(s)
+		scoringOverride, hasScoringOverride = leaguesettings.ParseScoringOverride(s)
 		if hasScoringOverride {
 			overridden = true
 		}
@@ -330,51 +183,22 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 2. Build Yahoo client and fetch roster positions + scoring stats concurrently.
-	//    Both calls hit the same /settings endpoint but are kept separate for clarity.
-	yc, err := h.newYahooClient(r, user)
-	if err != nil {
-		respondError(w, http.StatusUnauthorized, "auth error")
-		return
-	}
-
-	type rosterPosResult struct {
-		positions []yahoo.RosterPosition
-		err       error
-	}
-	type scoringResult struct {
-		stats map[string]yahoo.LeagueStat
-		err   error
-	}
-
-	rosterPosCh := make(chan rosterPosResult, 1)
-	scoringCh := make(chan scoringResult, 1)
-
-	go func() {
-		pos, err := yc.GetLeagueRosterPositions(r.Context(), yahooKey)
-		rosterPosCh <- rosterPosResult{pos, err}
-	}()
-	go func() {
-		stats, err := yc.GetLeagueScoringStats(r.Context(), yahooKey)
-		scoringCh <- scoringResult{stats, err}
-	}()
-
-	rpr := <-rosterPosCh
-	if rpr.err != nil {
-		// With an explicit roster override we don't need Yahoo's roster at all, so a
-		// failure there is only fatal when we'd otherwise have no starter slots.
-		log.Printf("[draft-values] GetLeagueRosterPositions %s: %v (slots override: %t)", yahooKey, rpr.err, hasSlotsOverride)
+	// 2. Resolve league settings (roster positions + scoring) via the
+	//    provider-agnostic leaguesettings.Source resolved above.
+	fetchedPositions, positionsErr, canonicalMods, hasLeagueScoring := leaguesettings.FetchSettings(r.Context(), src)
+	if positionsErr != nil {
+		// With an explicit roster override we don't need the league's roster at
+		// all, so a failure here is only fatal when we'd otherwise have no
+		// starter slots.
+		log.Printf("[draft-values] RosterPositions league=%d: %v (slots override: %t)", leagueID, positionsErr, hasSlotsOverride)
 		if !hasSlotsOverride {
 			respondError(w, http.StatusBadGateway, "failed to fetch league roster settings")
 			return
 		}
 	}
-
-	sr := <-scoringCh
-	if sr.err != nil {
-		log.Printf("[draft-values] GetLeagueScoringStats %s: %v (falling back to PPR)", yahooKey, sr.err)
+	if !hasLeagueScoring {
+		log.Printf("[draft-values] ScoringMods league=%d: no league scoring found (falling back to PPR)", leagueID)
 	}
-	scoringStats := sr.stats
 
 	// 3. Resolve roster positions using ranking service. An override replaces
 	//    the league's roster wholesale; the flex/superflex pooling itself stays
@@ -383,11 +207,8 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	rankingPositions := rosterOverride
 	effectiveSlots := slotsOverride
 	if !hasSlotsOverride {
-		rankingPositions = make([]ranking.RosterPosition, len(rpr.positions))
-		for i, rp := range rpr.positions {
-			rankingPositions[i] = ranking.RosterPosition{Position: rp.Position, Count: rp.Count}
-		}
-		effectiveSlots = slotsFromYahoo(rpr.positions)
+		rankingPositions = fetchedPositions
+		effectiveSlots = leaguesettings.SlotsFromPositions(fetchedPositions)
 	}
 
 	// 4. Load projections from DB (per-game rates + season totals for fallback display)
@@ -427,7 +248,7 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	// rate columns can be inconsistent with them, so we use the generic total that
 	// most closely matches the league's actual scoring as the base for skill players.
 	// Kickers have no generic projection, so we compute theirs from per-stat rates.
-	recMod := scoringStats[yahooStatIDRec].Modifier // 1.0=PPR, 0.5=half, 0=standard
+	recMod := canonicalMods[scoring.StatRec] // 1.0=PPR, 0.5=half, 0=standard
 	var effectiveFormat string
 	switch {
 	case recMod >= 0.9:
@@ -438,7 +259,6 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		effectiveFormat = "standard"
 	}
 
-	hasLeagueScoring := len(scoringStats) > 0
 	scoringFormat := effectiveFormat
 	if !hasLeagueScoring {
 		scoringFormat = "ppr"
@@ -450,13 +270,6 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		effectiveFormat = formatOverride
 		scoringFormat = formatOverride
 	}
-
-	// Translate Yahoo scoring → canonical-keyed modifiers once, for kicker scoring below.
-	yahooMods := make(map[string]float64, len(scoringStats))
-	for id, ls := range scoringStats {
-		yahooMods[id] = ls.Modifier
-	}
-	canonicalMods := scoring.CanonicalModifiersFromYahoo(yahooMods)
 
 	// The pointing system: default point values come from the league's own
 	// translated Yahoo scoring (FG's distance buckets collapse into one flat
@@ -480,7 +293,7 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		defaultScoring[scoring.StatFGMade] = avgFGMod
 		defaultScoring[scoring.StatPATMade] = canonicalMods[scoring.StatPATMade]
 	} else {
-		for k, v := range defaultScoringFallback {
+		for k, v := range leaguesettings.DefaultScoringFallback {
 			defaultScoring[k] = v
 		}
 	}
@@ -791,8 +604,8 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		replResp = []replacementLevel{}
 	}
 
-	scoringOut := make(map[string]float64, len(scoringEditableStats))
-	for _, k := range scoringEditableStats {
+	scoringOut := make(map[string]float64, len(leaguesettings.ScoringEditableStats))
+	for _, k := range leaguesettings.ScoringEditableStats {
 		scoringOut[string(k)] = activeScoring[k]
 	}
 

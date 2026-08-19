@@ -90,12 +90,19 @@ func main() {
 
 	r.Route("/api/leagues", func(r chi.Router) {
 		r.Get("/", h.ListLeagues)
-		r.Post("/", h.CreateLeague)
 		r.Get("/{id}", h.GetLeague)
 		r.Get("/{id}/teams", h.ListLeagueTeams)
 		// Protected league sub-routes
 		r.Group(func(r chi.Router) {
 			r.Use(appmiddleware.RequireAuth(pool, store))
+			// Creates a native league (source=native) — there is no unauthenticated
+			// path to create a league; Yahoo leagues arrive only via POST /api/sync.
+			r.Post("/", h.CreateLeague)
+			r.Get("/{id}/settings", h.GetLeagueSettings)
+			r.Put("/{id}/settings", h.UpdateLeagueSettings)
+			r.Post("/{id}/teams", h.CreateLeagueTeam)
+			r.Put("/{id}/teams/{teamId}", h.UpdateLeagueTeam)
+			r.Delete("/{id}/teams/{teamId}", h.DeleteLeagueTeam)
 			r.Get("/{id}/scoreboard", h.GetLeagueScoreboard)
 			r.Get("/{id}/standings", h.GetLeagueStandings)
 			r.Get("/{id}/players", h.SearchLeaguePlayers)

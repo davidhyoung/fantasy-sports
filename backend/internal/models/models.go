@@ -20,13 +20,31 @@ type User struct {
 }
 
 type League struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	Sport     string    `json:"sport"`
-	Season    string    `json:"season"`
-	YahooKey  string    `json:"yahoo_key,omitempty"`
-	LogoURL   string    `json:"logo_url,omitempty"`
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Sport    string `json:"sport"`
+	Season   string `json:"season"`
+	YahooKey string `json:"yahoo_key,omitempty"`
+	LogoURL  string `json:"logo_url,omitempty"`
+	// Source is "yahoo" (synced from a live Yahoo league) or "native" (no
+	// external league at all — this app is the system of record).
+	Source string `json:"source"`
+	// Format selects the season-rollover strategy: "redraft" | "keeper" | "dynasty".
+	Format    string    `json:"format"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// LeagueSettings holds the canonical roster/scoring configuration for a native
+// league, in the same vocabulary the draft-values ?slots=&scoring= overrides
+// use (see internal/services/leaguesettings).
+type LeagueSettings struct {
+	LeagueID  int64              `json:"league_id"`
+	NumTeams  int                `json:"num_teams"`
+	Budget    int                `json:"budget"`
+	Slots     map[string]int     `json:"slots"`
+	Scoring   map[string]float64 `json:"scoring"`
+	TaxiSlots int                `json:"taxi_slots"`
+	IRSlots   int                `json:"ir_slots"`
 }
 
 type Team struct {
