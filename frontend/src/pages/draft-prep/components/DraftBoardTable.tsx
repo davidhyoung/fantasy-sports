@@ -44,17 +44,17 @@ interface Props {
 }
 
 /** Our price minus the market's. Positive = we're higher on him than the market. */
-function edgeOf(p: DraftPlayer): number | null {
+export function edgeOf(p: DraftPlayer): number | null {
   return p.consensus_auction_value == null ? null : p.auction_value - p.consensus_auction_value
 }
 
 /** Position group can be a comma-separated eligibility list; tiers are per this first one. */
-function primaryPos(p: DraftPlayer): string {
+export function primaryPos(p: DraftPlayer): string {
   return (p.position_group || p.position || '').split(',')[0]
 }
 
 /** A custom tier overrides the algorithm's own — same convention everywhere it's read. */
-function effectiveTier(p: DraftPlayer, entry?: (gsisId: string) => DraftPrepEntry): number {
+export function effectiveTier(p: DraftPlayer, entry?: (gsisId: string) => DraftPrepEntry): number {
   const custom = entry?.(p.gsis_id).custom_tier
   return custom ?? p.tier
 }
@@ -66,7 +66,7 @@ function effectiveTier(p: DraftPlayer, entry?: (gsisId: string) => DraftPrepEntr
  * the read-only badge and the editable field so an override doesn't suddenly
  * look different from an algorithm-assigned tier of the same number.
  */
-function tierWeightClass(tier: number): string {
+export function tierWeightClass(tier: number): string {
   if (tier <= 0) return 'text-muted-foreground/40'
   if (tier <= 2) return 'bg-primary/20 text-primary font-semibold'
   if (tier <= 4) return 'bg-muted text-foreground'
@@ -282,9 +282,21 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
   }, [sorted, showTierLines, prep])
 
   return (
-    // The consensus columns push this past a narrow viewport; scroll the table
-    // rather than the page.
-    <div className="rounded-lg bg-card overflow-x-auto">
+    <>
+      <MobileDraftBoard
+        players={sorted}
+        gradeRankMap={gradeRankMap}
+        prep={prep}
+        showConsensus={showConsensus}
+        sortCol={sortCol}
+        sortDir={sortDir}
+        onSort={handleSort}
+        tierBoundaries={tierBoundaries}
+        canMove={canMove}
+      />
+    {/* The consensus columns push this past a narrow viewport; scroll the table
+        rather than the page. Hidden below md — MobileDraftBoard replaces it there. */}
+    <div className="hidden md:block rounded-lg bg-card overflow-x-auto">
       <Table>
         {/*
           This wrapper's overflow-x-auto unavoidably makes it a scroll container on
@@ -717,5 +729,6 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
         </TableBody>
       </Table>
     </div>
+    </>
   )
 }

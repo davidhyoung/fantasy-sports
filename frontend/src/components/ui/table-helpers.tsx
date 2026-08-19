@@ -72,6 +72,38 @@ function HeaderTip({ children, description }: HeaderTipProps) {
 }
 
 /**
+ * Mobile counterpart to `HeaderTip` — hover isn't reachable on touch, so this
+ * opens the same flat, bordered `TooltipContent` styling on tap instead, and
+ * closes on an outside tap via a full-screen invisible catcher.
+ */
+function MobileHeaderTip({ children, description }: HeaderTipProps) {
+  const [open, setOpen] = React.useState(false)
+  if (!description) return <>{children}</>
+  return (
+    <span className="relative inline-block">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          setOpen((o) => !o)
+        }}
+        className="cursor-help border-b border-dotted border-muted-foreground/50 outline-none"
+      >
+        {children}
+      </button>
+      {open && (
+        <>
+          <span className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" />
+          <span className="absolute left-0 top-full z-50 mt-1 block w-64 rounded-md border border-border bg-popover px-2.5 py-1.5 font-sans text-xs font-normal normal-case leading-snug tracking-normal text-popover-foreground">
+            {description}
+          </span>
+        </>
+      )}
+    </span>
+  )
+}
+
+/**
  * Standard toggle handler for sortable columns.
  * If clicking the active column, flip direction. Otherwise switch to the new column
  * with a sensible default direction — ascending for columns where a lower value
@@ -250,6 +282,7 @@ function HeaderRow({ children, className, ...props }: React.HTMLAttributes<HTMLT
 export {
   SortableHead,
   HeaderTip,
+  MobileHeaderTip,
   useTableSort,
   PlayerAvatar,
   PlayerCell,

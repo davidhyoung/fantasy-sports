@@ -35,6 +35,10 @@
     --radius: 0.5rem;
     --nav-height: 53px;
     --tabs-height: 0px;
+    /* Mobile handoff (2026-08-19): minimum tap target for card rows and sheet
+       controls. Flagged as a new spacing convention, not a color/token change —
+       surface to design review before treating as final. */
+    --tap-target-min: 44px;
 
     /* Semantic palette — pink (positive/primary), blue (negative), purple (projected) */
     --positive: 347 62% 45%;
