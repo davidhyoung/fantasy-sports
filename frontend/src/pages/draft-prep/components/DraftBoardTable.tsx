@@ -249,21 +249,34 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
   // first. Any other sort scrambles tiers relative to position, so a "tier
   // changed" line there would be noise, not signal.
   const showTierLines = sortDir === 'asc' && (sortCol === 'board' || sortCol === 'rank')
-  // Keyed by the row the divider sits above; the value is the tier that ended
-  // there, so the divider's top half can offer it as a drop target without
-  // recomputing anything at drop time.
+  // Keyed by the row the divider sits above. `aboveTier` is the raw tier that
+  // just ended — still needed by the drop handler, which assigns whatever
+  // tier a neighbour actually has. `displayTier` is what gets printed: a
+  // running per-position counter, not the raw number. A raw custom_tier
+  // override (or a board reorder that leaves a position's rows out of tier
+  // order) can otherwise make consecutive dividers read "Tier 2, Tier 1, Tier
+  // 2" — confusing and, worse, not even unique. Counting transitions instead
+  // of echoing the raw value makes every position's dividers strictly
+  // 1, 2, 3, … by construction, no matter how scrambled the underlying
+  // overrides are.
   const tierBoundaries = useMemo(() => {
-    if (!showTierLines) return new Map<string, number>()
-    const lastByPos = new Map<string, number>()
-    const boundaries = new Map<string, number>()
+    if (!showTierLines) return new Map<string, { aboveTier: number; displayTier: number }>()
+    const lastRawByPos = new Map<string, number>()
+    const displayByPos = new Map<string, number>()
+    const boundaries = new Map<string, { aboveTier: number; displayTier: number }>()
     for (const p of sorted) {
       const pos = primaryPos(p)
       const tier = effectiveTier(p, prep?.entry)
-      if (tier > 0) {
-        const last = lastByPos.get(pos)
-        if (last != null && last !== tier) boundaries.set(p.gsis_id, last)
-        lastByPos.set(pos, tier)
+      if (tier <= 0) continue
+      const lastRaw = lastRawByPos.get(pos)
+      if (lastRaw == null) {
+        displayByPos.set(pos, 1)
+      } else if (lastRaw !== tier) {
+        const nextDisplay = (displayByPos.get(pos) ?? 1) + 1
+        displayByPos.set(pos, nextDisplay)
+        boundaries.set(p.gsis_id, { aboveTier: lastRaw, displayTier: nextDisplay })
       }
+      lastRawByPos.set(pos, tier)
     }
     return boundaries
   }, [sorted, showTierLines, prep])
@@ -395,7 +408,7 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                             // The divider IS the boundary: its top half is the tier
                             // that just ended, its bottom half is the tier this row
                             // starts.
-                            const aboveTier = tierBoundaries.get(p.gsis_id)!
+                            const aboveTier = tierBoundaries.get(p.gsis_id)!.aboveTier
                             const belowTier = effectiveTier(p, prep!.entry)
                             const targetTier = half === 'top' ? aboveTier : belowTier
                             const dragged = sorted.find((x) => x.gsis_id === dragId)
@@ -413,7 +426,7 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                       colSpan={100}
                       className="py-1 font-display text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
                     >
-                      Tier {effectiveTier(p, prep?.entry)}
+                      Tier {tierBoundaries.get(p.gsis_id)!.displayTier}
                     </TableCell>
                   </TableRow>
                 )}
