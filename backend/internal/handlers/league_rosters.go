@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 )
 
 // rosterEntryResp is one player on a native league's roster, enriched with
@@ -83,13 +85,72 @@ type assignRosterReq struct {
 	YearsTotal   *int   `json:"years_total"`
 }
 
+// DEF is deliberately absent: nflverse has no team-defense rows (no gsis_id
+// to hang a league_rosters row off), so a DEF assignment would always fail
+// at the DB layer. Kickers are unaffected — real gsis_ids exist for them.
 var validSlots = map[string]bool{
-	"QB": true, "RB": true, "WR": true, "TE": true, "K": true, "DEF": true,
+	"QB": true, "RB": true, "WR": true, "TE": true, "K": true,
 	"FLEX": true, "SFLEX": true, "BN": true, "TAXI": true, "IR": true,
 }
 
 var validAcquiredVia = map[string]bool{
 	"draft": true, "auction": true, "trade": true, "waiver": true, "fa": true, "keeper": true,
+}
+
+// assignRosterTx inserts a roster row and its paired contract row inside an
+// already-open transaction. AssignLeagueRoster and UseLeagueDraftPick share
+// this — "put a player on a roster with a contract" is the same operation
+// whether the acquisition was a free-agent signing or a drafted rookie.
+func assignRosterTx(ctx context.Context, tx pgx.Tx, leagueID, teamID int64, gsisID, slot, acquiredVia string, salary, signedSeason int, yearsTotal *int) error {
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO league_rosters (league_id, team_id, gsis_id, slot, acquired_via)
+		VALUES ($1, $2, $3, $4, $5)
+	`, leagueID, teamID, gsisID, slot, acquiredVia); err != nil {
+		return err
+	}
+	_, err := tx.Exec(ctx, `
+		INSERT INTO league_contracts (league_id, gsis_id, salary, signed_season, years_total, years_used)
+		VALUES ($1, $2, $3, $4, $5, 1)
+	`, leagueID, gsisID, salary, signedSeason, yearsTotal)
+	return err
+}
+
+// leagueTeamIDs returns every team in a league, ordered by id — the
+// deterministic "draft order" a native league falls back to since it tracks
+// no standings yet (no weekly scoring exists for native leagues at all).
+func (h *Handler) leagueTeamIDs(ctx context.Context, tx pgx.Tx, leagueID int64) ([]int64, error) {
+	rows, err := tx.Query(ctx, "SELECT id FROM teams WHERE league_id = $1 ORDER BY id", leagueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// generateDraftClassTx inserts one full round-robin draft class (rounds ×
+// teams) for a season inside an already-open transaction. Shared by
+// GenerateLeagueDraftPicks and dynasty/redraft rollover, both of which need
+// "make next season's picks" as one step inside a larger atomic operation.
+func generateDraftClassTx(ctx context.Context, tx pgx.Tx, leagueID int64, season, rounds int, teamIDs []int64) error {
+	for round := 1; round <= rounds; round++ {
+		for _, tid := range teamIDs {
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO league_draft_picks (league_id, season, round, original_team_id, current_team_id)
+				VALUES ($1, $2, $3, $4, $4)
+			`, leagueID, season, round, tid); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // AssignLeagueRoster puts a player on a native league's roster and signs them
@@ -157,18 +218,8 @@ func (h *Handler) AssignLeagueRoster(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 
-	if _, err := tx.Exec(r.Context(), `
-		INSERT INTO league_rosters (league_id, team_id, gsis_id, slot, acquired_via)
-		VALUES ($1, $2, $3, $4, $5)
-	`, leagueID, req.TeamID, req.GsisID, req.Slot, req.AcquiredVia); err != nil {
+	if err := assignRosterTx(r.Context(), tx, leagueID, req.TeamID, req.GsisID, req.Slot, req.AcquiredVia, req.Salary, req.SignedSeason, req.YearsTotal); err != nil {
 		respondError(w, http.StatusConflict, "player is already rostered in this league (or not a known player)")
-		return
-	}
-	if _, err := tx.Exec(r.Context(), `
-		INSERT INTO league_contracts (league_id, gsis_id, salary, signed_season, years_total, years_used)
-		VALUES ($1, $2, $3, $4, $5, 1)
-	`, leagueID, req.GsisID, req.Salary, req.SignedSeason, req.YearsTotal); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -333,6 +384,7 @@ func (h *Handler) GetLeagueFreeAgents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	position := q.Get("position")
+	search := q.Get("search")
 	limit := 50
 	if l := q.Get("limit"); l != "" {
 		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 500 {
@@ -354,9 +406,10 @@ func (h *Handler) GetLeagueFreeAgents(w http.ResponseWriter, r *http.Request) {
 		LEFT JOIN nfl_projections pr ON pr.gsis_id = p.gsis_id AND pr.target_season = $2
 		WHERE lr.gsis_id IS NULL
 		  AND ($3 = '' OR p.position = $3)
+		  AND ($6 = '' OR p.name ILIKE '%' || $6 || '%')
 		ORDER BY pr.proj_fpts_ppr DESC NULLS LAST, p.name
 		LIMIT $4 OFFSET $5
-	`, leagueID, season, position, limit, offset)
+	`, leagueID, season, position, limit, offset, search)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

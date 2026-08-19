@@ -21,9 +21,9 @@ func (h *Handler) GetLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	var s models.LeagueSettings
 	var slotsRaw, scoringRaw []byte
 	err = h.db.QueryRow(r.Context(), `
-		SELECT league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots
+		SELECT league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds
 		FROM league_settings WHERE league_id = $1
-	`, leagueID).Scan(&s.LeagueID, &s.NumTeams, &s.Budget, &slotsRaw, &scoringRaw, &s.TaxiSlots, &s.IRSlots)
+	`, leagueID).Scan(&s.LeagueID, &s.NumTeams, &s.Budget, &slotsRaw, &scoringRaw, &s.TaxiSlots, &s.IRSlots, &s.DraftRounds)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "no settings for this league")
 		return
@@ -77,6 +77,13 @@ func (h *Handler) UpdateLeagueSettings(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "scoring is required")
 		return
 	}
+	if err := validateNativeSlots(req.Slots); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.DraftRounds <= 0 {
+		req.DraftRounds = 4
+	}
 	slotsJSON, err := json.Marshal(req.Slots)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid slots")
@@ -91,9 +98,9 @@ func (h *Handler) UpdateLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	tag, err := h.db.Exec(r.Context(), `
 		UPDATE league_settings
 		SET num_teams = $2, budget = $3, slots = $4, scoring = $5,
-		    taxi_slots = $6, ir_slots = $7, updated_at = NOW()
+		    taxi_slots = $6, ir_slots = $7, draft_rounds = $8, updated_at = NOW()
 		WHERE league_id = $1
-	`, leagueID, req.NumTeams, req.Budget, slotsJSON, scoringJSON, req.TaxiSlots, req.IRSlots)
+	`, leagueID, req.NumTeams, req.Budget, slotsJSON, scoringJSON, req.TaxiSlots, req.IRSlots, req.DraftRounds)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -106,6 +113,7 @@ func (h *Handler) UpdateLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, models.LeagueSettings{
 		LeagueID: leagueID, NumTeams: req.NumTeams, Budget: req.Budget,
 		Slots: req.Slots, Scoring: req.Scoring, TaxiSlots: req.TaxiSlots, IRSlots: req.IRSlots,
+		DraftRounds: req.DraftRounds,
 	})
 }
 

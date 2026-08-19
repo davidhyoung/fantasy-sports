@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/davidyoung/fantasy-sports/backend/internal/models"
@@ -42,12 +43,26 @@ type createLeagueReq struct {
 }
 
 type createSettingsReq struct {
-	NumTeams  int                `json:"num_teams"`
-	Budget    int                `json:"budget"`
-	Slots     map[string]int     `json:"slots"`
-	Scoring   map[string]float64 `json:"scoring"`
-	TaxiSlots int                `json:"taxi_slots"`
-	IRSlots   int                `json:"ir_slots"`
+	NumTeams    int                `json:"num_teams"`
+	Budget      int                `json:"budget"`
+	Slots       map[string]int     `json:"slots"`
+	Scoring     map[string]float64 `json:"scoring"`
+	TaxiSlots   int                `json:"taxi_slots"`
+	IRSlots     int                `json:"ir_slots"`
+	DraftRounds int                `json:"draft_rounds"`
+}
+
+// validateNativeSlots rejects a starting-lineup slot vocabulary that a native
+// league can't actually support. nflverse has no team-defense rows (no
+// gsis_id to hang a league_rosters row off), so DEF is allowed by the Yahoo
+// draft-values override vocabulary but would always fail at the DB layer for
+// a native league — reject it up front instead. Yahoo leagues never call
+// this; their DEF comes from Yahoo's own player universe.
+func validateNativeSlots(slots map[string]int) error {
+	if n, ok := slots["DEF"]; ok && n != 0 {
+		return fmt.Errorf("DEF is not supported for native leagues yet")
+	}
+	return nil
 }
 
 type createTeamReq struct {
@@ -113,6 +128,13 @@ func (h *Handler) CreateLeague(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "settings.scoring is required")
 		return
 	}
+	if err := validateNativeSlots(req.Settings.Slots); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.Settings.DraftRounds <= 0 {
+		req.Settings.DraftRounds = 4
+	}
 	slotsJSON, err := json.Marshal(req.Settings.Slots)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid slots")
@@ -144,18 +166,19 @@ func (h *Handler) CreateLeague(w http.ResponseWriter, r *http.Request) {
 	}
 
 	settings := models.LeagueSettings{
-		LeagueID:  l.ID,
-		NumTeams:  req.Settings.NumTeams,
-		Budget:    req.Settings.Budget,
-		Slots:     req.Settings.Slots,
-		Scoring:   req.Settings.Scoring,
-		TaxiSlots: req.Settings.TaxiSlots,
-		IRSlots:   req.Settings.IRSlots,
+		LeagueID:    l.ID,
+		NumTeams:    req.Settings.NumTeams,
+		Budget:      req.Settings.Budget,
+		Slots:       req.Settings.Slots,
+		Scoring:     req.Settings.Scoring,
+		TaxiSlots:   req.Settings.TaxiSlots,
+		IRSlots:     req.Settings.IRSlots,
+		DraftRounds: req.Settings.DraftRounds,
 	}
 	if _, err := tx.Exec(r.Context(), `
-		INSERT INTO league_settings (league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, l.ID, settings.NumTeams, settings.Budget, slotsJSON, scoringJSON, settings.TaxiSlots, settings.IRSlots,
+		INSERT INTO league_settings (league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, l.ID, settings.NumTeams, settings.Budget, slotsJSON, scoringJSON, settings.TaxiSlots, settings.IRSlots, settings.DraftRounds,
 	); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

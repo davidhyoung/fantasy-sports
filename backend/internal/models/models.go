@@ -38,13 +38,16 @@ type League struct {
 // league, in the same vocabulary the draft-values ?slots=&scoring= overrides
 // use (see internal/services/leaguesettings).
 type LeagueSettings struct {
-	LeagueID  int64              `json:"league_id"`
-	NumTeams  int                `json:"num_teams"`
-	Budget    int                `json:"budget"`
-	Slots     map[string]int     `json:"slots"`
-	Scoring   map[string]float64 `json:"scoring"`
-	TaxiSlots int                `json:"taxi_slots"`
-	IRSlots   int                `json:"ir_slots"`
+	LeagueID    int64              `json:"league_id"`
+	NumTeams    int                `json:"num_teams"`
+	Budget      int                `json:"budget"`
+	Slots       map[string]int     `json:"slots"`
+	Scoring     map[string]float64 `json:"scoring"`
+	TaxiSlots   int                `json:"taxi_slots"`
+	IRSlots     int                `json:"ir_slots"`
+	// DraftRounds is how many rounds a generated draft class has — a short
+	// rookie draft for dynasty, a full re-draft's worth for redraft rollover.
+	DraftRounds int `json:"draft_rounds"`
 }
 
 type Team struct {
