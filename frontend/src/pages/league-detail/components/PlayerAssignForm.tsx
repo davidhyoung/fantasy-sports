@@ -9,10 +9,7 @@ import {
   type Team, type FreeAgent,
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
-
-// Matches the backend's validSlots (league_rosters.go) minus DEF — nflverse
-// has no team-defense gsis_ids, so DEF can't be assigned in a native league.
-const ROSTER_SLOTS = ['BN', 'QB', 'RB', 'WR', 'TE', 'K', 'FLEX', 'SFLEX', 'TAXI', 'IR'] as const
+import { ROSTER_SLOTS } from '../lib/nativeSlots'
 
 const ACQUIRED_VIA = ['auction', 'draft', 'fa', 'waiver', 'trade', 'keeper'] as const
 

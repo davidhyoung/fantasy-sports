@@ -115,6 +115,8 @@ func main() {
 			r.Get("/{id}/transactions", h.ListLeagueTransactions)
 			r.Post("/{id}/rollover", h.RolloverLeague)
 			r.Get("/{id}/scoreboard", h.GetLeagueScoreboard)
+			r.Post("/{id}/schedule/generate", h.GenerateLeagueSchedule)
+			r.Post("/{id}/scoreboard/score", h.ScoreLeagueWeek)
 			r.Get("/{id}/standings", h.GetLeagueStandings)
 			r.Get("/{id}/players", h.SearchLeaguePlayers)
 			r.Get("/{id}/players/available", h.GetAvailablePlayers)

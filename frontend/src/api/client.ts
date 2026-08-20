@@ -142,6 +142,10 @@ export const updateLeagueSettings = (
 export const listLeagueTeams = (leagueId: number) =>
   request<Team[]>(`/leagues/${leagueId}/teams`)
 export const getTeam = (id: number) => request<Team>(`/teams/${id}`)
+// Renames and/or claims/releases a native-league team as the caller's own —
+// both fields optional and independent.
+export const updateLeagueTeam = (leagueId: number, teamId: number, patch: { name?: string; claim?: boolean }) =>
+  request<{ status: string }>(`/leagues/${leagueId}/teams/${teamId}`, { method: 'PUT', body: JSON.stringify(patch) })
 // statType: 'week' (default/current), 'lastweek', 'season', 'today', or 'week:N' for a specific week number.
 // 'week:N' is translated to ?week=N; all other values are passed as ?stat_type=<value>.
 export const getTeamRoster = (id: number, statType?: string) => {
@@ -160,6 +164,9 @@ export const getTeamRoster = (id: number, statType?: string) => {
 
 export interface MatchupTeam {
   team_key: string
+  // Populated only for native leagues — lets native UI key off a real id
+  // instead of reverse-engineering a fake team_key.
+  team_id?: number
   name: string
   logo_url?: string
   points: string
@@ -182,6 +189,7 @@ export interface Scoreboard {
 
 export interface Standing {
   team_key: string
+  team_id?: number // native leagues only — see MatchupTeam.team_id
   name: string
   logo_url?: string
   rank: number
@@ -200,6 +208,23 @@ export const getLeagueScoreboard = (id: number, week?: number) =>
   request<Scoreboard>(`/leagues/${id}/scoreboard${week ? `?week=${week}` : ''}`)
 export const getLeagueStandings = (id: number) =>
   request<Standing[]>(`/leagues/${id}/standings`)
+
+// --- Native league schedule & scoring ---
+
+export const generateLeagueSchedule = (leagueId: number, season?: number, weeks?: number) =>
+  request<{ status: string; season: number; weeks: number; matchups: number }>(`/leagues/${leagueId}/schedule/generate`, {
+    method: 'POST',
+    body: JSON.stringify({ season, weeks }),
+  })
+
+export const scoreLeagueWeek = (leagueId: number, week: number, season?: number) => {
+  const params = new URLSearchParams({ week: String(week) })
+  if (season) params.set('season', String(season))
+  return request<{ status: string; week: number; season: number; matchups: number }>(
+    `/leagues/${leagueId}/scoreboard/score?${params.toString()}`,
+    { method: 'POST' }
+  )
+}
 
 // --- League Players (Yahoo search / available) ---
 

@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 )
 
@@ -25,7 +27,11 @@ type matchupResp struct {
 }
 
 type matchupTeamResp struct {
-	TeamKey         string `json:"team_key"`
+	TeamKey string `json:"team_key"`
+	// TeamID is additive — populated only on the native path, so a native
+	// frontend can key off a real id instead of reverse-engineering a fake
+	// team_key. Yahoo responses leave this zero/omitted, unchanged shape.
+	TeamID          int64  `json:"team_id,omitempty"`
 	Name            string `json:"name"`
 	LogoURL         string `json:"logo_url,omitempty"`
 	Points          string `json:"points"`
@@ -34,6 +40,7 @@ type matchupTeamResp struct {
 
 type standingResp struct {
 	TeamKey       string `json:"team_key"`
+	TeamID        int64  `json:"team_id,omitempty"` // additive, native path only — see matchupTeamResp
 	Name          string `json:"name"`
 	LogoURL       string `json:"logo_url,omitempty"`
 	Rank          int    `json:"rank"`
@@ -48,6 +55,15 @@ type standingResp struct {
 	StreakValue   int    `json:"streak_value"`
 }
 
+// leagueSource looks up a league's source ("yahoo"|"native"); empty string
+// on error (treated as not-native by callers, matching prior behavior for a
+// missing/invalid league id — the existing 404 path still fires downstream).
+func (h *Handler) leagueSource(r *http.Request, leagueID int64) string {
+	var source string
+	h.db.QueryRow(r.Context(), "SELECT source FROM leagues WHERE id = $1", leagueID).Scan(&source) //nolint:errcheck
+	return source
+}
+
 // GetLeagueScoreboard handles GET /api/leagues/{id}/scoreboard?week=N.
 // Returns the head-to-head matchups for the requested week (defaults to current week).
 func (h *Handler) GetLeagueScoreboard(w http.ResponseWriter, r *http.Request) {
@@ -56,6 +72,11 @@ func (h *Handler) GetLeagueScoreboard(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r, "id")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+
+	if h.leagueSource(r, id) == "native" {
+		h.nativeScoreboard(w, r, id)
 		return
 	}
 
@@ -130,6 +151,11 @@ func (h *Handler) GetLeagueStandings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.leagueSource(r, id) == "native" {
+		h.nativeStandings(w, r, id)
+		return
+	}
+
 	yahooKey, status, msg := h.leagueYahooKey(r, id)
 	if status != 0 {
 		respondError(w, status, msg)
@@ -169,5 +195,188 @@ func (h *Handler) GetLeagueStandings(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	respondJSON(w, http.StatusOK, resp)
+}
+
+// nativeScoreboard serves GetLeagueScoreboard for a native league from
+// league_matchups instead of Yahoo. Defaults to the latest week a schedule
+// has been generated for when ?week= is omitted.
+func (h *Handler) nativeScoreboard(w http.ResponseWriter, r *http.Request, leagueID int64) {
+	q := r.URL.Query()
+	season := h.leagueSeasonInt(r, leagueID)
+	if s := q.Get("season"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			season = v
+		}
+	}
+	week := 0
+	if wStr := q.Get("week"); wStr != "" {
+		if v, err := strconv.Atoi(wStr); err == nil {
+			week = v
+		}
+	}
+	if week == 0 {
+		h.db.QueryRow(r.Context(), //nolint:errcheck
+			"SELECT COALESCE(MAX(week), 0) FROM league_matchups WHERE league_id = $1 AND season = $2",
+			leagueID, season,
+		).Scan(&week)
+	}
+	if week == 0 {
+		respondJSON(w, http.StatusOK, scoreboardResp{Matchups: []matchupResp{}})
+		return
+	}
+
+	rows, err := h.db.Query(r.Context(), `
+		SELECT m.team1_id, t1.name, m.team1_points, m.team2_id, t2.name, m.team2_points,
+		       m.is_playoffs, m.computed_at IS NOT NULL
+		FROM league_matchups m
+		JOIN teams t1 ON t1.id = m.team1_id
+		JOIN teams t2 ON t2.id = m.team2_id
+		WHERE m.league_id = $1 AND m.season = $2 AND m.week = $3
+		ORDER BY m.id
+	`, leagueID, season, week)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer rows.Close()
+
+	resp := scoreboardResp{Week: week, Matchups: []matchupResp{}}
+	for rows.Next() {
+		var t1ID, t2ID int64
+		var t1Name, t2Name string
+		var p1, p2 float64
+		var isPlayoffs, scored bool
+		if err := rows.Scan(&t1ID, &t1Name, &p1, &t2ID, &t2Name, &p2, &isPlayoffs, &scored); err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		playoffsFlag := "0"
+		if isPlayoffs {
+			playoffsFlag = "1"
+		}
+		status := "preevent"
+		if scored {
+			status = "postevent"
+		}
+		resp.Matchups = append(resp.Matchups, matchupResp{
+			Week:       week,
+			Status:     status,
+			IsPlayoffs: playoffsFlag,
+			Teams: []matchupTeamResp{
+				{TeamID: t1ID, Name: t1Name, Points: fmt.Sprintf("%.2f", p1)},
+				{TeamID: t2ID, Name: t2Name, Points: fmt.Sprintf("%.2f", p2)},
+			},
+		})
+	}
+	respondJSON(w, http.StatusOK, resp)
+}
+
+// nativeStandings serves GetLeagueStandings for a native league by
+// aggregating scored league_matchups rows — there's no separate standings
+// table, wins/losses/points are a pure read over matchup history.
+func (h *Handler) nativeStandings(w http.ResponseWriter, r *http.Request, leagueID int64) {
+	season := h.leagueSeasonInt(r, leagueID)
+	if s := r.URL.Query().Get("season"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			season = v
+		}
+	}
+
+	type record struct {
+		teamID              int64
+		name                string
+		wins, losses, ties  int
+		pointsFor, pointsAg float64
+	}
+	records := map[int64]*record{}
+
+	trows, err := h.db.Query(r.Context(), "SELECT id, name FROM teams WHERE league_id = $1", leagueID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for trows.Next() {
+		var id int64
+		var name string
+		if err := trows.Scan(&id, &name); err != nil {
+			trows.Close()
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		records[id] = &record{teamID: id, name: name}
+	}
+	trows.Close()
+
+	mrows, err := h.db.Query(r.Context(), `
+		SELECT team1_id, team2_id, team1_points, team2_points
+		FROM league_matchups
+		WHERE league_id = $1 AND season = $2 AND computed_at IS NOT NULL
+	`, leagueID, season)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for mrows.Next() {
+		var t1, t2 int64
+		var p1, p2 float64
+		if err := mrows.Scan(&t1, &t2, &p1, &p2); err != nil {
+			mrows.Close()
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		r1, ok1 := records[t1]
+		r2, ok2 := records[t2]
+		if !ok1 || !ok2 {
+			continue
+		}
+		r1.pointsFor += p1
+		r1.pointsAg += p2
+		r2.pointsFor += p2
+		r2.pointsAg += p1
+		switch {
+		case p1 > p2:
+			r1.wins++
+			r2.losses++
+		case p2 > p1:
+			r2.wins++
+			r1.losses++
+		default:
+			r1.ties++
+			r2.ties++
+		}
+	}
+	mrows.Close()
+
+	list := make([]*record, 0, len(records))
+	for _, rec := range records {
+		list = append(list, rec)
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].wins != list[j].wins {
+			return list[i].wins > list[j].wins
+		}
+		return list[i].pointsFor > list[j].pointsFor
+	})
+
+	resp := make([]standingResp, 0, len(list))
+	for i, rec := range list {
+		total := rec.wins + rec.losses + rec.ties
+		pct := "0.000"
+		if total > 0 {
+			pct = fmt.Sprintf("%.3f", float64(rec.wins)/float64(total))
+		}
+		resp = append(resp, standingResp{
+			TeamID:        rec.teamID,
+			Name:          rec.name,
+			Rank:          i + 1,
+			Wins:          rec.wins,
+			Losses:        rec.losses,
+			Ties:          rec.ties,
+			Percentage:    pct,
+			PointsFor:     fmt.Sprintf("%.2f", rec.pointsFor),
+			PointsAgainst: fmt.Sprintf("%.2f", rec.pointsAg),
+		})
+	}
 	respondJSON(w, http.StatusOK, resp)
 }

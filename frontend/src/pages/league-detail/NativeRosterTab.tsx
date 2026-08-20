@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
-import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
-import { PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import {
-  getLeagueRosters, getLeagueSettings, dropLeagueRoster, updateLeagueRoster, rolloverLeague,
+  getLeagueRosters, getLeagueSettings, updateLeagueTeam, rolloverLeague,
   getLeagueTransactions, type Team, type RosterEntry,
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 import { PlayerAssignForm } from './components/PlayerAssignForm'
 import { TradeBuilder } from './components/TradeBuilder'
+import { NativeRosterTable } from './components/NativeRosterTable'
+import { EditContractForm } from './components/EditContractForm'
 
 interface Props {
   leagueId: number
@@ -21,64 +21,6 @@ interface Props {
   teams: Team[]
   myTeam: Team | undefined
   format: string
-}
-
-function EditContractForm({
-  leagueId, entry, onClose,
-}: { leagueId: number; entry: RosterEntry; onClose: () => void }) {
-  const qc = useQueryClient()
-  const [salary, setSalary] = useState(entry.salary)
-  const [yearToYear, setYearToYear] = useState(entry.years_total == null)
-  const [yearsTotal, setYearsTotal] = useState(entry.years_total ?? 1)
-
-  const mutation = useMutation({
-    mutationFn: () =>
-      updateLeagueRoster(leagueId, entry.gsis_id, {
-        salary,
-        years_total: yearToYear ? null : yearsTotal,
-        clear_years_total: yearToYear,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: keys.leagueRosters(leagueId) })
-      onClose()
-    },
-  })
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
-        <label className="flex flex-col gap-1">
-          <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Salary $</span>
-          <input
-            type="number" min={0} value={salary}
-            onChange={(e) => setSalary(Math.max(0, parseInt(e.target.value, 10) || 0))}
-            className="h-8 w-24 rounded-md border border-input bg-background px-2 font-mono text-sm tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </label>
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground mt-4">
-          <input type="checkbox" checked={yearToYear} onChange={(e) => setYearToYear(e.target.checked)} />
-          Year-to-year
-        </label>
-        {!yearToYear && (
-          <label className="flex flex-col gap-1">
-            <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Years total</span>
-            <input
-              type="number" min={1} max={10} value={yearsTotal}
-              onChange={(e) => setYearsTotal(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              className="h-8 w-16 rounded-md border border-input bg-background px-2 font-mono text-sm tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </label>
-        )}
-      </div>
-      {mutation.error && <p className="text-sm text-destructive">{(mutation.error as Error).message}</p>}
-      <div className="flex justify-end gap-2 border-t border-border pt-4">
-        <Button variant="outline" onClick={onClose}>Cancel</Button>
-        <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-          {mutation.isPending ? 'Saving…' : 'Save'}
-        </Button>
-      </div>
-    </div>
-  )
 }
 
 /**
@@ -102,7 +44,6 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
   const [assigning, setAssigning] = useState(false)
   const [trading, setTrading] = useState(false)
   const [editing, setEditing] = useState<RosterEntry | null>(null)
-  const [confirmDrop, setConfirmDrop] = useState<string | null>(null)
   const [confirmRollover, setConfirmRollover] = useState(false)
 
   const { data: rosters, isFetching: loadingRosters } = useQuery({
@@ -121,14 +62,9 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
     enabled: active,
   })
 
-  const dropMutation = useMutation({
-    mutationFn: (gsisId: string) => dropLeagueRoster(leagueId, gsisId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: keys.leagueRosters(leagueId) })
-      qc.invalidateQueries({ queryKey: ['league', leagueId, 'free-agents'] })
-      qc.invalidateQueries({ queryKey: keys.leagueTransactions(leagueId) })
-      setConfirmDrop(null)
-    },
+  const claimMutation = useMutation({
+    mutationFn: (id: number) => updateLeagueTeam(leagueId, id, { claim: true }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.leagueTeams(leagueId) }),
   })
 
   const rolloverMutation = useMutation({
@@ -172,6 +108,8 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
 
   if (!active) return null
 
+  const selectedTeam = teams.find((t) => t.id === teamId)
+
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -182,7 +120,22 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
             </FilterChip>
           ))}
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {selectedTeam && (
+            selectedTeam.user_id ? (
+              <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Your team
+              </span>
+            ) : (
+              <Button
+                variant="text" size="bare"
+                onClick={() => claimMutation.mutate(teamId)}
+                disabled={claimMutation.isPending}
+              >
+                Claim as my team
+              </Button>
+            )
+          )}
           <Button variant="outline" size="sm" onClick={() => setTrading(true)}>Trade</Button>
           <Button size="sm" onClick={() => setAssigning(true)}>+ Assign player</Button>
         </div>
@@ -211,52 +164,8 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
 
       {loadingRosters ? (
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      ) : teamRoster.length === 0 ? (
-        <p className="text-muted-foreground">No players rostered yet.</p>
       ) : (
-        <div className="rounded-lg bg-card overflow-x-auto max-w-[calc(100vw-3rem)]">
-          <Table>
-            <TableHeader style={{ top: 0 }}>
-              <HeaderRow>
-                <TableHead>Player</TableHead>
-                <TableHead>Pos</TableHead>
-                <TableHead>Slot</TableHead>
-                <TableHead className="text-right">Salary</TableHead>
-                <TableHead className="text-right">Years</TableHead>
-                <TableHead />
-              </HeaderRow>
-            </TableHeader>
-            <TableBody>
-              {teamRoster.map((r) => (
-                <ClickableRow key={r.gsis_id} href={`/players/${r.gsis_id}`}>
-                  <PlayerCell name={r.name} imageUrl={r.headshot_url} linked />
-                  <TableCell className="text-muted-foreground">{r.position}</TableCell>
-                  <TableCell className="text-muted-foreground">{r.slot}</TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">${r.salary}</TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">
-                    {r.years_total != null ? `${r.years_used}/${r.years_total}` : 'Y2Y'}
-                  </TableCell>
-                  <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                    <Button variant="text" size="bare" onClick={() => setEditing(r)}>Edit</Button>
-                    {confirmDrop === r.gsis_id ? (
-                      <Button
-                        variant="destructive" size="sm" className="ml-2"
-                        onClick={() => dropMutation.mutate(r.gsis_id)}
-                        disabled={dropMutation.isPending}
-                      >
-                        Confirm drop
-                      </Button>
-                    ) : (
-                      <Button variant="text" size="bare" className="ml-2 text-negative" onClick={() => setConfirmDrop(r.gsis_id)}>
-                        Drop
-                      </Button>
-                    )}
-                  </TableCell>
-                </ClickableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <NativeRosterTable leagueId={leagueId} roster={teamRoster} onEdit={setEditing} />
       )}
 
       {/* Single-user model: whoever's signed in manages every team, and the

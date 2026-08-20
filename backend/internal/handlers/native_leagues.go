@@ -21,9 +21,9 @@ func (h *Handler) GetLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	var s models.LeagueSettings
 	var slotsRaw, scoringRaw []byte
 	err = h.db.QueryRow(r.Context(), `
-		SELECT league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds
+		SELECT league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds, regular_season_weeks
 		FROM league_settings WHERE league_id = $1
-	`, leagueID).Scan(&s.LeagueID, &s.NumTeams, &s.Budget, &slotsRaw, &scoringRaw, &s.TaxiSlots, &s.IRSlots, &s.DraftRounds)
+	`, leagueID).Scan(&s.LeagueID, &s.NumTeams, &s.Budget, &slotsRaw, &scoringRaw, &s.TaxiSlots, &s.IRSlots, &s.DraftRounds, &s.RegularSeasonWeeks)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "no settings for this league")
 		return
@@ -84,6 +84,9 @@ func (h *Handler) UpdateLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	if req.DraftRounds <= 0 {
 		req.DraftRounds = 4
 	}
+	if req.RegularSeasonWeeks <= 0 {
+		req.RegularSeasonWeeks = 14
+	}
 	slotsJSON, err := json.Marshal(req.Slots)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid slots")
@@ -98,9 +101,9 @@ func (h *Handler) UpdateLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	tag, err := h.db.Exec(r.Context(), `
 		UPDATE league_settings
 		SET num_teams = $2, budget = $3, slots = $4, scoring = $5,
-		    taxi_slots = $6, ir_slots = $7, draft_rounds = $8, updated_at = NOW()
+		    taxi_slots = $6, ir_slots = $7, draft_rounds = $8, regular_season_weeks = $9, updated_at = NOW()
 		WHERE league_id = $1
-	`, leagueID, req.NumTeams, req.Budget, slotsJSON, scoringJSON, req.TaxiSlots, req.IRSlots, req.DraftRounds)
+	`, leagueID, req.NumTeams, req.Budget, slotsJSON, scoringJSON, req.TaxiSlots, req.IRSlots, req.DraftRounds, req.RegularSeasonWeeks)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -113,7 +116,7 @@ func (h *Handler) UpdateLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, models.LeagueSettings{
 		LeagueID: leagueID, NumTeams: req.NumTeams, Budget: req.Budget,
 		Slots: req.Slots, Scoring: req.Scoring, TaxiSlots: req.TaxiSlots, IRSlots: req.IRSlots,
-		DraftRounds: req.DraftRounds,
+		DraftRounds: req.DraftRounds, RegularSeasonWeeks: req.RegularSeasonWeeks,
 	})
 }
 
@@ -151,7 +154,18 @@ func (h *Handler) CreateLeagueTeam(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, t)
 }
 
-// UpdateLeagueTeam renames a team on a native league.
+// updateTeamReq is the body for PUT .../teams/{teamId}. Both fields are
+// optional and independent — Name renames, Claim assigns/releases team
+// ownership (teams.user_id) for the calling user. A native league team
+// starts unclaimed (created with no user_id at all — only Yahoo sync sets
+// that on its own upsert), so this is how "My Team" becomes reachable.
+type updateTeamReq struct {
+	Name  *string `json:"name"`
+	Claim *bool   `json:"claim"`
+}
+
+// UpdateLeagueTeam renames a team and/or claims/releases it as the calling
+// user's own team on a native league.
 //
 // PUT /api/leagues/{id}/teams/{teamId}
 func (h *Handler) UpdateLeagueTeam(w http.ResponseWriter, r *http.Request) {
@@ -171,21 +185,79 @@ func (h *Handler) UpdateLeagueTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req createTeamReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
-		respondError(w, http.StatusBadRequest, "name is required")
+	var req updateTeamReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	if req.Name != nil && *req.Name == "" {
+		respondError(w, http.StatusBadRequest, "name cannot be empty")
+		return
+	}
+	if req.Name == nil && req.Claim == nil {
+		respondError(w, http.StatusBadRequest, "name or claim is required")
 		return
 	}
 
-	tag, err := h.db.Exec(r.Context(),
-		"UPDATE teams SET name = $3 WHERE id = $1 AND league_id = $2", teamID, leagueID, req.Name,
-	)
+	tx, err := h.db.Begin(r.Context())
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if tag.RowsAffected() == 0 {
-		respondError(w, http.StatusNotFound, "team not found")
+	defer tx.Rollback(r.Context())
+
+	if req.Name != nil {
+		tag, err := tx.Exec(r.Context(),
+			"UPDATE teams SET name = $3 WHERE id = $1 AND league_id = $2", teamID, leagueID, *req.Name,
+		)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if tag.RowsAffected() == 0 {
+			respondError(w, http.StatusNotFound, "team not found")
+			return
+		}
+	}
+
+	if req.Claim != nil {
+		if *req.Claim {
+			// A user owns at most one team per league — release any other
+			// team of theirs here before claiming this one.
+			if _, err := tx.Exec(r.Context(),
+				"UPDATE teams SET user_id = NULL WHERE league_id = $1 AND user_id = $2", leagueID, user.ID,
+			); err != nil {
+				respondError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			tag, err := tx.Exec(r.Context(),
+				"UPDATE teams SET user_id = $3 WHERE id = $1 AND league_id = $2", teamID, leagueID, user.ID,
+			)
+			if err != nil {
+				respondError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			if tag.RowsAffected() == 0 {
+				respondError(w, http.StatusNotFound, "team not found")
+				return
+			}
+		} else {
+			tag, err := tx.Exec(r.Context(),
+				"UPDATE teams SET user_id = NULL WHERE id = $1 AND league_id = $2", teamID, leagueID,
+			)
+			if err != nil {
+				respondError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			if tag.RowsAffected() == 0 {
+				respondError(w, http.StatusNotFound, "team not found")
+				return
+			}
+		}
+	}
+
+	if err := tx.Commit(r.Context()); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "updated"})

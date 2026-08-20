@@ -43,13 +43,14 @@ type createLeagueReq struct {
 }
 
 type createSettingsReq struct {
-	NumTeams    int                `json:"num_teams"`
-	Budget      int                `json:"budget"`
-	Slots       map[string]int     `json:"slots"`
-	Scoring     map[string]float64 `json:"scoring"`
-	TaxiSlots   int                `json:"taxi_slots"`
-	IRSlots     int                `json:"ir_slots"`
-	DraftRounds int                `json:"draft_rounds"`
+	NumTeams           int                `json:"num_teams"`
+	Budget             int                `json:"budget"`
+	Slots              map[string]int     `json:"slots"`
+	Scoring            map[string]float64 `json:"scoring"`
+	TaxiSlots          int                `json:"taxi_slots"`
+	IRSlots            int                `json:"ir_slots"`
+	DraftRounds        int                `json:"draft_rounds"`
+	RegularSeasonWeeks int                `json:"regular_season_weeks"`
 }
 
 // validateNativeSlots rejects a starting-lineup slot vocabulary that a native
@@ -135,6 +136,9 @@ func (h *Handler) CreateLeague(w http.ResponseWriter, r *http.Request) {
 	if req.Settings.DraftRounds <= 0 {
 		req.Settings.DraftRounds = 4
 	}
+	if req.Settings.RegularSeasonWeeks <= 0 {
+		req.Settings.RegularSeasonWeeks = 14
+	}
 	slotsJSON, err := json.Marshal(req.Settings.Slots)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid slots")
@@ -166,19 +170,20 @@ func (h *Handler) CreateLeague(w http.ResponseWriter, r *http.Request) {
 	}
 
 	settings := models.LeagueSettings{
-		LeagueID:    l.ID,
-		NumTeams:    req.Settings.NumTeams,
-		Budget:      req.Settings.Budget,
-		Slots:       req.Settings.Slots,
-		Scoring:     req.Settings.Scoring,
-		TaxiSlots:   req.Settings.TaxiSlots,
-		IRSlots:     req.Settings.IRSlots,
-		DraftRounds: req.Settings.DraftRounds,
+		LeagueID:           l.ID,
+		NumTeams:           req.Settings.NumTeams,
+		Budget:             req.Settings.Budget,
+		Slots:              req.Settings.Slots,
+		Scoring:            req.Settings.Scoring,
+		TaxiSlots:          req.Settings.TaxiSlots,
+		IRSlots:            req.Settings.IRSlots,
+		DraftRounds:        req.Settings.DraftRounds,
+		RegularSeasonWeeks: req.Settings.RegularSeasonWeeks,
 	}
 	if _, err := tx.Exec(r.Context(), `
-		INSERT INTO league_settings (league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	`, l.ID, settings.NumTeams, settings.Budget, slotsJSON, scoringJSON, settings.TaxiSlots, settings.IRSlots, settings.DraftRounds,
+		INSERT INTO league_settings (league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds, regular_season_weeks)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, l.ID, settings.NumTeams, settings.Budget, slotsJSON, scoringJSON, settings.TaxiSlots, settings.IRSlots, settings.DraftRounds, settings.RegularSeasonWeeks,
 	); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

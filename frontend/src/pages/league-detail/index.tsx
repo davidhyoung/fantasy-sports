@@ -10,6 +10,9 @@ import { ScoreboardTab } from './ScoreboardTab'
 import { PlayersTab } from './PlayersTab'
 import { NativePlayersTab } from './NativePlayersTab'
 import { NativeRosterTab } from './NativeRosterTab'
+import { NativeMyTeamTab } from './NativeMyTeamTab'
+import { NativeStandingsTab } from './NativeStandingsTab'
+import { NativeScoreboardTab } from './NativeScoreboardTab'
 import { DraftSection } from './DraftSection'
 
 const SPORT_LABEL: Record<string, string> = {
@@ -40,8 +43,6 @@ export default function LeagueDetail() {
   const { league, teams, yahooKeyToId, error } = useLeagueCore(leagueId)
 
   const myTeam = teams.find((t) => t.user_id)
-  // Native leagues have no weekly scoring at all yet — no schedule, no live
-  // stats — so Standings/Scoreboard don't exist for them.
   const isNative = league?.source === 'native'
 
   // The My Team tab only exists once we know you own a team here. Wait for teams
@@ -49,8 +50,6 @@ export default function LeagueDetail() {
   const visibleTab =
     activeTab === 'my-team' && teams.length > 0 && !myTeam
       ? 'standings'
-      : isNative && (activeTab === 'standings' || activeTab === 'scoreboard')
-      ? 'draft'
       : activeTab
 
   if (error) return <p className="text-destructive">{(error as Error).message}</p>
@@ -84,9 +83,8 @@ export default function LeagueDetail() {
       <Tabs value={visibleTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6">
           {myTeam && <TabsTrigger value="my-team">My Team</TabsTrigger>}
-          {/* Native leagues have no schedule or live stats yet. */}
-          {!isNative && <TabsTrigger value="standings">Standings</TabsTrigger>}
-          {!isNative && <TabsTrigger value="scoreboard">Scoreboard</TabsTrigger>}
+          <TabsTrigger value="standings">Standings</TabsTrigger>
+          <TabsTrigger value="scoreboard">Scoreboard</TabsTrigger>
           <TabsTrigger value="players">Players</TabsTrigger>
           {isNative && <TabsTrigger value="roster">Roster</TabsTrigger>}
           {/* Draft covers draft values (NFL) + keepers (or picks, for native). */}
@@ -95,21 +93,29 @@ export default function LeagueDetail() {
 
         {myTeam && (
           <TabsContent value="my-team">
-            <MyTeamTab myTeam={myTeam} />
+            {isNative ? (
+              <NativeMyTeamTab leagueId={leagueId} active={visibleTab === 'my-team'} myTeam={myTeam} />
+            ) : (
+              <MyTeamTab myTeam={myTeam} />
+            )}
           </TabsContent>
         )}
 
-        {!isNative && (
-          <TabsContent value="standings">
+        <TabsContent value="standings">
+          {isNative ? (
+            <NativeStandingsTab leagueId={leagueId} active={visibleTab === 'standings'} />
+          ) : (
             <StandingsTab leagueId={leagueId} active={visibleTab === 'standings'} yahooKeyToId={yahooKeyToId} />
-          </TabsContent>
-        )}
+          )}
+        </TabsContent>
 
-        {!isNative && (
-          <TabsContent value="scoreboard">
+        <TabsContent value="scoreboard">
+          {isNative ? (
+            <NativeScoreboardTab leagueId={leagueId} active={visibleTab === 'scoreboard'} />
+          ) : (
             <ScoreboardTab leagueId={leagueId} active={visibleTab === 'scoreboard'} yahooKeyToId={yahooKeyToId} />
-          </TabsContent>
-        )}
+          )}
+        </TabsContent>
 
         <TabsContent value="players">
           {isNative ? (

@@ -123,3 +123,105 @@ func LoadSeasonStats(ctx context.Context, db *pgxpool.Pool, season int, gsisIDs 
 	}
 	return out, nil
 }
+
+// LoadWeekStats loads a single week's real stat lines (REG only) for the
+// given gsis_ids — the per-week sibling of LoadSeasonStats, used to score
+// native-league matchups from actual results rather than projections. Same
+// column-to-canonical-stat mapping; no SUM/GROUP BY since nfl_player_stats
+// already carries at most one row per (gsis_id, season, week, season_type).
+// Players with no row that week (bye, inactive, not on any NFL roster) are
+// absent from the result — callers treat that as zero points.
+func LoadWeekStats(ctx context.Context, db *pgxpool.Pool, season, week int, gsisIDs []string) (map[string]map[scoring.CanonicalStat]float64, error) {
+	out := map[string]map[scoring.CanonicalStat]float64{}
+	if len(gsisIDs) == 0 {
+		return out, nil
+	}
+
+	rows, err := db.Query(ctx, `
+		SELECT
+			gsis_id,
+			COALESCE(pass_attempts, 0)        AS pass_att,
+			COALESCE(completions, 0)          AS pass_comp,
+			COALESCE(passing_yards, 0)        AS pass_yds,
+			COALESCE(passing_tds, 0)          AS pass_td,
+			COALESCE(interceptions, 0)        AS pass_int,
+			COALESCE(sacks, 0)                AS sacks,
+			COALESCE(carries, 0)              AS rush_att,
+			COALESCE(rushing_yards, 0)        AS rush_yds,
+			COALESCE(rushing_tds, 0)          AS rush_td,
+			COALESCE(receptions, 0)           AS rec,
+			COALESCE(targets, 0)              AS targets,
+			COALESCE(receiving_yards, 0)      AS rec_yds,
+			COALESCE(receiving_tds, 0)        AS rec_td,
+			COALESCE(special_teams_tds, 0)    AS return_td,
+			COALESCE(passing_2pt + rushing_2pt + receiving_2pt, 0) AS two_pt,
+			COALESCE(rushing_fumbles + receiving_fumbles, 0)       AS fumbles,
+			COALESCE(rushing_fumbles_lost + receiving_fumbles_lost, 0) AS fumbles_lost,
+			COALESCE(fg_made, 0)              AS fg_made,
+			COALESCE(pat_made, 0)             AS pat_made
+		FROM nfl_player_stats
+		WHERE gsis_id = ANY($1)
+		  AND season = $2
+		  AND week = $3
+		  AND season_type = 'REG'
+	`, gsisIDs, season, week)
+	if err != nil {
+		return nil, fmt.Errorf("load week stats: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			gsisID   string
+			passAtt, passComp, passYds,
+			passTD, passInt, sacks,
+			rushAtt, rushYds, rushTD,
+			rec, targets, recYds, recTD,
+			returnTD, twoPt,
+			fumbles, fumblesLost,
+			fgMade, patMade float64
+		)
+		if err := rows.Scan(
+			&gsisID,
+			&passAtt, &passComp, &passYds,
+			&passTD, &passInt, &sacks,
+			&rushAtt, &rushYds, &rushTD,
+			&rec, &targets, &recYds, &recTD,
+			&returnTD, &twoPt,
+			&fumbles, &fumblesLost,
+			&fgMade, &patMade,
+		); err != nil {
+			return nil, fmt.Errorf("scan week stats: %w", err)
+		}
+		values := map[scoring.CanonicalStat]float64{
+			scoring.StatPassAtt:     passAtt,
+			scoring.StatPassComp:    passComp,
+			scoring.StatPassInc:     passAtt - passComp,
+			scoring.StatPassYds:     passYds,
+			scoring.StatPassTD:      passTD,
+			scoring.StatPassInt:     passInt,
+			scoring.StatSacks:       sacks,
+			scoring.StatRushAtt:     rushAtt,
+			scoring.StatRushYds:     rushYds,
+			scoring.StatRushTD:      rushTD,
+			scoring.StatRec:         rec,
+			scoring.StatTargets:     targets,
+			scoring.StatRecYds:      recYds,
+			scoring.StatRecTD:       recTD,
+			scoring.StatReturnTD:    returnTD,
+			scoring.StatTwoPt:       twoPt,
+			scoring.StatFumbles:     fumbles,
+			scoring.StatFumblesLost: fumblesLost,
+			scoring.StatFGMade:      fgMade,
+			scoring.StatPATMade:     patMade,
+		}
+		for bucket, share := range scoring.FGDistribution {
+			values[bucket] = fgMade * share
+		}
+		out[gsisID] = values
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}

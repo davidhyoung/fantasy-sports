@@ -48,6 +48,8 @@ type LeagueSettings struct {
 	// DraftRounds is how many rounds a generated draft class has — a short
 	// rookie draft for dynasty, a full re-draft's worth for redraft rollover.
 	DraftRounds int `json:"draft_rounds"`
+	// RegularSeasonWeeks is how many weeks a generated schedule covers.
+	RegularSeasonWeeks int `json:"regular_season_weeks"`
 }
 
 type Team struct {
