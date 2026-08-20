@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
@@ -91,6 +91,14 @@ function EditContractForm({
 export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Props) {
   const qc = useQueryClient()
   const [teamId, setTeamId] = useState(myTeam?.id ?? teams[0]?.id ?? 0)
+  // `teams` loads asynchronously — if this tab mounts before it resolves,
+  // teamId initializes to 0 and never recovers on its own (useState's
+  // initializer only runs once). Correct it once real teams arrive.
+  useEffect(() => {
+    if (teams.length === 0) return
+    if (teams.some((t) => t.id === teamId)) return
+    setTeamId(myTeam?.id ?? teams[0].id)
+  }, [teams, myTeam, teamId])
   const [assigning, setAssigning] = useState(false)
   const [trading, setTrading] = useState(false)
   const [editing, setEditing] = useState<RosterEntry | null>(null)
