@@ -7,10 +7,28 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/davidyoung/fantasy-sports/backend/internal/models"
 )
 
 var errAlreadyRolled = errors.New("rollover already run for that season")
+
+// lockLeagueAtSeason locks the league row and confirms its season hasn't
+// moved since the rollover request was computed — the correct idempotency
+// gate for "has this rollover already happened," as opposed to checking
+// whether next season's draft picks exist (they legitimately can, ahead of
+// time, since picks are tradable in advance of the actual rollover).
+func lockLeagueAtSeason(ctx context.Context, tx pgx.Tx, leagueID int64, expectedFromSeason int) error {
+	var seasonStr string
+	if err := tx.QueryRow(ctx, "SELECT season FROM leagues WHERE id = $1 FOR UPDATE", leagueID).Scan(&seasonStr); err != nil {
+		return err
+	}
+	if seasonStr != strconv.Itoa(expectedFromSeason) {
+		return errAlreadyRolled
+	}
+	return nil
+}
 
 type rolloverReq struct {
 	ToSeason int `json:"to_season"` // optional, defaults to current season + 1
@@ -104,12 +122,8 @@ func (h *Handler) rolloverDynasty(ctx context.Context, user *models.User, league
 	}
 	defer tx.Rollback(ctx)
 
-	var picksExist bool
-	if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM league_draft_picks WHERE league_id = $1 AND season = $2)", leagueID, toSeason).Scan(&picksExist); err != nil {
+	if err := lockLeagueAtSeason(ctx, tx, leagueID, fromSeason); err != nil {
 		return err
-	}
-	if picksExist {
-		return errAlreadyRolled
 	}
 
 	rows, err := tx.Query(ctx, `
@@ -169,12 +183,8 @@ func (h *Handler) rolloverRedraft(ctx context.Context, user *models.User, league
 	}
 	defer tx.Rollback(ctx)
 
-	var picksExist bool
-	if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM league_draft_picks WHERE league_id = $1 AND season = $2)", leagueID, toSeason).Scan(&picksExist); err != nil {
+	if err := lockLeagueAtSeason(ctx, tx, leagueID, fromSeason); err != nil {
 		return err
-	}
-	if picksExist {
-		return errAlreadyRolled
 	}
 
 	tag, err := tx.Exec(ctx, `DELETE FROM league_rosters WHERE league_id = $1`, leagueID)

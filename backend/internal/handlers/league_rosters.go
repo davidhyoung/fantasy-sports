@@ -139,12 +139,18 @@ func (h *Handler) leagueTeamIDs(ctx context.Context, tx pgx.Tx, leagueID int64) 
 // teams) for a season inside an already-open transaction. Shared by
 // GenerateLeagueDraftPicks and dynasty/redraft rollover, both of which need
 // "make next season's picks" as one step inside a larger atomic operation.
+// ON CONFLICT DO NOTHING: a commissioner may have already generated (and
+// possibly started trading) next season's picks ahead of the actual
+// rollover — that's the entire point of picks being tradable in advance —
+// so rollover must not fail or duplicate on rows that already exist; it
+// just carries on with whatever's there.
 func generateDraftClassTx(ctx context.Context, tx pgx.Tx, leagueID int64, season, rounds int, teamIDs []int64) error {
 	for round := 1; round <= rounds; round++ {
 		for _, tid := range teamIDs {
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO league_draft_picks (league_id, season, round, original_team_id, current_team_id)
 				VALUES ($1, $2, $3, $4, $4)
+				ON CONFLICT (league_id, season, round, original_team_id) DO NOTHING
 			`, leagueID, season, round, tid); err != nil {
 				return err
 			}

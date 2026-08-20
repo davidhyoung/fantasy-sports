@@ -2,6 +2,7 @@ import { useSearchParams } from 'react-router-dom'
 import type { Team } from '@/api/client'
 import { DraftTab } from './DraftTab'
 import { KeepersTab } from './KeepersTab'
+import { NativeDraftPicksTab } from './NativeDraftPicksTab'
 
 interface Props {
   leagueId: number
@@ -10,18 +11,28 @@ interface Props {
   season: string
   teams: Team[]
   myTeam: Team | undefined
+  isNative: boolean
 }
 
 /**
  * The Draft tab groups everything draft-related. Keepers are a sub-section here
  * (`?tab=draft&sub=keepers`) since keeper picks are draft picks. Draft values are
  * NFL-only, so non-NFL leagues get keepers alone with no sub-tab switcher.
+ *
+ * Native leagues get "Picks" instead of "Keepers" — the existing Keepers tab is
+ * Yahoo-draft-result-shaped (`GetLeagueDraftResults`/`GetLeagueKeepers` both
+ * 422 without a yahoo_key), the same class of bug the Players tab had before
+ * `NativePlayersTab` existed. Native keeper-format leagues aren't supported
+ * yet at all (see rollover's 501), so there's nothing "Keepers" could show
+ * for a native league regardless of format.
  */
-export function DraftSection({ leagueId, active, sport, season, teams, myTeam }: Props) {
+export function DraftSection({ leagueId, active, sport, season, teams, myTeam, isNative }: Props) {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const hasValues = sport === 'nfl'
-  const sub = hasValues ? searchParams.get('sub') ?? 'values' : 'keepers'
+  const secondSub = isNative ? 'picks' : 'keepers'
+  const secondLabel = isNative ? 'Picks' : 'Keepers'
+  const sub = hasValues ? searchParams.get('sub') ?? 'values' : secondSub
   const setSub = (next: string) =>
     setSearchParams((prev) => { prev.set('sub', next); return prev }, { replace: true })
 
@@ -31,7 +42,7 @@ export function DraftSection({ leagueId, active, sport, season, teams, myTeam }:
         <div className="flex w-fit rounded-lg bg-muted overflow-hidden">
           {[
             { value: 'values', label: 'Draft Values' },
-            { value: 'keepers', label: 'Keepers' },
+            { value: secondSub, label: secondLabel },
           ].map((s) => (
             <button
               key={s.value}
@@ -48,7 +59,9 @@ export function DraftSection({ leagueId, active, sport, season, teams, myTeam }:
         </div>
       )}
 
-      {sub === 'keepers' ? (
+      {sub === 'picks' && isNative ? (
+        <NativeDraftPicksTab leagueId={leagueId} active={active} teams={teams} season={season} />
+      ) : sub === 'keepers' && !isNative ? (
         <KeepersTab
           leagueId={leagueId}
           active={active}

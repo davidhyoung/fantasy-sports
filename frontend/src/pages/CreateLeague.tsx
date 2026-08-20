@@ -99,7 +99,12 @@ export default function CreateLeague() {
   const [budget, setBudget] = useState(FALLBACK_SETTINGS.budget)
   const [numTeams, setNumTeams] = useState(12)
   const [teamNames, setTeamNames] = useState<string[]>(() => resizeTeams([], 12))
-  const [slots, setSlots] = useState<Record<SlotPosition, number>>({ ...FALLBACK_SETTINGS.slots })
+  // DEF is dropped for native leagues — nflverse has no team-defense gsis_ids,
+  // so a DEF roster slot can never actually be filled. Seeded to 0 (not
+  // omitted) so the payload always satisfies the backend's validateNativeSlots
+  // check trivially; SLOT_POSITIONS itself stays untouched since Yahoo leagues
+  // still use DEF elsewhere (the draft-values settings panel).
+  const [slots, setSlots] = useState<Record<SlotPosition, number>>({ ...FALLBACK_SETTINGS.slots, DEF: 0 })
   const [scoring, setScoring] = useState<Record<ScoringStat, number>>({ ...FALLBACK_SETTINGS.scoring })
 
   const setTeamCount = (n: number) => {
@@ -201,7 +206,7 @@ export default function CreateLeague() {
             Starting lineup
           </span>
           <div className="mt-2 flex flex-wrap gap-3">
-            {SLOT_POSITIONS.map((pos) => (
+            {SLOT_POSITIONS.filter((pos) => pos !== 'DEF').map((pos) => (
               <NumberField
                 key={pos}
                 label={SLOT_LABELS[pos]}
@@ -212,6 +217,10 @@ export default function CreateLeague() {
               />
             ))}
           </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            No DEF slot — nflverse doesn't track team defenses as individually
+            rostered players, so a native league can't roster one yet.
+          </p>
         </section>
 
         {/* Scoring */}

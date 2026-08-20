@@ -11,8 +11,12 @@ export const keys = {
   searchPlayers: (id: number, q: string) =>
     ['league', id, 'players', 'search', q] as const,
   leagueRosters: (id: number) => ['league', id, 'rosters'] as const,
-  freeAgents: (id: number, position: string) =>
-    ['league', id, 'free-agents', position] as const,
+  freeAgents: (id: number, position: string, search = '') =>
+    ['league', id, 'free-agents', position, search] as const,
+  leagueSettings: (id: number) => ['league', id, 'settings'] as const,
+  leaguePicks: (id: number, season?: number) =>
+    season != null ? ['league', id, 'picks', season] as const : ['league', id, 'picks'] as const,
+  leagueTransactions: (id: number) => ['league', id, 'transactions'] as const,
   team: (id: number) => ['team', id] as const,
   teamRoster: (id: number, statType?: string) =>
     statType ? ['team', id, 'roster', statType] as const : ['team', id, 'roster'] as const,

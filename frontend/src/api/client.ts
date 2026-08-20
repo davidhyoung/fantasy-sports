@@ -30,6 +30,7 @@ export interface LeagueSettings {
   scoring: Record<string, number>
   taxi_slots: number
   ir_slots: number
+  draft_rounds: number
 }
 
 export interface CreateLeagueRequest {
@@ -124,6 +125,17 @@ export const getLeague = (id: number) => request<League>(`/leagues/${id}`)
 // create a Yahoo-backed league through this API; those arrive via POST /api/sync.
 export const createLeague = (data: CreateLeagueRequest) =>
   request<CreateLeagueResponse>('/leagues', { method: 'POST', body: JSON.stringify(data) })
+
+// --- Native league settings ---
+
+export const getLeagueSettings = (leagueId: number) =>
+  request<LeagueSettings>(`/leagues/${leagueId}/settings`)
+
+export const updateLeagueSettings = (
+  leagueId: number,
+  settings: { num_teams: number; budget: number; slots: Record<string, number>; scoring: Record<string, number>; taxi_slots: number; ir_slots: number; draft_rounds: number }
+) =>
+  request<LeagueSettings>(`/leagues/${leagueId}/settings`, { method: 'PUT', body: JSON.stringify(settings) })
 
 // --- Teams ---
 
@@ -259,13 +271,92 @@ export const assignLeagueRoster = (
 export const dropLeagueRoster = (leagueId: number, gsisId: string) =>
   request<{ status: string }>(`/leagues/${leagueId}/rosters/${encodeURIComponent(gsisId)}`, { method: 'DELETE' })
 
-export const getLeagueFreeAgents = (leagueId: number, position = '', limit = 100, offset = 0) => {
+// Moves a rostered player to another team (a trade), a different slot,
+// and/or edits contract terms. Only fields present in the patch are changed.
+export const updateLeagueRoster = (
+  leagueId: number,
+  gsisId: string,
+  patch: { team_id?: number; slot?: string; salary?: number; years_total?: number | null; clear_years_total?: boolean }
+) =>
+  request<{ status: string }>(`/leagues/${leagueId}/rosters/${encodeURIComponent(gsisId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  })
+
+export const getLeagueFreeAgents = (leagueId: number, position = '', limit = 100, offset = 0, search = '') => {
   const params = new URLSearchParams()
   if (position) params.set('position', position)
   params.set('limit', String(limit))
   if (offset > 0) params.set('offset', String(offset))
+  if (search) params.set('search', search)
   return request<FreeAgent[]>(`/leagues/${leagueId}/free-agents?${params.toString()}`)
 }
+
+// --- Draft picks & trades (native leagues only) ---
+
+// Named LeagueDraftPick, not DraftPick — that name is already taken below by
+// the Yahoo keeper-draft-results type.
+export interface LeagueDraftPick {
+  id: number
+  season: number
+  round: number
+  original_team_id: number
+  original_team_name: string
+  current_team_id: number
+  current_team_name: string
+  overall_pick: number | null
+  used_on_gsis_id: string | null
+  used_on_name: string | null
+}
+
+export const getLeagueDraftPicks = (leagueId: number, season?: number, teamId?: number) => {
+  const params = new URLSearchParams()
+  if (season) params.set('season', String(season))
+  if (teamId) params.set('team_id', String(teamId))
+  const qs = params.toString()
+  return request<LeagueDraftPick[]>(`/leagues/${leagueId}/picks${qs ? `?${qs}` : ''}`)
+}
+
+export const generateLeagueDraftPicks = (leagueId: number, season?: number, rounds?: number) =>
+  request<{ status: string; season: number; rounds: number; picks: number }>(`/leagues/${leagueId}/picks/generate`, {
+    method: 'POST',
+    body: JSON.stringify({ season, rounds }),
+  })
+
+export const useLeagueDraftPick = (
+  leagueId: number,
+  pickId: number,
+  data: { gsis_id: string; slot?: string; salary: number; signed_season?: number; years_total?: number | null }
+) =>
+  request<{ status: string }>(`/leagues/${leagueId}/picks/${pickId}/use`, { method: 'POST', body: JSON.stringify(data) })
+
+export interface TradeAsset {
+  kind: 'player' | 'pick'
+  gsis_id?: string
+  pick_id?: number
+  to_team_id: number
+}
+
+export const createLeagueTrade = (leagueId: number, assets: TradeAsset[]) =>
+  request<{ status: string; moves: unknown[] }>(`/leagues/${leagueId}/trades`, {
+    method: 'POST',
+    body: JSON.stringify({ assets }),
+  })
+
+export interface LeagueTransaction {
+  kind: 'draft' | 'auction' | 'trade' | 'add' | 'drop' | 'keeper' | 'rollover'
+  payload: Record<string, unknown>
+  created_at: string
+}
+
+export const getLeagueTransactions = (leagueId: number, season?: number) =>
+  request<LeagueTransaction[]>(`/leagues/${leagueId}/transactions${season ? `?season=${season}` : ''}`)
+
+export const rolloverLeague = (leagueId: number, toSeason?: number, rounds?: number) =>
+  request<{ status: string; from_season: number; to_season: number }>(`/leagues/${leagueId}/rollover`, {
+    method: 'POST',
+    body: JSON.stringify({ to_season: toSeason, rounds }),
+  })
 
 // --- Keepers ---
 

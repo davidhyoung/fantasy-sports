@@ -9,6 +9,7 @@ import { StandingsTab } from './StandingsTab'
 import { ScoreboardTab } from './ScoreboardTab'
 import { PlayersTab } from './PlayersTab'
 import { NativePlayersTab } from './NativePlayersTab'
+import { NativeRosterTab } from './NativeRosterTab'
 import { DraftSection } from './DraftSection'
 
 const SPORT_LABEL: Record<string, string> = {
@@ -87,7 +88,8 @@ export default function LeagueDetail() {
           {!isNative && <TabsTrigger value="standings">Standings</TabsTrigger>}
           {!isNative && <TabsTrigger value="scoreboard">Scoreboard</TabsTrigger>}
           <TabsTrigger value="players">Players</TabsTrigger>
-          {/* Draft covers draft values (NFL) + keepers. */}
+          {isNative && <TabsTrigger value="roster">Roster</TabsTrigger>}
+          {/* Draft covers draft values (NFL) + keepers (or picks, for native). */}
           <TabsTrigger value="draft">Draft</TabsTrigger>
         </TabsList>
 
@@ -117,6 +119,18 @@ export default function LeagueDetail() {
           )}
         </TabsContent>
 
+        {isNative && (
+          <TabsContent value="roster">
+            <NativeRosterTab
+              leagueId={leagueId}
+              active={visibleTab === 'roster'}
+              teams={teams}
+              myTeam={myTeam}
+              format={league.format}
+            />
+          </TabsContent>
+        )}
+
         <TabsContent value="draft">
           <DraftSection
             leagueId={leagueId}
@@ -125,6 +139,7 @@ export default function LeagueDetail() {
             season={league.season}
             teams={teams}
             myTeam={myTeam}
+            isNative={isNative}
           />
         </TabsContent>
       </Tabs>
