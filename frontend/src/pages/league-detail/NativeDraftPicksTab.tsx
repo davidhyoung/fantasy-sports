@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link as RouterLink } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { Table, TableHeader, TableBody, TableHead, TableCell, TableRow } from '@/components/ui/table'
 import { HeaderRow } from '@/components/ui/table-helpers'
@@ -93,9 +94,13 @@ export function NativeDraftPicksTab({ leagueId, active, teams, season }: Props) 
                       .map((p) => (
                         <TableRow key={p.id}>
                           <TableCell className="font-mono tabular-nums">{p.round}</TableCell>
-                          <TableCell className="text-muted-foreground">{p.current_team_name}</TableCell>
                           <TableCell className="text-muted-foreground">
-                            {p.original_team_id !== p.current_team_id ? p.original_team_name : '—'}
+                            <RouterLink to={`/teams/${p.current_team_id}`} className="hover:text-primary">{p.current_team_name}</RouterLink>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {p.original_team_id !== p.current_team_id ? (
+                              <RouterLink to={`/teams/${p.original_team_id}`} className="hover:text-primary">{p.original_team_name}</RouterLink>
+                            ) : '—'}
                           </TableCell>
                           <TableCell className="text-muted-foreground">{p.used_on_name ?? '—'}</TableCell>
                           <TableCell className="text-right">

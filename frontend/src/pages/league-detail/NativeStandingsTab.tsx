@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link as RouterLink } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { Table, TableHeader, TableBody, TableHead, TableCell, TableRow } from '@/components/ui/table'
 import { HeaderRow } from '@/components/ui/table-helpers'
@@ -47,7 +48,13 @@ export function NativeStandingsTab({ leagueId, active }: Props) {
           {standings.map((s) => (
             <TableRow key={s.team_id ?? s.team_key}>
               <TableCell className="font-mono tabular-nums">{s.rank}</TableCell>
-              <TableCell className="font-medium">{s.name}</TableCell>
+              <TableCell className="font-medium">
+                {s.team_id ? (
+                  <RouterLink to={`/teams/${s.team_id}`} className="hover:text-primary">{s.name}</RouterLink>
+                ) : (
+                  s.name
+                )}
+              </TableCell>
               <TableCell className="font-mono tabular-nums">{s.wins}-{s.losses}-{s.ties}</TableCell>
               <TableCell className="text-right font-mono tabular-nums">{s.points_for}</TableCell>
               <TableCell className="text-right font-mono tabular-nums">{s.points_against}</TableCell>

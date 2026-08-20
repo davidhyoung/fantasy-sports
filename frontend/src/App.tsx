@@ -8,7 +8,7 @@ import Home from './pages/Home'
 import CreateLeague from './pages/CreateLeague'
 import LeagueDetail from './pages/league-detail'
 import MyTeamRedirect from './pages/league-detail/MyTeamRedirect'
-import TeamDetail from './pages/team-detail'
+import TeamDetailRouter from './pages/TeamDetailRouter'
 import MatchupDetail from './pages/matchup-detail'
 import PlayerDetail from './pages/player-detail'
 import Statistics from './pages/statistics'
@@ -183,7 +183,7 @@ export default function App() {
           <Route path="/leagues/:id" element={<LeagueDetail />} />
           {/* Stable deep link to your own team in a league → /teams/:teamId */}
           <Route path="/leagues/:id/my-team" element={<MyTeamRedirect />} />
-          <Route path="/teams/:id" element={<TeamDetail />} />
+          <Route path="/teams/:id" element={<TeamDetailRouter />} />
           <Route path="/leagues/:leagueId/matchup/:week/:t1/:t2" element={<MatchupDetail />} />
           <Route path="/draft-prep" element={<DraftPrep />} />
           <Route path="/wiki" element={<Wiki />} />

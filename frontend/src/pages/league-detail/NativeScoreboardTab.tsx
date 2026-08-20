@@ -1,9 +1,20 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link as RouterLink } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { getLeagueScoreboard, generateLeagueSchedule, scoreLeagueWeek } from '@/api/client'
+import { getLeagueScoreboard, generateLeagueSchedule, scoreLeagueWeek, type MatchupTeam } from '@/api/client'
 import { keys } from '@/api/queryKeys'
+
+function TeamNameLink({ team }: { team: MatchupTeam | undefined }) {
+  if (!team) return null
+  if (!team.team_id) return <span className="font-display text-sm font-semibold text-foreground">{team.name}</span>
+  return (
+    <RouterLink to={`/teams/${team.team_id}`} className="font-display text-sm font-semibold text-foreground hover:text-primary">
+      {team.name}
+    </RouterLink>
+  )
+}
 
 interface Props {
   leagueId: number
@@ -88,11 +99,11 @@ export function NativeScoreboardTab({ leagueId, active }: Props) {
           {scoreboard.matchups.map((m, i) => (
             <div key={i} className="rounded-lg bg-card px-4 py-3">
               <div className="flex items-center justify-between">
-                <span className="font-display text-sm font-semibold text-foreground">{m.teams[0]?.name}</span>
+                <TeamNameLink team={m.teams[0]} />
                 <span className="font-mono text-sm tabular-nums text-foreground">{m.teams[0]?.points}</span>
               </div>
               <div className="mt-1 flex items-center justify-between border-t border-border pt-1">
-                <span className="font-display text-sm font-semibold text-foreground">{m.teams[1]?.name}</span>
+                <TeamNameLink team={m.teams[1]} />
                 <span className="font-mono text-sm tabular-nums text-foreground">{m.teams[1]?.points}</span>
               </div>
               <div className="mt-1.5 text-xs text-muted-foreground">
