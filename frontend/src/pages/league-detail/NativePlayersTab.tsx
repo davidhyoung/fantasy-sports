@@ -4,8 +4,9 @@ import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/component
 import { PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { useQuery } from '@tanstack/react-query'
-import { getLeagueRosters, getLeagueFreeAgents, type Team } from '../../api/client'
+import { getLeagueRosters, getLeagueFreeAgents, type Team, type PlayerStat } from '../../api/client'
 import { keys } from '../../api/queryKeys'
+import { SCORING_STATS, SCORING_LABELS, type ScoringStat } from './hooks/useDraftSettings'
 
 const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF']
 
@@ -13,6 +14,10 @@ interface Props {
   leagueId: number
   active: boolean
   teams: Team[]
+}
+
+function statValue(stats: PlayerStat[] | undefined, stat: ScoringStat): number | undefined {
+  return stats?.find((s) => s.stat === stat)?.value
 }
 
 /**
@@ -23,6 +28,12 @@ interface Props {
  * there, ranked by projection. The richer per-position value comparison
  * (VOR, tiers, auction price) already exists for native leagues on the Draft
  * tab — this view is for roster bookkeeping, not evaluation.
+ *
+ * Stat columns are dynamic — only the categories this league's own scoring
+ * actually weights (nonzero) come back from the API at all (see
+ * relevantPlayerStats in league_rosters.go), so "relevant" here means
+ * "impacts this league's scoring," not just "exists." Column set and order
+ * follow SCORING_STATS, same vocabulary the draft-settings panel edits.
  */
 export function NativePlayersTab({ leagueId, active, teams }: Props) {
   const [view, setView] = useState<'free-agents' | 'rostered'>('free-agents')
@@ -49,6 +60,12 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
 
   const loading = view === 'free-agents' ? loadingFA : loadingRoster
   const rows = view === 'free-agents' ? freeAgents ?? [] : rosteredFiltered
+
+  const statColumns = useMemo(() => {
+    const present = new Set<string>()
+    for (const p of rows) for (const s of p.stats ?? []) present.add(s.stat)
+    return SCORING_STATS.filter((s) => present.has(s))
+  }, [rows])
 
   return (
     <>
@@ -88,6 +105,9 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                 <TableHead>Player</TableHead>
                 <TableHead>Team</TableHead>
                 <TableHead>Pos</TableHead>
+                {statColumns.map((s) => (
+                  <TableHead key={s} className="text-right">{SCORING_LABELS[s]}</TableHead>
+                ))}
                 {view === 'free-agents' ? (
                   <TableHead className="text-right">Proj Pts</TableHead>
                 ) : (
@@ -106,6 +126,14 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                       <PlayerCell name={p.name} imageUrl={p.headshot_url} linked />
                       <TableCell className="text-muted-foreground">{p.team || '—'}</TableCell>
                       <TableCell className="text-muted-foreground">{p.position}</TableCell>
+                      {statColumns.map((s) => {
+                        const v = statValue(p.stats, s)
+                        return (
+                          <TableCell key={s} className="text-right font-mono tabular-nums">
+                            {v != null ? v.toFixed(1) : '—'}
+                          </TableCell>
+                        )
+                      })}
                       <TableCell className="text-right font-mono tabular-nums">
                         {p.proj_fpts_ppr != null ? p.proj_fpts_ppr.toFixed(1) : '—'}
                       </TableCell>
@@ -116,6 +144,14 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                       <PlayerCell name={p.name} imageUrl={p.headshot_url} linked />
                       <TableCell className="text-muted-foreground">{p.team || '—'}</TableCell>
                       <TableCell className="text-muted-foreground">{p.position}</TableCell>
+                      {statColumns.map((s) => {
+                        const v = statValue(p.stats, s)
+                        return (
+                          <TableCell key={s} className="text-right font-mono tabular-nums">
+                            {v != null ? v.toFixed(1) : '—'}
+                          </TableCell>
+                        )
+                      })}
                       <TableCell className="text-muted-foreground">{teamName(p.team_id)}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums">${p.salary}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums">

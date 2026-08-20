@@ -259,6 +259,15 @@ export const getAvailablePlayers = (leagueId: number, position = '', start = 0, 
 // those hit Yahoo. These are the native-league equivalents: roster state and
 // the free-agent pool both live in this app's own DB.
 
+// One projected season-total stat category, restricted server-side to
+// whatever the league's own scoring actually weights nonzero — "relevant"
+// meaning it impacts this league's scoring. `stat` is a canonical key
+// (pass_yds, pass_td, ...) matching SCORING_STATS in useDraftSettings.ts.
+export interface PlayerStat {
+  stat: string
+  value: number
+}
+
 export interface RosterEntry {
   gsis_id: string
   name: string
@@ -273,6 +282,7 @@ export interface RosterEntry {
   signed_season: number
   years_total: number | null
   years_used: number
+  stats?: PlayerStat[]
 }
 
 export interface FreeAgent {
@@ -282,6 +292,7 @@ export interface FreeAgent {
   team: string
   headshot_url?: string
   proj_fpts_ppr: number | null
+  stats?: PlayerStat[]
 }
 
 export const getLeagueRosters = (leagueId: number) =>

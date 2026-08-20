@@ -9,24 +9,95 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+
+	"github.com/davidyoung/fantasy-sports/backend/internal/services/leaguesettings"
+	"github.com/davidyoung/fantasy-sports/backend/internal/services/scoring"
 )
 
 // rosterEntryResp is one player on a native league's roster, enriched with
 // player metadata and contract terms.
 type rosterEntryResp struct {
-	GsisID       string    `json:"gsis_id"`
-	Name         string    `json:"name"`
-	Position     string    `json:"position"`
-	Team         string    `json:"team"`
-	HeadshotURL  string    `json:"headshot_url,omitempty"`
-	TeamID       int64     `json:"team_id"`
-	Slot         string    `json:"slot"`
-	AcquiredVia  string    `json:"acquired_via"`
-	AcquiredAt   time.Time `json:"acquired_at"`
-	Salary       int       `json:"salary"`
-	SignedSeason int       `json:"signed_season"`
-	YearsTotal   *int      `json:"years_total"`
-	YearsUsed    int       `json:"years_used"`
+	GsisID       string            `json:"gsis_id"`
+	Name         string            `json:"name"`
+	Position     string            `json:"position"`
+	Team         string            `json:"team"`
+	HeadshotURL  string            `json:"headshot_url,omitempty"`
+	TeamID       int64             `json:"team_id"`
+	Slot         string            `json:"slot"`
+	AcquiredVia  string            `json:"acquired_via"`
+	AcquiredAt   time.Time         `json:"acquired_at"`
+	Salary       int               `json:"salary"`
+	SignedSeason int               `json:"signed_season"`
+	YearsTotal   *int              `json:"years_total"`
+	YearsUsed    int               `json:"years_used"`
+	Stats        []playerStatEntry `json:"stats,omitempty"`
+}
+
+// playerStatEntry is one projected season-total stat category, restricted to
+// whatever this league's own scoring actually weights — "relevant" meaning
+// it impacts this league's scoring, not just "exists."
+type playerStatEntry struct {
+	Stat  string  `json:"stat"`
+	Value float64 `json:"value"`
+}
+
+// relevantPlayerStats returns season-total projected stats for the given
+// players, one entry per stat category the league's scoring weights
+// nonzero, in leaguesettings.ScoringEditableStats order (so every player's
+// array lines up under the same column headers). Rates come straight from
+// nfl_projections; ProjectionToCanonicalTotals (the same helper draft-values
+// and rollover scoring use) turns per-game rates into season totals.
+func (h *Handler) relevantPlayerStats(ctx context.Context, leagueID int64, season int, gsisIDs []string) (map[string][]playerStatEntry, error) {
+	out := map[string][]playerStatEntry{}
+	if len(gsisIDs) == 0 {
+		return out, nil
+	}
+
+	mods, ok := leaguesettings.NewNativeSource(h.db, leagueID).ScoringMods(ctx)
+	if !ok {
+		return out, nil
+	}
+	var relevant []scoring.CanonicalStat
+	for _, s := range leaguesettings.ScoringEditableStats {
+		if mods[s] != 0 {
+			relevant = append(relevant, s)
+		}
+	}
+	if len(relevant) == 0 {
+		return out, nil
+	}
+
+	rows, err := h.db.Query(ctx, `
+		SELECT gsis_id, proj_games,
+		       proj_pass_yds_pg, proj_pass_td_pg, proj_rush_yds_pg, proj_rush_td_pg,
+		       proj_rec_pg, proj_rec_yds_pg, proj_rec_td_pg, proj_fg_made_pg, proj_pat_made_pg
+		FROM nfl_projections
+		WHERE gsis_id = ANY($1) AND target_season = $2
+	`, gsisIDs, season)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var gsisID string
+		var games int
+		var rates scoring.ProjectionRates
+		if err := rows.Scan(
+			&gsisID, &games,
+			&rates.PassYdsPG, &rates.PassTdPG, &rates.RushYdsPG, &rates.RushTdPG,
+			&rates.RecPG, &rates.RecYdsPG, &rates.RecTdPG, &rates.FgMadePG, &rates.PatMadePG,
+		); err != nil {
+			return nil, err
+		}
+		totals := scoring.ProjectionToCanonicalTotals(rates, float64(games))
+		entries := make([]playerStatEntry, 0, len(relevant))
+		for _, s := range relevant {
+			entries = append(entries, playerStatEntry{Stat: string(s), Value: totals[s]})
+		}
+		out[gsisID] = entries
+	}
+	return out, rows.Err()
 }
 
 // GetLeagueRosters returns every rostered player in a native league. The
@@ -59,6 +130,7 @@ func (h *Handler) GetLeagueRosters(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	roster := []rosterEntryResp{}
+	gsisIDs := make([]string, 0)
 	for rows.Next() {
 		var e rosterEntryResp
 		if err := rows.Scan(
@@ -70,7 +142,19 @@ func (h *Handler) GetLeagueRosters(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		roster = append(roster, e)
+		gsisIDs = append(gsisIDs, e.GsisID)
 	}
+	rows.Close()
+
+	statsByPlayer, err := h.relevantPlayerStats(r.Context(), leagueID, h.leagueSeasonInt(r, leagueID), gsisIDs)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for i := range roster {
+		roster[i].Stats = statsByPlayer[roster[i].GsisID]
+	}
+
 	respondJSON(w, http.StatusOK, roster)
 }
 
@@ -362,12 +446,13 @@ func (h *Handler) DropLeagueRoster(w http.ResponseWriter, r *http.Request) {
 
 // freeAgentResp is one player not currently rostered in a native league.
 type freeAgentResp struct {
-	GsisID      string   `json:"gsis_id"`
-	Name        string   `json:"name"`
-	Position    string   `json:"position"`
-	Team        string   `json:"team"`
-	HeadshotURL string   `json:"headshot_url,omitempty"`
-	ProjFptsPPR *float64 `json:"proj_fpts_ppr"`
+	GsisID      string            `json:"gsis_id"`
+	Name        string            `json:"name"`
+	Position    string            `json:"position"`
+	Team        string            `json:"team"`
+	HeadshotURL string            `json:"headshot_url,omitempty"`
+	ProjFptsPPR *float64          `json:"proj_fpts_ppr"`
+	Stats       []playerStatEntry `json:"stats,omitempty"`
 }
 
 // GetLeagueFreeAgents returns players in a native league with no roster row —
@@ -423,6 +508,7 @@ func (h *Handler) GetLeagueFreeAgents(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	agents := []freeAgentResp{}
+	gsisIDs := make([]string, 0)
 	for rows.Next() {
 		var a freeAgentResp
 		if err := rows.Scan(&a.GsisID, &a.Name, &a.Position, &a.Team, &a.HeadshotURL, &a.ProjFptsPPR); err != nil {
@@ -430,7 +516,19 @@ func (h *Handler) GetLeagueFreeAgents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		agents = append(agents, a)
+		gsisIDs = append(gsisIDs, a.GsisID)
 	}
+	rows.Close()
+
+	statsByPlayer, err := h.relevantPlayerStats(r.Context(), leagueID, season, gsisIDs)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for i := range agents {
+		agents[i].Stats = statsByPlayer[agents[i].GsisID]
+	}
+
 	respondJSON(w, http.StatusOK, agents)
 }
 
