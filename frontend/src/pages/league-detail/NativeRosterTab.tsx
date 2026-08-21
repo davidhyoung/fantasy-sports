@@ -167,7 +167,7 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
         </div>
       )}
 
-      <NativeTeamOverview leagueId={leagueId} teamId={teamId} />
+      <NativeTeamOverview leagueId={leagueId} teamId={teamId} slots={settings?.slots} />
 
       {/* Single-user model: whoever's signed in manages every team, and the
           backend's requireCommissioner already gates the actual mutation —

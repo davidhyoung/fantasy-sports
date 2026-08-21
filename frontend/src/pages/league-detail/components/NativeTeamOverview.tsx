@@ -11,6 +11,9 @@ import { EditContractForm } from './EditContractForm'
 interface Props {
   leagueId: number
   teamId: number
+  /** League's configured slot counts — lets the roster table show the full
+   *  lineup shape (empty spots included), not just whoever's rostered. */
+  slots?: Record<string, number>
 }
 
 /**
@@ -19,7 +22,7 @@ interface Props {
  * separate read-only team page: a native league has no reader who isn't
  * the commissioner (single-user model), so this is always fully editable.
  */
-export function NativeTeamOverview({ leagueId, teamId }: Props) {
+export function NativeTeamOverview({ leagueId, teamId, slots }: Props) {
   const [editing, setEditing] = useState<RosterEntry | null>(null)
 
   const { data: rosters, isFetching: loadingRosters } = useQuery({
@@ -69,7 +72,7 @@ export function NativeTeamOverview({ leagueId, teamId }: Props) {
       {loadingRosters ? (
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       ) : (
-        <NativeRosterTable leagueId={leagueId} roster={roster} onEdit={setEditing} />
+        <NativeRosterTable leagueId={leagueId} roster={roster} slots={slots} onEdit={setEditing} />
       )}
 
       <Dialog open={editing != null} onClose={() => setEditing(null)} title="Edit contract">
