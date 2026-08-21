@@ -13,16 +13,24 @@ export const SLOT_DISPLAY_ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SFLEX', 'K',
 
 // Which real NFL positions can fill each slot — mirrors the backend's
 // slotEligiblePositions (league_rosters.go). A slot with no entry (BN, TAXI,
-// IR) accepts anyone, matching those slots not counting as a starter.
+// IR, SFLEX) accepts anyone: BN/TAXI/IR because those slots don't count as a
+// starter, SFLEX because superflex is open to every position by definition.
+// FLEX takes anyone but QB.
 const SLOT_ELIGIBILITY: Record<string, string[] | undefined> = {
   QB: ['QB'],
   RB: ['RB'],
   WR: ['WR'],
   TE: ['TE'],
   K: ['K'],
-  FLEX: ['RB', 'WR', 'TE'],
-  SFLEX: ['QB', 'RB', 'WR', 'TE'],
+  FLEX: ['RB', 'WR', 'TE', 'K'],
 }
+
+// Slots to omit when *displaying* a player's eligible slots (e.g. the Roster
+// table's Eligible column) — not from actual eligibility, which still
+// allows placement in either. Since every position is now eligible for
+// SFLEX and every non-QB position is eligible for FLEX, listing them next
+// to every player's real position would be noise, not information.
+export const DISPLAY_HIDDEN_SLOTS = new Set(['FLEX', 'SFLEX'])
 
 export function isSlotEligible(slot: string, position: string): boolean {
   const eligible = SLOT_ELIGIBILITY[slot]

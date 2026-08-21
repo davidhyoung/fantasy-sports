@@ -4,7 +4,7 @@ import { Table, TableHeader, TableBody, TableHead, TableCell, TableRow } from '@
 import { PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
 import { updateLeagueRoster, dropLeagueRoster, type RosterEntry } from '@/api/client'
 import { keys } from '@/api/queryKeys'
-import { SLOT_DISPLAY_ORDER, BENCH_SLOTS, isSlotEligible } from '../lib/nativeSlots'
+import { SLOT_DISPLAY_ORDER, BENCH_SLOTS, DISPLAY_HIDDEN_SLOTS, isSlotEligible } from '../lib/nativeSlots'
 
 interface Props {
   leagueId: number
@@ -382,7 +382,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
           name={r.name}
           imageUrl={r.headshot_url}
           linked
-          sub={isTarget ? targetWord : SLOT_DISPLAY_ORDER.filter((s) => !BENCH_SLOTS.has(s) && isSlotEligible(s, r.position)).join(' · ')}
+          sub={isTarget ? targetWord : SLOT_DISPLAY_ORDER.filter((s) => !BENCH_SLOTS.has(s) && !DISPLAY_HIDDEN_SLOTS.has(s) && isSlotEligible(s, r.position)).join(' · ')}
         />
         <TableCell className="text-right font-mono tabular-nums whitespace-nowrap">{contractLabel(r)}</TableCell>
         <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>

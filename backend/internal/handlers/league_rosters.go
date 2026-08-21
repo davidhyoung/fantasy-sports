@@ -246,20 +246,22 @@ var validAcquiredVia = map[string]bool{
 }
 
 // slotEligiblePositions lists which real NFL positions may fill each
-// dedicated or flex slot. A slot with no entry here (BN, TAXI, IR) accepts
-// any position — those slots don't count as a starter for weekly scoring
-// (ScoreLeagueWeek's `slot NOT IN ('BN','TAXI','IR')` filter), so there's no
-// lineup-legality question to enforce for them. Mirrors the frontend's
-// SLOT_ELIGIBILITY (lib/nativeSlots.ts) and the long-standing convention
-// already documented (but not enforced) in draft-prep's roster.ts.
+// dedicated or flex slot. A slot with no entry here (BN, TAXI, IR, SFLEX)
+// accepts any position. BN/TAXI/IR don't count as a starter for weekly
+// scoring (ScoreLeagueWeek's `slot NOT IN ('BN','TAXI','IR')` filter), so
+// there's no lineup-legality question to enforce for them. SFLEX (superflex)
+// is open to every position by definition — QB is simply the position that
+// usually wins that spot on scoring, not a slot restriction. FLEX takes
+// anyone but QB. Mirrors the frontend's SLOT_ELIGIBILITY (lib/nativeSlots.ts)
+// and the long-standing convention already documented (but not enforced) in
+// draft-prep's roster.ts.
 var slotEligiblePositions = map[string][]string{
-	"QB":    {"QB"},
-	"RB":    {"RB"},
-	"WR":    {"WR"},
-	"TE":    {"TE"},
-	"K":     {"K"},
-	"FLEX":  {"RB", "WR", "TE"},
-	"SFLEX": {"QB", "RB", "WR", "TE"},
+	"QB":   {"QB"},
+	"RB":   {"RB"},
+	"WR":   {"WR"},
+	"TE":   {"TE"},
+	"K":    {"K"},
+	"FLEX": {"RB", "WR", "TE", "K"},
 }
 
 func slotEligibleForPosition(slot, position string) bool {
