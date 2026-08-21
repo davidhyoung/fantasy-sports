@@ -1,19 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2 } from 'lucide-react'
+import { Link as RouterLink } from 'react-router-dom'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import {
   getLeagueRosters, getLeagueSettings, updateLeagueTeam, rolloverLeague,
-  getLeagueTransactions, type Team, type RosterEntry,
+  getLeagueTransactions, type Team,
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 import { PlayerAssignForm } from './components/PlayerAssignForm'
 import { TradeBuilder } from './components/TradeBuilder'
-import { NativeRosterTable } from './components/NativeRosterTable'
-import { EditContractForm } from './components/EditContractForm'
+import { NativeTeamOverview } from './components/NativeTeamOverview'
 
 interface Props {
   leagueId: number
@@ -24,11 +23,13 @@ interface Props {
 }
 
 /**
- * The native league's roster/contract/trade/rollover surface — the piece
- * that actually lets a dynasty commissioner run their startup auction,
- * manage cap space, trade players and picks, and turn the season over,
- * instead of doing all of it through raw curl calls (which was the only
- * path before this tab existed).
+ * The native league's Roster tab — one page for both "my team" and "every
+ * team," since they were the same content twice: a team switcher (defaults
+ * to your claimed team) picks who you're looking at, and the commissioner
+ * tools (assign/trade/rollover/claim/activity log) apply regardless of
+ * which team is selected. The matchup card + roster for the selected team
+ * comes from the shared NativeTeamOverview, the same component the
+ * read-only /teams/:id page uses.
  */
 export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Props) {
   const qc = useQueryClient()
@@ -43,10 +44,9 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
   }, [teams, myTeam, teamId])
   const [assigning, setAssigning] = useState(false)
   const [trading, setTrading] = useState(false)
-  const [editing, setEditing] = useState<RosterEntry | null>(null)
   const [confirmRollover, setConfirmRollover] = useState(false)
 
-  const { data: rosters, isFetching: loadingRosters } = useQuery({
+  const { data: rosters } = useQuery({
     queryKey: keys.leagueRosters(leagueId),
     queryFn: () => getLeagueRosters(leagueId),
     enabled: active,
@@ -136,6 +136,9 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
               </Button>
             )
           )}
+          <RouterLink to={`/teams/${teamId}`} className="font-display text-xs font-semibold text-primary hover:text-primary-hover">
+            Full team page →
+          </RouterLink>
           <Button variant="outline" size="sm" onClick={() => setTrading(true)}>Trade</Button>
           <Button size="sm" onClick={() => setAssigning(true)}>+ Assign player</Button>
         </div>
@@ -162,11 +165,7 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
         </div>
       )}
 
-      {loadingRosters ? (
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      ) : (
-        <NativeRosterTable leagueId={leagueId} roster={teamRoster} onEdit={setEditing} />
-      )}
+      <NativeTeamOverview leagueId={leagueId} teamId={teamId} />
 
       {/* Single-user model: whoever's signed in manages every team, and the
           backend's requireCommissioner already gates the actual mutation —
@@ -215,10 +214,6 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
 
       <Dialog open={trading} onClose={() => setTrading(false)} title="Trade">
         <TradeBuilder leagueId={leagueId} teams={teams} onClose={() => setTrading(false)} />
-      </Dialog>
-
-      <Dialog open={editing != null} onClose={() => setEditing(null)} title="Edit contract">
-        {editing && <EditContractForm leagueId={leagueId} entry={editing} onClose={() => setEditing(null)} />}
       </Dialog>
 
       <Dialog open={confirmRollover} onClose={() => setConfirmRollover(false)} title="Roll over season">

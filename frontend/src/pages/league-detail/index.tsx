@@ -10,7 +10,6 @@ import { ScoreboardTab } from './ScoreboardTab'
 import { PlayersTab } from './PlayersTab'
 import { NativePlayersTab } from './NativePlayersTab'
 import { NativeRosterTab } from './NativeRosterTab'
-import { NativeMyTeamTab } from './NativeMyTeamTab'
 import { NativeStandingsTab } from './NativeStandingsTab'
 import { NativeScoreboardTab } from './NativeScoreboardTab'
 import { DraftSection } from './DraftSection'
@@ -45,10 +44,17 @@ export default function LeagueDetail() {
   const myTeam = teams.find((t) => t.user_id)
   const isNative = league?.source === 'native'
 
-  // The My Team tab only exists once we know you own a team here. Wait for teams
-  // to load before falling back, so a `?tab=my-team` deep link isn't bounced.
+  // Native leagues have no separate My Team tab — Roster covers both "my
+  // team" and "every team" in one page (a team switcher, defaulting to your
+  // claimed team, replaces the need for a dedicated personal view). A
+  // `?tab=my-team` deep link (the stable /leagues/:id/my-team redirect)
+  // lands on Roster instead. For Yahoo leagues, My Team only exists once we
+  // know you own a team here — wait for teams to load before falling back,
+  // so the deep link isn't bounced before ownership is known.
   const visibleTab =
-    activeTab === 'my-team' && teams.length > 0 && !myTeam
+    isNative && activeTab === 'my-team'
+      ? 'roster'
+      : activeTab === 'my-team' && teams.length > 0 && !myTeam
       ? 'standings'
       : activeTab
 
@@ -82,7 +88,11 @@ export default function LeagueDetail() {
 
       <Tabs value={visibleTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6">
-          {myTeam && <TabsTrigger value="my-team">My Team</TabsTrigger>}
+          {/* Native leagues fold "my team" into Roster (a team switcher
+              defaulting to your claimed team) instead of a separate tab —
+              the two were the same content, once Roster grew a matchup card
+              and My Team grew commissioner tools. */}
+          {myTeam && !isNative && <TabsTrigger value="my-team">My Team</TabsTrigger>}
           <TabsTrigger value="standings">Standings</TabsTrigger>
           <TabsTrigger value="scoreboard">Scoreboard</TabsTrigger>
           <TabsTrigger value="players">Players</TabsTrigger>
@@ -91,13 +101,9 @@ export default function LeagueDetail() {
           <TabsTrigger value="draft">Draft</TabsTrigger>
         </TabsList>
 
-        {myTeam && (
+        {myTeam && !isNative && (
           <TabsContent value="my-team">
-            {isNative ? (
-              <NativeMyTeamTab leagueId={leagueId} active={visibleTab === 'my-team'} myTeam={myTeam} />
-            ) : (
-              <MyTeamTab myTeam={myTeam} />
-            )}
+            <MyTeamTab myTeam={myTeam} />
           </TabsContent>
         )}
 

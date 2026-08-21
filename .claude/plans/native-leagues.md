@@ -1,6 +1,8 @@
 # Native Leagues (dynasty first, keeper + redraft to follow)
 
-## Status (2026-08-20)
+## Status (2026-08-21)
+
+- **My Team + Roster merged into one page, "Roster" (2026-08-21).** They'd become the same content twice. `NativeMyTeamTab.tsx` is deleted; `NativeRosterTab.tsx` is now the combined page — the team switcher (defaults to your claimed team) and commissioner tools (Claim/Trade/Assign/Rollover/activity log) sit alongside the matchup-card-and-roster view (`NativeTeamOverview`) for whichever team is selected. Native leagues show no separate My Team tab; a `?tab=my-team` deep link resolves to Roster. Yahoo leagues are untouched.
 
 - **Phase 0 — done.** `services/leaguesettings` extracted, `draft_values.go` refactored onto it, tests moved and green, byte-identical behavior confirmed against a Yahoo league.
 - **Phase 1 — done, backend + frontend.** Migration 000021 (`leagues.source`/`format`, `league_settings`), `POST /api/leagues` moved behind auth and rebuilt to create a native league (settings + teams, one transaction), `GET/PUT .../settings`, team CRUD, `requireCommissioner()` gate, `NativeSource`. `/leagues/new` creation form, "+ New league" on Home, Standings/Scoreboard hidden for native leagues with a stale-tab fallback to Draft, format badge in the league header.
