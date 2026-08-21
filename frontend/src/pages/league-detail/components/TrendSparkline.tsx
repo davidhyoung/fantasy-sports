@@ -19,9 +19,12 @@ export function TrendSparkline({ points }: { points: RankingTrajectoryPoint[] })
 
   const polyPoints = points.map((p, i) => `${xScale(i)},${yScale(p.fpts_ppr_pg)}`).join(' ')
 
+  // Pink/positive for trending up, blue/negative for down — the design
+  // system's semantic colors, not raw hues (matches the Standings L5 strip
+  // and Players tab L4 sparkline).
   const trending = values[values.length - 1] >= values[0]
-  const stroke = trending ? 'hsl(142 71% 45%)' : 'hsl(0 72% 51%)'
-  const fill = trending ? 'hsl(142 71% 45% / 0.15)' : 'hsl(0 72% 51% / 0.15)'
+  const stroke = trending ? 'hsl(var(--primary))' : 'hsl(var(--negative))'
+  const fill = trending ? 'hsl(var(--positive-light))' : 'hsl(var(--negative-light))'
 
   const firstX = xScale(0)
   const lastX = xScale(points.length - 1)
