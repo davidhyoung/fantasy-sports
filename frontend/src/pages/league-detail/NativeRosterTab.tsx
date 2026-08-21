@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { SelectControl } from '@/components/ui/filter-chip'
+import { TeamAvatar } from '@/components/ui/table-helpers'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
@@ -118,9 +119,12 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <SelectControl value={teamId} onChange={(e) => selectTeam(Number(e.target.value))}>
-          {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </SelectControl>
+        <div className="flex items-center gap-2">
+          {selectedTeam && <TeamAvatar name={selectedTeam.name} />}
+          <SelectControl value={teamId} onChange={(e) => selectTeam(Number(e.target.value))}>
+            {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </SelectControl>
+        </div>
         <div className="flex items-center gap-2">
           {selectedTeam && (
             selectedTeam.user_id ? (

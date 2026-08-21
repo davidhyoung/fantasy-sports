@@ -180,6 +180,52 @@ function PlayerAvatar({ src, alt, size = 28 }: PlayerAvatarProps) {
   return <div className={`${cls} rounded-full bg-muted shrink-0`} />
 }
 
+const TEAM_AVATAR_TEXT_CLASS: Record<AvatarSize, string> = {
+  28: 'text-[10px]',
+  32: 'text-[11px]',
+  40: 'text-xs',
+  72: 'text-xl',
+  84: 'text-2xl',
+}
+
+interface TeamAvatarProps {
+  name: string
+  /** Pixel size. Default 28. */
+  size?: AvatarSize
+}
+
+/** Default-seeded teams are all named "Team N" — initialing that the normal
+ *  first-letter-of-each-word way collapses "Team 1" and "Team 10" to the
+ *  same "T1", since it only takes one digit off the number. Showing the
+ *  full number instead keeps every default team visually distinct; a
+ *  renamed/custom team name falls back to ordinary initials. */
+function teamInitials(name: string): string {
+  const numbered = name.match(/^team\s+(\d+)$/i)
+  if (numbered) return numbered[1]
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+}
+
+/** Placeholder team "profile picture" — native leagues have no real team
+ *  logo pipeline yet, so every team gets a flat circle with its initials
+ *  (same shrink-0/bg-muted treatment as PlayerAvatar's no-image fallback)
+ *  rather than an empty blob indistinguishable from every other team's. */
+function TeamAvatar({ name, size = 28 }: TeamAvatarProps) {
+  const initials = teamInitials(name)
+  return (
+    <div
+      className={`${AVATAR_CLASS[size]} ${TEAM_AVATAR_TEXT_CLASS[size]} flex items-center justify-center rounded-full bg-muted font-display font-semibold text-foreground shrink-0`}
+    >
+      {initials}
+    </div>
+  )
+}
+
 // ── Player name cell ────────────────────────────────────────────────────────
 
 interface PlayerCellProps {
@@ -285,6 +331,7 @@ export {
   MobileHeaderTip,
   useTableSort,
   PlayerAvatar,
+  TeamAvatar,
   PlayerCell,
   ClickableRow,
   ZScoreCell,

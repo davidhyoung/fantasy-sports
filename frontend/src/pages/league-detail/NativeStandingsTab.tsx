@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link as RouterLink } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { Table, TableHeader, TableBody, TableHead, TableCell, TableRow } from '@/components/ui/table'
-import { HeaderRow } from '@/components/ui/table-helpers'
+import { HeaderRow, TeamAvatar } from '@/components/ui/table-helpers'
 import { getLeagueStandings } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 
@@ -49,11 +49,14 @@ export function NativeStandingsTab({ leagueId, active }: Props) {
             <TableRow key={s.team_id ?? s.team_key}>
               <TableCell className="font-mono tabular-nums">{s.rank}</TableCell>
               <TableCell className="font-medium">
-                {s.team_id ? (
-                  <RouterLink to={`/leagues/${leagueId}?tab=roster&team=${s.team_id}`} className="hover:text-primary">{s.name}</RouterLink>
-                ) : (
-                  s.name
-                )}
+                <div className="flex items-center gap-2">
+                  <TeamAvatar name={s.name} />
+                  {s.team_id ? (
+                    <RouterLink to={`/leagues/${leagueId}?tab=roster&team=${s.team_id}`} className="hover:text-primary">{s.name}</RouterLink>
+                  ) : (
+                    s.name
+                  )}
+                </div>
               </TableCell>
               <TableCell className="font-mono tabular-nums">{s.wins}-{s.losses}-{s.ties}</TableCell>
               <TableCell className="text-right font-mono tabular-nums">{s.points_for}</TableCell>

@@ -3,19 +3,26 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link as RouterLink } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { TeamAvatar } from '@/components/ui/table-helpers'
 import { getLeagueScoreboard, generateLeagueSchedule, scoreLeagueWeek, type MatchupTeam } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 
 function TeamNameLink({ leagueId, team }: { leagueId: number; team: MatchupTeam | undefined }) {
   if (!team) return null
-  if (!team.team_id) return <span className="font-display text-sm font-semibold text-foreground">{team.name}</span>
   return (
-    <RouterLink
-      to={`/leagues/${leagueId}?tab=roster&team=${team.team_id}`}
-      className="font-display text-sm font-semibold text-foreground hover:text-primary"
-    >
-      {team.name}
-    </RouterLink>
+    <div className="flex items-center gap-2">
+      <TeamAvatar name={team.name} />
+      {!team.team_id ? (
+        <span className="font-display text-sm font-semibold text-foreground">{team.name}</span>
+      ) : (
+        <RouterLink
+          to={`/leagues/${leagueId}?tab=roster&team=${team.team_id}`}
+          className="font-display text-sm font-semibold text-foreground hover:text-primary"
+        >
+          {team.name}
+        </RouterLink>
+      )}
+    </div>
   )
 }
 

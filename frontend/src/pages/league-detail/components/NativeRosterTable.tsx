@@ -5,7 +5,7 @@ import { PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpe
 import { Button } from '@/components/ui/button'
 import { updateLeagueRoster, dropLeagueRoster, type RosterEntry } from '@/api/client'
 import { keys } from '@/api/queryKeys'
-import { SLOT_DISPLAY_ORDER, isSlotEligible } from '../lib/nativeSlots'
+import { SLOT_DISPLAY_ORDER, BENCH_SLOTS, isSlotEligible } from '../lib/nativeSlots'
 
 interface Props {
   leagueId: number
@@ -241,20 +241,22 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
                 {...dropTargetProps}
                 {...pickTargetProps}
               >
-                <TableCell className="font-mono text-xs font-semibold text-foreground">{r.slot}</TableCell>
-                <PlayerCell name={r.name} imageUrl={r.headshot_url} linked />
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <button
                     type="button"
                     onClick={() => setPickingFor((k) => (k === r.gsis_id ? null : r.gsis_id))}
-                    className={`rounded-md border px-2 py-1 font-display text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    className={`rounded-md border px-2 py-1 font-mono text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       pickingFor === r.gsis_id
                         ? 'border-positive-border bg-positive-light text-primary'
                         : 'border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground'
                     }`}
                   >
-                    {r.position}
+                    {r.slot}
                   </button>
+                </TableCell>
+                <PlayerCell name={r.name} imageUrl={r.headshot_url} linked />
+                <TableCell className="text-muted-foreground">
+                  {SLOT_DISPLAY_ORDER.filter((s) => !BENCH_SLOTS.has(s) && isSlotEligible(s, r.position)).join(' · ')}
                 </TableCell>
                 <TableCell className="text-right font-mono tabular-nums">${r.salary}</TableCell>
                 <TableCell className="text-right font-mono tabular-nums">

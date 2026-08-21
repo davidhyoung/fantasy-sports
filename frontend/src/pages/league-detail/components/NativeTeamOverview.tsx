@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link as RouterLink } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
+import { TeamAvatar } from '@/components/ui/table-helpers'
 import { getLeagueRosters, getLeagueScoreboard, type RosterEntry } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 import { NativeRosterTable } from './NativeRosterTable'
@@ -47,20 +48,26 @@ export function NativeTeamOverview({ leagueId, teamId, slots }: Props) {
             Week {matchup.week} {matchup.status === 'postevent' ? '· Final' : '· Not yet scored'}
           </div>
           <div className="mt-1.5 flex items-center justify-between">
-            <span className="font-display text-sm font-semibold text-foreground">{me.name}</span>
+            <div className="flex items-center gap-2">
+              <TeamAvatar name={me.name} />
+              <span className="font-display text-sm font-semibold text-foreground">{me.name}</span>
+            </div>
             <span className="font-mono text-lg font-bold tabular-nums text-foreground">
               {me.points} <span className="text-muted-foreground">–</span> {opponent.points}
             </span>
-            {opponent.team_id ? (
-              <RouterLink
-                to={`/leagues/${leagueId}?tab=roster&team=${opponent.team_id}`}
-                className="font-display text-sm font-semibold text-foreground hover:text-primary"
-              >
-                {opponent.name}
-              </RouterLink>
-            ) : (
-              <span className="font-display text-sm font-semibold text-foreground">{opponent.name}</span>
-            )}
+            <div className="flex items-center gap-2">
+              {opponent.team_id ? (
+                <RouterLink
+                  to={`/leagues/${leagueId}?tab=roster&team=${opponent.team_id}`}
+                  className="font-display text-sm font-semibold text-foreground hover:text-primary"
+                >
+                  {opponent.name}
+                </RouterLink>
+              ) : (
+                <span className="font-display text-sm font-semibold text-foreground">{opponent.name}</span>
+              )}
+              <TeamAvatar name={opponent.name} />
+            </div>
           </div>
         </div>
       ) : (
