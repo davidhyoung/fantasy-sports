@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Table, TableHeader, TableBody, TableHead, TableCell, TableRow } from '@/components/ui/table'
 import { PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
@@ -58,17 +58,17 @@ function buildRows(roster: RosterEntry[], slots: Record<string, number>): Row[] 
 
 /**
  * Shared roster table for the Roster tab, for whichever team is selected.
- * The Slot cell has two ways to change it: an inline `<select>` (works
- * everywhere, including touch and keyboard) and dragging a player's row onto
- * another row (desktop only — native HTML5 drag-and-drop has no touch
- * story, so the dropdown stays as the one mechanism that always works).
- * Either way it's the same lineup-setting mechanism: there's no separate
- * "Lineup" screen, moving a player between a starter slot and BN/TAXI/IR
- * here is exactly what ScoreLeagueWeek reads when a week gets scored.
- * Dropping onto an empty slot just reassigns the dragged player; dropping
- * onto an occupied one swaps the two players' slots, matching how drag-and-
- * drop lineups behave elsewhere (Yahoo, ESPN) rather than silently doubling
- * up a slot.
+ * Slot is a plain read-only column — the two ways to actually change it are
+ * clicking Pos (opens a menu of that player's eligible slots) and dragging a
+ * player's row onto another row (desktop only — native HTML5 drag-and-drop
+ * has no touch story, so the Pos menu stays the mechanism that always works
+ * on mobile/keyboard). Either way it's the same lineup-setting mechanism:
+ * there's no separate "Lineup" screen, moving a player between a starter
+ * slot and BN/TAXI/IR here is exactly what ScoreLeagueWeek reads when a week
+ * gets scored. Dropping onto an empty slot just reassigns the dragged
+ * player; dropping onto an occupied one swaps the two players' slots,
+ * matching how drag-and-drop lineups behave elsewhere (Yahoo, ESPN) rather
+ * than silently doubling up a slot.
  */
 export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Props) {
   const qc = useQueryClient()
@@ -78,6 +78,21 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
   // payload) so onDragOver can check eligibility — browsers don't expose
   // DataTransfer.getData() until the actual drop fires.
   const [draggingEntry, setDraggingEntry] = useState<RosterEntry | null>(null)
+  // Which row's Pos cell has its eligible-slots menu open, if any — only one
+  // at a time.
+  const [openSlotFor, setOpenSlotFor] = useState<string | null>(null)
+  const slotMenuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!openSlotFor) return
+    const handler = (e: MouseEvent) => {
+      if (slotMenuRef.current && !slotMenuRef.current.contains(e.target as Node)) {
+        setOpenSlotFor(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [openSlotFor])
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: keys.leagueRosters(leagueId) })
@@ -144,9 +159,9 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
       <Table>
         <TableHeader style={{ top: 0 }}>
           <HeaderRow>
+            <TableHead>Slot</TableHead>
             <TableHead>Player</TableHead>
             <TableHead>Pos</TableHead>
-            <TableHead>Slot</TableHead>
             <TableHead className="text-right">Salary</TableHead>
             <TableHead className="text-right">Years</TableHead>
             <TableHead />
@@ -176,15 +191,16 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
             if (!r) {
               return (
                 <TableRow key={rowKey} className={highlight} {...dropTargetProps}>
+                  <TableCell className="font-mono text-xs font-semibold text-muted-foreground">{row.slot}</TableCell>
                   <TableCell className="italic text-muted-foreground">Empty</TableCell>
                   <TableCell className="text-muted-foreground">—</TableCell>
-                  <TableCell className="text-muted-foreground">{row.slot}</TableCell>
                   <TableCell className="text-right font-mono tabular-nums text-muted-foreground">—</TableCell>
                   <TableCell className="text-right font-mono tabular-nums text-muted-foreground">—</TableCell>
                   <TableCell />
                 </TableRow>
               )
             }
+            const eligibleSlots = ROSTER_SLOTS.filter((s) => s === r.slot || isSlotEligible(s, r.position))
             return (
               <ClickableRow
                 key={r.gsis_id}
@@ -202,19 +218,45 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
                 }}
                 {...dropTargetProps}
               >
+                <TableCell className="font-mono text-xs font-semibold text-foreground">{r.slot}</TableCell>
                 <PlayerCell name={r.name} imageUrl={r.headshot_url} linked />
-                <TableCell className="text-muted-foreground">{r.position}</TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>
-                  <select
-                    value={r.slot}
-                    onChange={(e) => slotMutation.mutate({ gsisId: r.gsis_id, slot: e.target.value })}
-                    disabled={slotMutation.isPending}
-                    className="h-7 rounded-md border border-input bg-background px-1.5 font-display text-xs font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  <div
+                    className="relative inline-block"
+                    ref={openSlotFor === r.gsis_id ? slotMenuRef : undefined}
                   >
-                    {ROSTER_SLOTS.filter((s) => s === r.slot || isSlotEligible(s, r.position)).map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
+                    <button
+                      type="button"
+                      onClick={() => setOpenSlotFor((k) => (k === r.gsis_id ? null : r.gsis_id))}
+                      className="font-display text-xs font-semibold text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {r.position}
+                    </button>
+                    {openSlotFor === r.gsis_id && (
+                      <div
+                        className={`absolute left-0 z-30 flex flex-col gap-0.5 whitespace-nowrap rounded-md border border-border bg-card p-1 ${
+                          i > rows.length / 2 ? 'bottom-full mb-1' : 'top-full mt-1'
+                        }`}
+                      >
+                        {eligibleSlots.map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            disabled={s === r.slot || slotMutation.isPending}
+                            onClick={() => {
+                              slotMutation.mutate({ gsisId: r.gsis_id, slot: s })
+                              setOpenSlotFor(null)
+                            }}
+                            className={`rounded px-2 py-1 text-left font-display text-xs font-semibold ${
+                              s === r.slot ? 'text-muted-foreground' : 'text-foreground hover:bg-muted'
+                            }`}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="text-right font-mono tabular-nums">${r.salary}</TableCell>
                 <TableCell className="text-right font-mono tabular-nums">
