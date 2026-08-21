@@ -5,7 +5,7 @@ import { PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpe
 import { Button } from '@/components/ui/button'
 import { updateLeagueRoster, dropLeagueRoster, type RosterEntry } from '@/api/client'
 import { keys } from '@/api/queryKeys'
-import { ROSTER_SLOTS, SLOT_DISPLAY_ORDER, isSlotEligible } from '../lib/nativeSlots'
+import { SLOT_DISPLAY_ORDER, isSlotEligible } from '../lib/nativeSlots'
 
 interface Props {
   leagueId: number
@@ -59,16 +59,20 @@ function buildRows(roster: RosterEntry[], slots: Record<string, number>): Row[] 
 /**
  * Shared roster table for the Roster tab, for whichever team is selected.
  * Slot is a plain read-only column — the two ways to actually change it are
- * clicking Pos (opens a menu of that player's eligible slots) and dragging a
- * player's row onto another row (desktop only — native HTML5 drag-and-drop
- * has no touch story, so the Pos menu stays the mechanism that always works
- * on mobile/keyboard). Either way it's the same lineup-setting mechanism:
- * there's no separate "Lineup" screen, moving a player between a starter
- * slot and BN/TAXI/IR here is exactly what ScoreLeagueWeek reads when a week
- * gets scored. Dropping onto an empty slot just reassigns the dragged
- * player; dropping onto an occupied one swaps the two players' slots,
- * matching how drag-and-drop lineups behave elsewhere (Yahoo, ESPN) rather
- * than silently doubling up a slot.
+ * dragging a player's row onto another row (desktop only — native HTML5
+ * drag-and-drop has no touch story) and clicking Pos to enter "picking"
+ * mode: every row that's a legal destination for that player lights up
+ * (left accent edge + pointer cursor) and becomes clickable, so the row
+ * itself is the target — not an abstract slot name — which is what lets a
+ * league with two RB slots distinguish "the empty one" from "the one
+ * Jahmyr's in" (a swap) instead of just setting a slot label blind to which
+ * physical row it lands on. Either way it's the same lineup-setting
+ * mechanism: there's no separate "Lineup" screen, moving a player between a
+ * starter slot and BN/TAXI/IR here is exactly what ScoreLeagueWeek reads
+ * when a week gets scored. Landing on an empty row just reassigns the
+ * player; landing on an occupied one swaps the two players' slots, matching
+ * how drag-and-drop lineups behave elsewhere (Yahoo, ESPN) rather than
+ * silently doubling up a slot.
  */
 export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Props) {
   const qc = useQueryClient()
@@ -78,21 +82,22 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
   // payload) so onDragOver can check eligibility — browsers don't expose
   // DataTransfer.getData() until the actual drop fires.
   const [draggingEntry, setDraggingEntry] = useState<RosterEntry | null>(null)
-  // Which row's Pos cell has its eligible-slots menu open, if any — only one
-  // at a time.
-  const [openSlotFor, setOpenSlotFor] = useState<string | null>(null)
-  const slotMenuRef = useRef<HTMLDivElement | null>(null)
+  // The player currently being moved via click (Pos was clicked), if any —
+  // only one at a time. While set, every legal destination row is
+  // highlighted and clickable.
+  const [pickingFor, setPickingFor] = useState<string | null>(null)
+  const tableRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    if (!openSlotFor) return
+    if (!pickingFor) return
     const handler = (e: MouseEvent) => {
-      if (slotMenuRef.current && !slotMenuRef.current.contains(e.target as Node)) {
-        setOpenSlotFor(null)
+      if (tableRef.current && !tableRef.current.contains(e.target as Node)) {
+        setPickingFor(null)
       }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [openSlotFor])
+  }, [pickingFor])
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: keys.leagueRosters(leagueId) })
@@ -154,8 +159,18 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
     moveMutation.mutate({ draggedGsisId, draggedSlot: dragged.slot, targetSlot, targetGsisId: targetEntry?.gsis_id })
   }
 
+  const pickedEntry = pickingFor ? roster.find((r) => r.gsis_id === pickingFor) : undefined
+
+  const handlePick = (targetSlot: string, targetEntry: RosterEntry | undefined) => {
+    if (!pickedEntry || !canDrop(pickedEntry, targetSlot, targetEntry)) return
+    moveMutation.mutate({
+      draggedGsisId: pickedEntry.gsis_id, draggedSlot: pickedEntry.slot, targetSlot, targetGsisId: targetEntry?.gsis_id,
+    })
+    setPickingFor(null)
+  }
+
   return (
-    <div className="rounded-lg bg-card overflow-x-auto max-w-[calc(100vw-3rem)]">
+    <div ref={tableRef} className="rounded-lg bg-card overflow-x-auto max-w-[calc(100vw-3rem)]">
       <Table>
         <TableHeader style={{ top: 0 }}>
           <HeaderRow>
@@ -187,10 +202,18 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
               onDrop: (e: React.DragEvent<HTMLTableRowElement>) => handleDrop(e, row.slot, r),
             }
             const highlight = dragOverKey === rowKey ? 'bg-muted' : ''
+            // While a player is being moved by click (pickedEntry set), every
+            // row that's a legal destination for them lights up and becomes
+            // clickable — the row itself is the target, so two same-named
+            // slots (two RB rows) are distinguishable: one may be empty, one
+            // may hold someone else (a swap).
+            const isTarget = !!pickedEntry && canDrop(pickedEntry, row.slot, r)
+            const pickTargetProps = isTarget ? { onClick: () => handlePick(row.slot, r) } : {}
+            const targetHighlight = isTarget ? 'cursor-pointer border-l-[3px] border-l-primary' : ''
 
             if (!r) {
               return (
-                <TableRow key={rowKey} className={highlight} {...dropTargetProps}>
+                <TableRow key={rowKey} className={`${highlight} ${targetHighlight}`} {...dropTargetProps} {...pickTargetProps}>
                   <TableCell className="font-mono text-xs font-semibold text-muted-foreground">{row.slot}</TableCell>
                   <TableCell className="italic text-muted-foreground">Empty</TableCell>
                   <TableCell className="text-muted-foreground">—</TableCell>
@@ -200,12 +223,11 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
                 </TableRow>
               )
             }
-            const eligibleSlots = ROSTER_SLOTS.filter((s) => s === r.slot || isSlotEligible(s, r.position))
             return (
               <ClickableRow
                 key={r.gsis_id}
-                href={`/players/${r.gsis_id}`}
-                className={`${highlight} ${dragDisabled ? '' : 'cursor-grab active:cursor-grabbing'}`}
+                href={isTarget ? undefined : `/players/${r.gsis_id}`}
+                className={`${highlight} ${targetHighlight} ${dragDisabled ? '' : 'cursor-grab active:cursor-grabbing'}`}
                 draggable={!dragDisabled}
                 onDragStart={(e) => {
                   e.dataTransfer.setData(DRAG_MIME, r.gsis_id)
@@ -217,46 +239,22 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
                   setDragOverKey(null)
                 }}
                 {...dropTargetProps}
+                {...pickTargetProps}
               >
                 <TableCell className="font-mono text-xs font-semibold text-foreground">{r.slot}</TableCell>
                 <PlayerCell name={r.name} imageUrl={r.headshot_url} linked />
                 <TableCell onClick={(e) => e.stopPropagation()}>
-                  <div
-                    className="relative inline-block"
-                    ref={openSlotFor === r.gsis_id ? slotMenuRef : undefined}
+                  <button
+                    type="button"
+                    onClick={() => setPickingFor((k) => (k === r.gsis_id ? null : r.gsis_id))}
+                    className={`rounded-md border px-2 py-1 font-display text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      pickingFor === r.gsis_id
+                        ? 'border-positive-border bg-positive-light text-primary'
+                        : 'border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground'
+                    }`}
                   >
-                    <button
-                      type="button"
-                      onClick={() => setOpenSlotFor((k) => (k === r.gsis_id ? null : r.gsis_id))}
-                      className="rounded-md border border-input bg-background px-2 py-1 font-display text-xs font-semibold text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      {r.position}
-                    </button>
-                    {openSlotFor === r.gsis_id && (
-                      <div
-                        className={`absolute left-0 z-30 flex flex-col gap-0.5 whitespace-nowrap rounded-md border border-border bg-card p-1 ${
-                          i > rows.length / 2 ? 'bottom-full mb-1' : 'top-full mt-1'
-                        }`}
-                      >
-                        {eligibleSlots.map((s) => (
-                          <button
-                            key={s}
-                            type="button"
-                            disabled={s === r.slot || slotMutation.isPending}
-                            onClick={() => {
-                              slotMutation.mutate({ gsisId: r.gsis_id, slot: s })
-                              setOpenSlotFor(null)
-                            }}
-                            className={`rounded px-2 py-1 text-left font-display text-xs font-semibold ${
-                              s === r.slot ? 'text-muted-foreground' : 'text-foreground hover:bg-muted'
-                            }`}
-                          >
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                    {r.position}
+                  </button>
                 </TableCell>
                 <TableCell className="text-right font-mono tabular-nums">${r.salary}</TableCell>
                 <TableCell className="text-right font-mono tabular-nums">
