@@ -5,7 +5,7 @@ import { PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpe
 import { Button } from '@/components/ui/button'
 import { updateLeagueRoster, dropLeagueRoster, type RosterEntry } from '@/api/client'
 import { keys } from '@/api/queryKeys'
-import { ROSTER_SLOTS, SLOT_DISPLAY_ORDER } from '../lib/nativeSlots'
+import { ROSTER_SLOTS, SLOT_DISPLAY_ORDER, isSlotEligible } from '../lib/nativeSlots'
 
 interface Props {
   leagueId: number
@@ -74,6 +74,10 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
   const qc = useQueryClient()
   const [confirmDrop, setConfirmDrop] = useState<string | null>(null)
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
+  // The dragged player, kept in component state (not just the DataTransfer
+  // payload) so onDragOver can check eligibility — browsers don't expose
+  // DataTransfer.getData() until the actual drop fires.
+  const [draggingEntry, setDraggingEntry] = useState<RosterEntry | null>(null)
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: keys.leagueRosters(leagueId) })
@@ -116,14 +120,23 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
 
   const dragDisabled = moveMutation.isPending || slotMutation.isPending
 
-  const handleDrop = (e: React.DragEvent<HTMLTableRowElement>, targetSlot: string, targetGsisId: string | undefined) => {
+  // Both directions have to clear eligibility: the dragged player has to be
+  // allowed in the target slot, and — for a swap onto an occupied row — the
+  // occupant has to be allowed in the slot the dragged player is leaving.
+  const canDrop = (dragged: RosterEntry, targetSlot: string, targetEntry: RosterEntry | undefined) => {
+    if (targetEntry?.gsis_id === dragged.gsis_id) return false
+    if (!isSlotEligible(targetSlot, dragged.position)) return false
+    if (targetEntry && !isSlotEligible(dragged.slot, targetEntry.position)) return false
+    return true
+  }
+
+  const handleDrop = (e: React.DragEvent<HTMLTableRowElement>, targetSlot: string, targetEntry: RosterEntry | undefined) => {
     e.preventDefault()
     setDragOverKey(null)
     const draggedGsisId = e.dataTransfer.getData(DRAG_MIME)
-    if (!draggedGsisId || draggedGsisId === targetGsisId) return
     const dragged = roster.find((r) => r.gsis_id === draggedGsisId)
-    if (!dragged) return
-    moveMutation.mutate({ draggedGsisId, draggedSlot: dragged.slot, targetSlot, targetGsisId })
+    if (!dragged || !canDrop(dragged, targetSlot, targetEntry)) return
+    moveMutation.mutate({ draggedGsisId, draggedSlot: dragged.slot, targetSlot, targetGsisId: targetEntry?.gsis_id })
   }
 
   return (
@@ -145,12 +158,18 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
             const rowKey = r ? r.gsis_id : `${row.slot}-${i}`
             const dropTargetProps = {
               onDragOver: (e: React.DragEvent<HTMLTableRowElement>) => {
+                // Not calling preventDefault() here is what makes an
+                // ineligible slot refuse the drop (browser default) — the
+                // dragged player's gsis_id isn't readable from DataTransfer
+                // until the actual drop event, so eligibility here has to
+                // come from draggingEntry (component state set at dragstart).
+                if (draggingEntry && !canDrop(draggingEntry, row.slot, r)) return
                 e.preventDefault()
                 e.dataTransfer.dropEffect = 'move'
                 setDragOverKey(rowKey)
               },
               onDragLeave: () => setDragOverKey((k) => (k === rowKey ? null : k)),
-              onDrop: (e: React.DragEvent<HTMLTableRowElement>) => handleDrop(e, row.slot, r?.gsis_id),
+              onDrop: (e: React.DragEvent<HTMLTableRowElement>) => handleDrop(e, row.slot, r),
             }
             const highlight = dragOverKey === rowKey ? 'bg-muted' : ''
 
@@ -175,6 +194,11 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
                 onDragStart={(e) => {
                   e.dataTransfer.setData(DRAG_MIME, r.gsis_id)
                   e.dataTransfer.effectAllowed = 'move'
+                  setDraggingEntry(r)
+                }}
+                onDragEnd={() => {
+                  setDraggingEntry(null)
+                  setDragOverKey(null)
                 }}
                 {...dropTargetProps}
               >
@@ -187,7 +211,9 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
                     disabled={slotMutation.isPending}
                     className="h-7 rounded-md border border-input bg-background px-1.5 font-display text-xs font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    {ROSTER_SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}
+                    {ROSTER_SLOTS.filter((s) => s === r.slot || isSlotEligible(s, r.position)).map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
                   </select>
                 </TableCell>
                 <TableCell className="text-right font-mono tabular-nums">${r.salary}</TableCell>

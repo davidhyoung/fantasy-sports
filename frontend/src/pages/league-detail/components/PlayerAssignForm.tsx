@@ -9,7 +9,7 @@ import {
   type Team, type FreeAgent,
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
-import { ROSTER_SLOTS } from '../lib/nativeSlots'
+import { ROSTER_SLOTS, isSlotEligible } from '../lib/nativeSlots'
 
 const ACQUIRED_VIA = ['auction', 'draft', 'fa', 'waiver', 'trade', 'keeper'] as const
 
@@ -113,7 +113,10 @@ export function PlayerAssignForm(props: Props | PickProps) {
               candidates.map((c) => (
                 <button
                   key={c.gsis_id}
-                  onClick={() => setSelected(c)}
+                  onClick={() => {
+                    setSelected(c)
+                    if (!isSlotEligible(slot, c.position)) setSlot('BN')
+                  }}
                   className="flex w-full items-center gap-2.5 border-b border-border px-3 py-2 text-left last:border-0 hover:bg-muted"
                 >
                   <PlayerAvatar src={c.headshot_url} alt={c.name} size={28} />
@@ -147,7 +150,9 @@ export function PlayerAssignForm(props: Props | PickProps) {
               </SelectControl>
             )}
             <SelectControl label="Slot" value={slot} onChange={(e) => setSlot(e.target.value)}>
-              {ROSTER_SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}
+              {ROSTER_SLOTS.filter((s) => isSlotEligible(s, selected.position)).map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
             </SelectControl>
             {props.mode === 'assign' && (
               <SelectControl label="Acquired via" value={acquiredVia} onChange={(e) => setAcquiredVia(e.target.value)}>

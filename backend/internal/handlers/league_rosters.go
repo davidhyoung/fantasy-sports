@@ -181,6 +181,36 @@ var validAcquiredVia = map[string]bool{
 	"draft": true, "auction": true, "trade": true, "waiver": true, "fa": true, "keeper": true,
 }
 
+// slotEligiblePositions lists which real NFL positions may fill each
+// dedicated or flex slot. A slot with no entry here (BN, TAXI, IR) accepts
+// any position — those slots don't count as a starter for weekly scoring
+// (ScoreLeagueWeek's `slot NOT IN ('BN','TAXI','IR')` filter), so there's no
+// lineup-legality question to enforce for them. Mirrors the frontend's
+// SLOT_ELIGIBILITY (lib/nativeSlots.ts) and the long-standing convention
+// already documented (but not enforced) in draft-prep's roster.ts.
+var slotEligiblePositions = map[string][]string{
+	"QB":    {"QB"},
+	"RB":    {"RB"},
+	"WR":    {"WR"},
+	"TE":    {"TE"},
+	"K":     {"K"},
+	"FLEX":  {"RB", "WR", "TE"},
+	"SFLEX": {"QB", "RB", "WR", "TE"},
+}
+
+func slotEligibleForPosition(slot, position string) bool {
+	eligible, ok := slotEligiblePositions[slot]
+	if !ok {
+		return true
+	}
+	for _, p := range eligible {
+		if p == position {
+			return true
+		}
+	}
+	return false
+}
+
 // assignRosterTx inserts a roster row and its paired contract row inside an
 // already-open transaction. AssignLeagueRoster and UseLeagueDraftPick share
 // this — "put a player on a roster with a contract" is the same operation
@@ -289,6 +319,18 @@ func (h *Handler) AssignLeagueRoster(w http.ResponseWriter, r *http.Request) {
 		req.SignedSeason = h.leagueSeasonInt(r, leagueID)
 	}
 
+	var playerPosition string
+	if err := h.db.QueryRow(r.Context(),
+		"SELECT COALESCE(position, '') FROM nfl_players WHERE gsis_id = $1", req.GsisID,
+	).Scan(&playerPosition); err != nil {
+		respondError(w, http.StatusBadRequest, "unknown player")
+		return
+	}
+	if !slotEligibleForPosition(req.Slot, playerPosition) {
+		respondError(w, http.StatusBadRequest, playerPosition+" is not eligible for slot "+req.Slot)
+		return
+	}
+
 	var teamInLeague bool
 	if err := h.db.QueryRow(r.Context(),
 		"SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1 AND league_id = $2)", req.TeamID, leagueID,
@@ -356,6 +398,19 @@ func (h *Handler) UpdateLeagueRoster(w http.ResponseWriter, r *http.Request) {
 	if req.Slot != nil && !validSlots[*req.Slot] {
 		respondError(w, http.StatusBadRequest, "invalid slot")
 		return
+	}
+	if req.Slot != nil {
+		var playerPosition string
+		if err := h.db.QueryRow(r.Context(),
+			"SELECT COALESCE(position, '') FROM nfl_players WHERE gsis_id = $1", gsisID,
+		).Scan(&playerPosition); err != nil {
+			respondError(w, http.StatusBadRequest, "unknown player")
+			return
+		}
+		if !slotEligibleForPosition(*req.Slot, playerPosition) {
+			respondError(w, http.StatusBadRequest, playerPosition+" is not eligible for slot "+*req.Slot)
+			return
+		}
 	}
 	if req.TeamID != nil {
 		var teamInLeague bool
