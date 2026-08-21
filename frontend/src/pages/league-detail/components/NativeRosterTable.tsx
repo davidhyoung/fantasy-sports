@@ -22,6 +22,11 @@ interface Row {
   entry?: RosterEntry
 }
 
+// A drag payload is just the gsis_id being moved — text/plain is enough and
+// keeps this readable from a browser's native drag inspector if anything
+// ever goes wrong.
+const DRAG_MIME = 'text/plain'
+
 /** One row per configured slot, filled with whichever rostered player (if
  *  any) currently occupies it — padded with empty rows up to the league's
  *  configured count, and never hiding an actual player even if the league's
@@ -53,14 +58,22 @@ function buildRows(roster: RosterEntry[], slots: Record<string, number>): Row[] 
 
 /**
  * Shared roster table for the Roster tab, for whichever team is selected.
- * The Slot cell is an inline `<select>` — that's the actual lineup-setting
- * mechanism for weekly play: there's no separate "Lineup" screen, moving a
- * player between a starter slot and BN/TAXI/IR here is exactly what
- * ScoreLeagueWeek reads when a week gets scored.
+ * The Slot cell has two ways to change it: an inline `<select>` (works
+ * everywhere, including touch and keyboard) and dragging a player's row onto
+ * another row (desktop only — native HTML5 drag-and-drop has no touch
+ * story, so the dropdown stays as the one mechanism that always works).
+ * Either way it's the same lineup-setting mechanism: there's no separate
+ * "Lineup" screen, moving a player between a starter slot and BN/TAXI/IR
+ * here is exactly what ScoreLeagueWeek reads when a week gets scored.
+ * Dropping onto an empty slot just reassigns the dragged player; dropping
+ * onto an occupied one swaps the two players' slots, matching how drag-and-
+ * drop lineups behave elsewhere (Yahoo, ESPN) rather than silently doubling
+ * up a slot.
  */
 export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Props) {
   const qc = useQueryClient()
   const [confirmDrop, setConfirmDrop] = useState<string | null>(null)
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: keys.leagueRosters(leagueId) })
@@ -81,10 +94,36 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
     },
   })
 
+  const moveMutation = useMutation({
+    mutationFn: async ({
+      draggedGsisId, draggedSlot, targetSlot, targetGsisId,
+    }: { draggedGsisId: string; draggedSlot: string; targetSlot: string; targetGsisId?: string }) => {
+      if (targetGsisId) {
+        // Swap: the player who was in the target slot takes the dragged
+        // player's old slot, rather than leaving a duplicate at the target.
+        await updateLeagueRoster(leagueId, targetGsisId, { slot: draggedSlot })
+      }
+      await updateLeagueRoster(leagueId, draggedGsisId, { slot: targetSlot })
+    },
+    onSuccess: invalidate,
+  })
+
   const rows = useMemo(() => buildRows(roster, slots), [roster, slots])
 
   if (rows.length === 0) {
     return <p className="text-muted-foreground">No roster spots configured yet.</p>
+  }
+
+  const dragDisabled = moveMutation.isPending || slotMutation.isPending
+
+  const handleDrop = (e: React.DragEvent<HTMLTableRowElement>, targetSlot: string, targetGsisId: string | undefined) => {
+    e.preventDefault()
+    setDragOverKey(null)
+    const draggedGsisId = e.dataTransfer.getData(DRAG_MIME)
+    if (!draggedGsisId || draggedGsisId === targetGsisId) return
+    const dragged = roster.find((r) => r.gsis_id === draggedGsisId)
+    if (!dragged) return
+    moveMutation.mutate({ draggedGsisId, draggedSlot: dragged.slot, targetSlot, targetGsisId })
   }
 
   return (
@@ -103,9 +142,21 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
         <TableBody>
           {rows.map((row, i) => {
             const r = row.entry
+            const rowKey = r ? r.gsis_id : `${row.slot}-${i}`
+            const dropTargetProps = {
+              onDragOver: (e: React.DragEvent<HTMLTableRowElement>) => {
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+                setDragOverKey(rowKey)
+              },
+              onDragLeave: () => setDragOverKey((k) => (k === rowKey ? null : k)),
+              onDrop: (e: React.DragEvent<HTMLTableRowElement>) => handleDrop(e, row.slot, r?.gsis_id),
+            }
+            const highlight = dragOverKey === rowKey ? 'bg-muted' : ''
+
             if (!r) {
               return (
-                <TableRow key={`${row.slot}-${i}`}>
+                <TableRow key={rowKey} className={highlight} {...dropTargetProps}>
                   <TableCell className="italic text-muted-foreground">Empty</TableCell>
                   <TableCell className="text-muted-foreground">—</TableCell>
                   <TableCell className="text-muted-foreground">{row.slot}</TableCell>
@@ -116,7 +167,17 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
               )
             }
             return (
-              <ClickableRow key={r.gsis_id} href={`/players/${r.gsis_id}`}>
+              <ClickableRow
+                key={r.gsis_id}
+                href={`/players/${r.gsis_id}`}
+                className={`${highlight} ${dragDisabled ? '' : 'cursor-grab active:cursor-grabbing'}`}
+                draggable={!dragDisabled}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(DRAG_MIME, r.gsis_id)
+                  e.dataTransfer.effectAllowed = 'move'
+                }}
+                {...dropTargetProps}
+              >
                 <PlayerCell name={r.name} imageUrl={r.headshot_url} linked />
                 <TableCell className="text-muted-foreground">{r.position}</TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>
