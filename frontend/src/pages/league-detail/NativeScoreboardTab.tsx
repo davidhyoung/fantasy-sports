@@ -3,25 +3,70 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link as RouterLink } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { TeamAvatar } from '@/components/ui/table-helpers'
-import { getLeagueScoreboard, generateLeagueSchedule, scoreLeagueWeek, type MatchupTeam } from '@/api/client'
+import { getLeagueScoreboard, generateLeagueSchedule, scoreLeagueWeek, type Matchup, type MatchupTeam } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 
-function TeamNameLink({ leagueId, team }: { leagueId: number; team: MatchupTeam | undefined }) {
+function TeamNameLink({ leagueId, team, bold }: { leagueId: number; team: MatchupTeam | undefined; bold?: boolean }) {
   if (!team) return null
+  const nameClass = `font-display text-sm ${bold ? 'font-bold' : 'font-semibold'} text-foreground`
   return (
     <div className="flex items-center gap-2">
       <TeamAvatar name={team.name} />
       {!team.team_id ? (
-        <span className="font-display text-sm font-semibold text-foreground">{team.name}</span>
+        <span className={nameClass}>{team.name}</span>
       ) : (
-        <RouterLink
-          to={`/leagues/${leagueId}?tab=roster&team=${team.team_id}`}
-          className="font-display text-sm font-semibold text-foreground hover:text-primary"
-        >
+        <RouterLink to={`/leagues/${leagueId}?tab=roster&team=${team.team_id}`} className={`${nameClass} hover:text-primary`}>
           {team.name}
         </RouterLink>
       )}
+    </div>
+  )
+}
+
+/** Winner gets weight, not decoration — a tinted row, bold name + score, and
+ *  a small "W" pill, all pulled from tokens already in the system (design
+ *  review, 2026-08-21). Ties and unplayed matchups get no winner treatment. */
+function MatchupCard({ leagueId, m }: { leagueId: number; m: Matchup }) {
+  const [t1, t2] = m.teams
+  const scored = m.status === 'postevent'
+  const p1 = t1 ? parseFloat(t1.points) : 0
+  const p2 = t2 ? parseFloat(t2.points) : 0
+  const winner = scored && p1 !== p2 ? (p1 > p2 ? t1 : t2) : undefined
+
+  const teamRow = (team: MatchupTeam | undefined) => {
+    if (!team) return null
+    const isWinner = winner && team.team_id === winner.team_id && !!team.team_id
+    const scoreClass = isWinner
+      ? 'font-mono text-lg font-bold tabular-nums text-primary'
+      : scored
+      ? 'font-mono text-base tabular-nums text-muted-foreground'
+      : 'font-mono text-base tabular-nums text-muted-foreground'
+    return (
+      <div className={`flex items-center justify-between gap-3 ${isWinner ? 'bg-positive-light -mx-4 -mt-3 mb-1 rounded-t-lg px-4 pb-2 pt-3' : ''}`}>
+        <div className="flex items-center gap-2">
+          <TeamNameLink leagueId={leagueId} team={team} bold={isWinner} />
+          {isWinner && <Badge className="px-1.5 py-0.5 text-[9px]">W</Badge>}
+        </div>
+        {scored ? (
+          <span className={scoreClass}>{team.points}</span>
+        ) : (
+          <span className="font-mono text-base tabular-nums text-muted-foreground">
+            {team.projected_points || '—'} <span className="text-[10px]">proj</span>
+          </span>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg bg-card px-4 py-3">
+      {teamRow(t1)}
+      <div className="mt-1 border-t border-border pt-1">{teamRow(t2)}</div>
+      <div className="mt-1.5 text-xs text-muted-foreground">
+        {scored ? 'Final' : `Awaiting scoring · week ${m.week}`}
+      </div>
     </div>
   )
 }
@@ -80,7 +125,10 @@ export function NativeScoreboardTab({ leagueId, active }: Props) {
         ) : (
           <p className="text-sm text-muted-foreground">No schedule generated yet.</p>
         )}
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {hasSchedule && (
+            <span className="text-xs text-muted-foreground">Scoring is manual — run the week's stat import first</span>
+          )}
           {!hasSchedule && (
             <Button size="sm" onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending}>
               {generateMutation.isPending ? 'Generating…' : 'Generate schedule'}
@@ -105,21 +153,9 @@ export function NativeScoreboardTab({ leagueId, active }: Props) {
       ) : !scoreboard || scoreboard.matchups.length === 0 ? (
         <p className="text-muted-foreground">No matchups this week.</p>
       ) : (
-        <div className="flex flex-col gap-2.5">
+        <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
           {scoreboard.matchups.map((m, i) => (
-            <div key={i} className="rounded-lg bg-card px-4 py-3">
-              <div className="flex items-center justify-between">
-                <TeamNameLink leagueId={leagueId} team={m.teams[0]} />
-                <span className="font-mono text-sm tabular-nums text-foreground">{m.teams[0]?.points}</span>
-              </div>
-              <div className="mt-1 flex items-center justify-between border-t border-border pt-1">
-                <TeamNameLink leagueId={leagueId} team={m.teams[1]} />
-                <span className="font-mono text-sm tabular-nums text-foreground">{m.teams[1]?.points}</span>
-              </div>
-              <div className="mt-1.5 text-xs text-muted-foreground">
-                {m.status === 'postevent' ? 'Final' : 'Not yet scored'}
-              </div>
-            </div>
+            <MatchupCard key={i} leagueId={leagueId} m={m} />
           ))}
         </div>
       )}

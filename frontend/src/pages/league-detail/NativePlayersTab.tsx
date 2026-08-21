@@ -20,6 +20,34 @@ function statValue(stats: PlayerStat[] | undefined, stat: ScoringStat): number |
   return stats?.find((s) => s.stat === stat)?.value
 }
 
+/** Small inline sparkline of a player's real fantasy points over the
+ *  trailing scored weeks — pink trending up, negative-blue trending down,
+ *  muted flat, same semantic colors as the Standings L5 strip (design
+ *  review, 2026-08-21). Plain inline SVG, no charting library, per the
+ *  app's no-new-chart-dependency convention. */
+function L4Sparkline({ trend }: { trend?: number[] }) {
+  if (!trend || trend.length < 2) return <span className="text-muted-foreground/40 text-xs">—</span>
+
+  const W = 48
+  const H = 18
+  const PAD = 2
+  const minV = Math.min(...trend)
+  const maxV = Math.max(...trend)
+  const range = maxV - minV || 1
+  const xScale = (i: number) => PAD + (i / (trend.length - 1)) * (W - PAD * 2)
+  const yScale = (v: number) => PAD + (1 - (v - minV) / range) * (H - PAD * 2)
+  const points = trend.map((v, i) => `${xScale(i)},${yScale(v)}`).join(' ')
+
+  const delta = trend[trend.length - 1] - trend[0]
+  const stroke = delta > 0.5 ? 'hsl(var(--primary))' : delta < -0.5 ? 'hsl(var(--negative))' : 'hsl(var(--muted-foreground))'
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', margin: '0 auto' }}>
+      <polyline points={points} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 /**
  * Players tab for native leagues. `/players` and `/rankings` are Yahoo-backed
  * (VORP, z-scores, real-life grades) and don't apply here — a native league's
@@ -34,14 +62,31 @@ function statValue(stats: PlayerStat[] | undefined, stat: ScoringStat): number |
  * relevantPlayerStats in league_rosters.go), so "relevant" here means
  * "impacts this league's scoring," not just "exists." Column set and order
  * follow SCORING_STATS, same vocabulary the draft-settings panel edits.
+ *
+ * Free Agents/Rostered is a filled tray, not chips — per the design review's
+ * codified rule (open item 8), a tray switches which dataset you're looking
+ * at, chips filter the one you're in. Position is a multi-select chip row
+ * for the same reason it stayed chips: several positions can be active at
+ * once without changing which dataset is showing.
  */
 export function NativePlayersTab({ leagueId, active, teams }: Props) {
   const [view, setView] = useState<'free-agents' | 'rostered'>('free-agents')
-  const [position, setPosition] = useState('')
+  const [positions, setPositions] = useState<Set<string>>(new Set())
 
+  const togglePosition = (p: string) => {
+    setPositions((prev) => {
+      const next = new Set(prev)
+      if (next.has(p)) next.delete(p)
+      else next.add(p)
+      return next
+    })
+  }
+
+  // The free-agents endpoint only supports one ?position= value server-side;
+  // multi-select filtering happens client-side, same as the rostered view.
   const { data: freeAgents, isFetching: loadingFA } = useQuery({
-    queryKey: keys.freeAgents(leagueId, position),
-    queryFn: () => getLeagueFreeAgents(leagueId, position, 200),
+    queryKey: keys.freeAgents(leagueId, ''),
+    queryFn: () => getLeagueFreeAgents(leagueId, '', 200),
     enabled: active && view === 'free-agents',
   })
 
@@ -56,10 +101,13 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
     return (id: number) => m.get(id) ?? `Team ${id}`
   }, [teams])
 
-  const rosteredFiltered = (roster ?? []).filter((r) => !position || r.position === position)
+  const matchesPosition = (position: string) => positions.size === 0 || positions.has(position)
+
+  const faFiltered = (freeAgents ?? []).filter((p) => matchesPosition(p.position))
+  const rosteredFiltered = (roster ?? []).filter((r) => matchesPosition(r.position))
 
   const loading = view === 'free-agents' ? loadingFA : loadingRoster
-  const rows = view === 'free-agents' ? freeAgents ?? [] : rosteredFiltered
+  const rows = view === 'free-agents' ? faFiltered : rosteredFiltered
 
   const statColumns = useMemo(() => {
     const present = new Set<string>()
@@ -70,18 +118,28 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
   return (
     <>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="flex gap-1.5">
-          <FilterChip active={view === 'free-agents'} onClick={() => setView('free-agents')}>
-            Free Agents
-          </FilterChip>
-          <FilterChip active={view === 'rostered'} onClick={() => setView('rostered')}>
-            Rostered
-          </FilterChip>
+        <div className="flex w-fit rounded-lg bg-muted overflow-hidden">
+          {([
+            { value: 'free-agents' as const, label: 'Free Agents' },
+            { value: 'rostered' as const, label: 'Rostered' },
+          ]).map((s) => (
+            <button
+              key={s.value}
+              onClick={() => setView(s.value)}
+              className={`px-3 py-1.5 font-display text-xs font-semibold ${
+                view === s.value ? 'bg-foreground text-background' : 'bg-card text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
         </div>
         <div className="flex gap-1.5">
-          <FilterChip active={position === ''} onClick={() => setPosition('')}>All</FilterChip>
           {POSITIONS.map((p) => (
-            <FilterChip key={p} active={position === p} onClick={() => setPosition(p)}>{p}</FilterChip>
+            <FilterChip key={p} active={positions.has(p)} onClick={() => togglePosition(p)}>
+              {positions.has(p) && <span className="mr-1 text-[10px]">✓</span>}
+              {p}
+            </FilterChip>
           ))}
         </div>
         {!loading && (
@@ -108,6 +166,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                 {statColumns.map((s) => (
                   <TableHead key={s} className="text-right">{SCORING_LABELS[s]}</TableHead>
                 ))}
+                <TableHead className="text-center">L4 wks</TableHead>
                 {view === 'free-agents' ? (
                   <TableHead className="text-right">Proj Pts</TableHead>
                 ) : (
@@ -134,6 +193,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                           </TableCell>
                         )
                       })}
+                      <TableCell className="text-center"><L4Sparkline trend={p.trend} /></TableCell>
                       <TableCell className="text-right font-mono tabular-nums">
                         {p.proj_fpts_ppr != null ? p.proj_fpts_ppr.toFixed(1) : '—'}
                       </TableCell>
@@ -152,6 +212,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                           </TableCell>
                         )
                       })}
+                      <TableCell className="text-center"><L4Sparkline trend={p.trend} /></TableCell>
                       <TableCell className="text-muted-foreground">{teamName(p.team_id)}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums">${p.salary}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums">

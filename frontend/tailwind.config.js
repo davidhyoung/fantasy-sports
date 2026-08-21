@@ -74,6 +74,12 @@ export default {
           light: 'hsl(var(--negative-light))',
           border: 'hsl(var(--negative-border))',
         },
+        format: {
+          DEFAULT: 'hsl(var(--format))',
+          foreground: 'hsl(var(--format-foreground))',
+          light: 'hsl(var(--format-light))',
+          border: 'hsl(var(--format-border))',
+        },
       },
       borderRadius: {
         // 5px small badges · 6–8px buttons/toggles · 10–12px cards · pill chips/nav

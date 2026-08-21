@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -9,6 +10,84 @@ import (
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/nflstats"
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/scoring"
 )
+
+// nativeProjectedPoints estimates one week's worth of projected fantasy
+// points for each team's currently-starter-slotted players, using the same
+// per-game-rate projection data and scoring pipeline relevantPlayerStats and
+// ScoreLeagueWeek already use — just ProjectionToCanonicalTotals(rates, 1)
+// (one game) scored through the league's own modifiers instead of actual
+// stats. Used only to give an unscored scoreboard card something better than
+// a blank dash; never written anywhere.
+func (h *Handler) nativeProjectedPoints(ctx context.Context, leagueID int64, teamIDs []int64, season int) map[int64]float64 {
+	out := map[int64]float64{}
+	if len(teamIDs) == 0 {
+		return out
+	}
+	mods, ok := leaguesettings.NewNativeSource(h.db, leagueID).ScoringMods(ctx)
+	if !ok {
+		return out
+	}
+
+	rows, err := h.db.Query(ctx, `
+		SELECT team_id, gsis_id FROM league_rosters
+		WHERE league_id = $1 AND team_id = ANY($2) AND slot NOT IN ('BN', 'TAXI', 'IR')
+	`, leagueID, teamIDs)
+	if err != nil {
+		return out
+	}
+	teamPlayers := map[int64][]string{}
+	var allGsis []string
+	for rows.Next() {
+		var teamID int64
+		var gsisID string
+		if err := rows.Scan(&teamID, &gsisID); err != nil {
+			rows.Close()
+			return out
+		}
+		teamPlayers[teamID] = append(teamPlayers[teamID], gsisID)
+		allGsis = append(allGsis, gsisID)
+	}
+	rows.Close()
+	if len(allGsis) == 0 {
+		return out
+	}
+
+	prows, err := h.db.Query(ctx, `
+		SELECT gsis_id,
+		       proj_pass_yds_pg, proj_pass_td_pg, proj_rush_yds_pg, proj_rush_td_pg,
+		       proj_rec_pg, proj_rec_yds_pg, proj_rec_td_pg, proj_fg_made_pg, proj_pat_made_pg
+		FROM nfl_projections
+		WHERE gsis_id = ANY($1) AND target_season = $2
+	`, allGsis, season)
+	if err != nil {
+		return out
+	}
+	perPlayer := map[string]float64{}
+	for prows.Next() {
+		var gsisID string
+		var rates scoring.ProjectionRates
+		if err := prows.Scan(
+			&gsisID,
+			&rates.PassYdsPG, &rates.PassTdPG, &rates.RushYdsPG, &rates.RushTdPG,
+			&rates.RecPG, &rates.RecYdsPG, &rates.RecTdPG, &rates.FgMadePG, &rates.PatMadePG,
+		); err != nil {
+			prows.Close()
+			return out
+		}
+		totals := scoring.ProjectionToCanonicalTotals(rates, 1)
+		perPlayer[gsisID] = scoring.ScoreWithModifiers(totals, mods)
+	}
+	prows.Close()
+
+	for teamID, gsisIDs := range teamPlayers {
+		var total float64
+		for _, g := range gsisIDs {
+			total += perPlayer[g]
+		}
+		out[teamID] = total
+	}
+	return out
+}
 
 // roundRobinRounds returns the standard "circle method" single round-robin:
 // len(teamIDs)-1 rounds (one extra if odd, with a bye each round), each

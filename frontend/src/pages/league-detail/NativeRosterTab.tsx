@@ -162,7 +162,9 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
           </div>
           <div>
             <div className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Roster</div>
-            <div className="font-mono text-sm tabular-nums text-foreground">{teamRoster.length}/{rosterSpots}</div>
+            <div className={`font-mono text-sm tabular-nums ${teamRoster.length > rosterSpots ? 'text-negative' : 'text-foreground'}`}>
+              {teamRoster.length}/{rosterSpots}
+            </div>
           </div>
         </div>
       )}

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Table, TableHeader, TableBody, TableHead, TableCell, TableRow } from '@/components/ui/table'
 import { PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
-import { Button } from '@/components/ui/button'
 import { updateLeagueRoster, dropLeagueRoster, type RosterEntry } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 import { SLOT_DISPLAY_ORDER, BENCH_SLOTS, isSlotEligible } from '../lib/nativeSlots'
@@ -20,6 +19,20 @@ interface Props {
 interface Row {
   slot: string
   entry?: RosterEntry
+}
+
+type Group = 'starters' | 'bench' | 'taxi'
+
+const GROUP_LABEL: Record<Group, string> = {
+  starters: 'Starters',
+  bench: 'Bench',
+  taxi: 'Taxi & IR',
+}
+
+function groupOf(slot: string): Group {
+  if (slot === 'BN') return 'bench'
+  if (slot === 'TAXI' || slot === 'IR') return 'taxi'
+  return 'starters'
 }
 
 // A drag payload is just the gsis_id being moved — text/plain is enough and
@@ -56,23 +69,110 @@ function buildRows(roster: RosterEntry[], slots: Record<string, number>): Row[] 
   return rows
 }
 
+/** "$74 · 2 yrs left" / "$9 · final yr" / "$18 · Y2Y" — years *remaining* is
+ *  what a commissioner acts on; total contract length is derivable but less
+ *  immediately useful (design review, 2026-08-21). */
+function contractLabel(r: RosterEntry): string {
+  if (r.years_total == null) return `$${r.salary} · Y2Y`
+  const remaining = r.years_total - r.years_used
+  if (remaining <= 0) return `$${r.salary} · final yr`
+  return `$${r.salary} · ${remaining} yr${remaining === 1 ? '' : 's'} left`
+}
+
+/** Row-actions menu — a single "⋯" trigger replacing separate Edit/Drop text
+ *  links, since a row doesn't need two always-visible destructive-adjacent
+ *  controls competing with the picking/drag affordances in the same row. */
+function RowActionsMenu({
+  entry, onEdit, onDropRequested, confirming, onConfirmDrop, dropPending,
+}: {
+  entry: RosterEntry
+  onEdit: () => void
+  onDropRequested: () => void
+  confirming: boolean
+  onConfirmDrop: () => void
+  dropPending: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLSpanElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  if (confirming) {
+    return (
+      <button
+        type="button"
+        onClick={onConfirmDrop}
+        disabled={dropPending}
+        className="rounded-md border border-destructive px-2 py-1 font-display text-[11px] font-semibold text-destructive"
+      >
+        {dropPending ? 'Dropping…' : 'Confirm drop'}
+      </button>
+    )
+  }
+
+  return (
+    <span ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        aria-label={`Actions for ${entry.name}`}
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-base leading-none text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+      >
+        ⋯
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-20 mt-1 min-w-[110px] rounded-md border border-border bg-card py-1">
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onEdit() }}
+            className="block w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-accent"
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onDropRequested() }}
+            className="block w-full px-3 py-1.5 text-left text-xs text-negative hover:bg-accent"
+          >
+            Drop
+          </button>
+        </div>
+      )}
+    </span>
+  )
+}
+
 /**
  * Shared roster table for the Roster tab, for whichever team is selected.
- * Slot is a plain read-only column — the two ways to actually change it are
- * dragging a player's row onto another row (desktop only — native HTML5
- * drag-and-drop has no touch story) and clicking Pos to enter "picking"
- * mode: every row that's a legal destination for that player lights up
- * (left accent edge + pointer cursor) and becomes clickable, so the row
- * itself is the target — not an abstract slot name — which is what lets a
- * league with two RB slots distinguish "the empty one" from "the one
- * Jahmyr's in" (a swap) instead of just setting a slot label blind to which
- * physical row it lands on. Either way it's the same lineup-setting
- * mechanism: there's no separate "Lineup" screen, moving a player between a
- * starter slot and BN/TAXI/IR here is exactly what ScoreLeagueWeek reads
- * when a week gets scored. Landing on an empty row just reassigns the
- * player; landing on an occupied one swaps the two players' slots, matching
- * how drag-and-drop lineups behave elsewhere (Yahoo, ESPN) rather than
- * silently doubling up a slot.
+ * Rows are grouped into Starters / Bench / Taxi & IR (each with a fill-count
+ * + total-salary header) since that's the arithmetic a lineup pass is
+ * actually checking, and it gives the drag handle somewhere to live without
+ * adding chrome to every row.
+ *
+ * Slot is changed by dragging a player's row onto another row (desktop
+ * only — native HTML5 drag-and-drop has no touch story) or by clicking the
+ * Slot button to enter "picking" mode: every row that's a legal destination
+ * for that player lights up and becomes clickable — the row itself is the
+ * target, not an abstract slot name, which is what lets a league with two
+ * RB slots distinguish "the empty one" from "the one Jahmyr's in" (a swap).
+ * Picking mode is announced with an in-table banner (aria-live) plus a
+ * per-row "place here"/"swap here" label — color and cursor alone don't
+ * exist for a screen reader, and barely exist on a glance at a long table
+ * (design review open item 4, its highest-priority fix).
+ *
+ * Either way it's the same lineup-setting mechanism: there's no separate
+ * "Lineup" screen, moving a player between a starter slot and BN/TAXI/IR
+ * here is exactly what ScoreLeagueWeek reads when a week gets scored.
+ * Landing on an empty row just reassigns the player; landing on an occupied
+ * one swaps the two players' slots, matching how drag-and-drop lineups
+ * behave elsewhere (Yahoo, ESPN) rather than silently doubling up a slot.
  */
 export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Props) {
   const qc = useQueryClient()
@@ -82,7 +182,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
   // payload) so onDragOver can check eligibility — browsers don't expose
   // DataTransfer.getData() until the actual drop fires.
   const [draggingEntry, setDraggingEntry] = useState<RosterEntry | null>(null)
-  // The player currently being moved via click (Pos was clicked), if any —
+  // The player currently being moved via click (Slot was clicked), if any —
   // only one at a time. While set, every legal destination row is
   // highlighted and clickable.
   const [pickingFor, setPickingFor] = useState<string | null>(null)
@@ -90,13 +190,20 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
 
   useEffect(() => {
     if (!pickingFor) return
-    const handler = (e: MouseEvent) => {
+    const clickHandler = (e: MouseEvent) => {
       if (tableRef.current && !tableRef.current.contains(e.target as Node)) {
         setPickingFor(null)
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPickingFor(null)
+    }
+    document.addEventListener('mousedown', clickHandler)
+    document.addEventListener('keydown', keyHandler)
+    return () => {
+      document.removeEventListener('mousedown', clickHandler)
+      document.removeEventListener('keydown', keyHandler)
+    }
   }, [pickingFor])
 
   const invalidate = () => {
@@ -104,11 +211,6 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
     qc.invalidateQueries({ queryKey: ['league', leagueId, 'free-agents'] })
     qc.invalidateQueries({ queryKey: keys.leagueTransactions(leagueId) })
   }
-
-  const slotMutation = useMutation({
-    mutationFn: ({ gsisId, slot }: { gsisId: string; slot: string }) => updateLeagueRoster(leagueId, gsisId, { slot }),
-    onSuccess: invalidate,
-  })
 
   const dropMutation = useMutation({
     mutationFn: (gsisId: string) => dropLeagueRoster(leagueId, gsisId),
@@ -133,12 +235,17 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
   })
 
   const rows = useMemo(() => buildRows(roster, slots), [roster, slots])
+  const groups = useMemo(() => {
+    const byGroup: Record<Group, Row[]> = { starters: [], bench: [], taxi: [] }
+    for (const row of rows) byGroup[groupOf(row.slot)].push(row)
+    return byGroup
+  }, [rows])
 
   if (rows.length === 0) {
     return <p className="text-muted-foreground">No roster spots configured yet.</p>
   }
 
-  const dragDisabled = moveMutation.isPending || slotMutation.isPending
+  const dragDisabled = moveMutation.isPending
 
   // Both directions have to clear eligibility: the dragged player has to be
   // allowed in the target slot, and — for a swap onto an occupied row — the
@@ -169,117 +276,170 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
     setPickingFor(null)
   }
 
+  const renderRow = (row: Row, i: number) => {
+    const r = row.entry
+    const rowKey = r ? r.gsis_id : `${row.slot}-${i}`
+    const dropTargetProps = {
+      onDragOver: (e: React.DragEvent<HTMLTableRowElement>) => {
+        // Not calling preventDefault() here is what makes an ineligible slot
+        // refuse the drop (browser default) — the dragged player's gsis_id
+        // isn't readable from DataTransfer until the actual drop event, so
+        // eligibility here has to come from draggingEntry (component state
+        // set at dragstart).
+        if (draggingEntry && !canDrop(draggingEntry, row.slot, r)) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        setDragOverKey(rowKey)
+      },
+      onDragLeave: () => setDragOverKey((k) => (k === rowKey ? null : k)),
+      onDrop: (e: React.DragEvent<HTMLTableRowElement>) => handleDrop(e, row.slot, r),
+    }
+    const dragHighlight = dragOverKey === rowKey ? 'bg-muted' : ''
+    // While a player is being moved by click (pickedEntry set), every row
+    // that's a legal destination for them lights up and becomes clickable —
+    // the row itself is the target, so two same-named slots (two RB rows)
+    // are distinguishable: one may be empty, one may hold someone else (a
+    // swap).
+    const isTarget = !!pickedEntry && canDrop(pickedEntry, row.slot, r)
+    const targetWord = r ? 'swap here' : 'place here'
+    const targetLabel = pickedEntry
+      ? r
+        ? `Swap ${pickedEntry.name} with ${r.name}`
+        : `Place ${pickedEntry.name} in ${row.slot}`
+      : undefined
+    const pickTargetProps = isTarget
+      ? {
+          onClick: () => handlePick(row.slot, r),
+          role: 'button' as const,
+          tabIndex: 0,
+          'aria-label': targetLabel,
+          onKeyDown: (e: React.KeyboardEvent) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              handlePick(row.slot, r)
+            }
+          },
+        }
+      : {}
+    const targetHighlight = isTarget ? 'cursor-pointer border-l-[3px] border-l-primary bg-positive-light/40' : ''
+
+    const dragHandle = (
+      <TableCell className={`w-8 px-0 pl-3 text-xs ${dragDisabled ? 'text-muted-foreground/40' : 'text-muted-foreground'}`}>
+        {r ? '⠿' : ''}
+      </TableCell>
+    )
+
+    if (!r) {
+      return (
+        <TableRow key={rowKey} className={`${dragHighlight} ${targetHighlight}`} {...dropTargetProps} {...pickTargetProps}>
+          {dragHandle}
+          <TableCell className="font-mono text-xs font-semibold text-muted-foreground">{row.slot}</TableCell>
+          <TableCell className="italic text-muted-foreground">
+            Empty
+            {isTarget && <span className="ml-2 not-italic font-mono text-[11px] text-primary">{targetWord}</span>}
+          </TableCell>
+          <TableCell className="text-muted-foreground">—</TableCell>
+          <TableCell className="text-right font-mono tabular-nums text-muted-foreground">—</TableCell>
+          <TableCell />
+        </TableRow>
+      )
+    }
+    return (
+      <ClickableRow
+        key={r.gsis_id}
+        href={isTarget ? undefined : `/players/${r.gsis_id}`}
+        className={`${dragHighlight} ${targetHighlight} ${dragDisabled ? '' : 'cursor-grab active:cursor-grabbing'}`}
+        draggable={!dragDisabled}
+        onDragStart={(e) => {
+          e.dataTransfer.setData(DRAG_MIME, r.gsis_id)
+          e.dataTransfer.effectAllowed = 'move'
+          setDraggingEntry(r)
+        }}
+        onDragEnd={() => {
+          setDraggingEntry(null)
+          setDragOverKey(null)
+        }}
+        {...dropTargetProps}
+        {...pickTargetProps}
+      >
+        {dragHandle}
+        <TableCell onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => setPickingFor((k) => (k === r.gsis_id ? null : r.gsis_id))}
+            className={`rounded-md border px-2 py-1 font-mono text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              pickingFor === r.gsis_id
+                ? 'border-positive-border bg-positive-light text-primary'
+                : 'border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground'
+            }`}
+          >
+            {r.slot}
+          </button>
+        </TableCell>
+        <PlayerCell
+          name={r.name}
+          imageUrl={r.headshot_url}
+          linked
+          sub={isTarget ? targetWord : SLOT_DISPLAY_ORDER.filter((s) => !BENCH_SLOTS.has(s) && isSlotEligible(s, r.position)).join(' · ')}
+        />
+        <TableCell className="text-right font-mono tabular-nums whitespace-nowrap">{contractLabel(r)}</TableCell>
+        <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+          <RowActionsMenu
+            entry={r}
+            onEdit={() => onEdit(r)}
+            onDropRequested={() => setConfirmDrop(r.gsis_id)}
+            confirming={confirmDrop === r.gsis_id}
+            onConfirmDrop={() => dropMutation.mutate(r.gsis_id)}
+            dropPending={dropMutation.isPending}
+          />
+        </TableCell>
+      </ClickableRow>
+    )
+  }
+
+  const groupHeader = (group: Group, groupRows: Row[]) => {
+    if (groupRows.length === 0) return null
+    const filled = groupRows.filter((r) => r.entry).length
+    const salary = groupRows.reduce((sum, r) => sum + (r.entry?.salary ?? 0), 0)
+    return (
+      <TableRow key={`header-${group}`} className="bg-background hover:bg-background">
+        <TableCell colSpan={5} className="py-1.5 font-display text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+          {GROUP_LABEL[group]}{' '}
+          <span className="font-mono text-xs font-normal normal-case tracking-normal">
+            {filled} of {groupRows.length} filled · ${salary}
+            {group === 'taxi' && ' · does not count against starters'}
+          </span>
+        </TableCell>
+      </TableRow>
+    )
+  }
+
   return (
     <div ref={tableRef} className="rounded-lg bg-card overflow-x-auto max-w-[calc(100vw-3rem)]">
       <Table>
         <TableHeader style={{ top: 0 }}>
           <HeaderRow>
+            <TableHead className="w-8" />
             <TableHead>Slot</TableHead>
             <TableHead>Player</TableHead>
-            <TableHead>Pos</TableHead>
-            <TableHead className="text-right">Salary</TableHead>
-            <TableHead className="text-right">Years</TableHead>
+            <TableHead className="text-right">Contract</TableHead>
             <TableHead />
           </HeaderRow>
         </TableHeader>
         <TableBody>
-          {rows.map((row, i) => {
-            const r = row.entry
-            const rowKey = r ? r.gsis_id : `${row.slot}-${i}`
-            const dropTargetProps = {
-              onDragOver: (e: React.DragEvent<HTMLTableRowElement>) => {
-                // Not calling preventDefault() here is what makes an
-                // ineligible slot refuse the drop (browser default) — the
-                // dragged player's gsis_id isn't readable from DataTransfer
-                // until the actual drop event, so eligibility here has to
-                // come from draggingEntry (component state set at dragstart).
-                if (draggingEntry && !canDrop(draggingEntry, row.slot, r)) return
-                e.preventDefault()
-                e.dataTransfer.dropEffect = 'move'
-                setDragOverKey(rowKey)
-              },
-              onDragLeave: () => setDragOverKey((k) => (k === rowKey ? null : k)),
-              onDrop: (e: React.DragEvent<HTMLTableRowElement>) => handleDrop(e, row.slot, r),
-            }
-            const highlight = dragOverKey === rowKey ? 'bg-muted' : ''
-            // While a player is being moved by click (pickedEntry set), every
-            // row that's a legal destination for them lights up and becomes
-            // clickable — the row itself is the target, so two same-named
-            // slots (two RB rows) are distinguishable: one may be empty, one
-            // may hold someone else (a swap).
-            const isTarget = !!pickedEntry && canDrop(pickedEntry, row.slot, r)
-            const pickTargetProps = isTarget ? { onClick: () => handlePick(row.slot, r) } : {}
-            const targetHighlight = isTarget ? 'cursor-pointer border-l-[3px] border-l-primary' : ''
-
-            if (!r) {
-              return (
-                <TableRow key={rowKey} className={`${highlight} ${targetHighlight}`} {...dropTargetProps} {...pickTargetProps}>
-                  <TableCell className="font-mono text-xs font-semibold text-muted-foreground">{row.slot}</TableCell>
-                  <TableCell className="italic text-muted-foreground">Empty</TableCell>
-                  <TableCell className="text-muted-foreground">—</TableCell>
-                  <TableCell className="text-right font-mono tabular-nums text-muted-foreground">—</TableCell>
-                  <TableCell className="text-right font-mono tabular-nums text-muted-foreground">—</TableCell>
-                  <TableCell />
-                </TableRow>
-              )
-            }
-            return (
-              <ClickableRow
-                key={r.gsis_id}
-                href={isTarget ? undefined : `/players/${r.gsis_id}`}
-                className={`${highlight} ${targetHighlight} ${dragDisabled ? '' : 'cursor-grab active:cursor-grabbing'}`}
-                draggable={!dragDisabled}
-                onDragStart={(e) => {
-                  e.dataTransfer.setData(DRAG_MIME, r.gsis_id)
-                  e.dataTransfer.effectAllowed = 'move'
-                  setDraggingEntry(r)
-                }}
-                onDragEnd={() => {
-                  setDraggingEntry(null)
-                  setDragOverKey(null)
-                }}
-                {...dropTargetProps}
-                {...pickTargetProps}
-              >
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    onClick={() => setPickingFor((k) => (k === r.gsis_id ? null : r.gsis_id))}
-                    className={`rounded-md border px-2 py-1 font-mono text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                      pickingFor === r.gsis_id
-                        ? 'border-positive-border bg-positive-light text-primary'
-                        : 'border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground'
-                    }`}
-                  >
-                    {r.slot}
-                  </button>
-                </TableCell>
-                <PlayerCell name={r.name} imageUrl={r.headshot_url} linked />
-                <TableCell className="text-muted-foreground">
-                  {SLOT_DISPLAY_ORDER.filter((s) => !BENCH_SLOTS.has(s) && isSlotEligible(s, r.position)).join(' · ')}
-                </TableCell>
-                <TableCell className="text-right font-mono tabular-nums">${r.salary}</TableCell>
-                <TableCell className="text-right font-mono tabular-nums">
-                  {r.years_total != null ? `${r.years_used}/${r.years_total}` : 'Y2Y'}
-                </TableCell>
-                <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                  <Button variant="text" size="bare" onClick={() => onEdit(r)}>Edit</Button>
-                  {confirmDrop === r.gsis_id ? (
-                    <Button
-                      variant="destructive" size="sm" className="ml-2"
-                      onClick={() => dropMutation.mutate(r.gsis_id)}
-                      disabled={dropMutation.isPending}
-                    >
-                      Confirm drop
-                    </Button>
-                  ) : (
-                    <Button variant="text" size="bare" className="ml-2 text-negative" onClick={() => setConfirmDrop(r.gsis_id)}>
-                      Drop
-                    </Button>
-                  )}
-                </TableCell>
-              </ClickableRow>
-            )
+          {pickedEntry && (
+            <TableRow className="bg-background hover:bg-background">
+              <TableCell colSpan={5} className="py-1.5 text-xs text-muted-foreground" aria-live="polite">
+                <span className="font-semibold text-primary">Choosing a slot for {pickedEntry.name}</span>
+                {' '}— click a highlighted row to place or swap.
+                <span className="float-right font-semibold">Esc to cancel</span>
+              </TableCell>
+            </TableRow>
+          )}
+          {(['starters', 'bench', 'taxi'] as Group[]).flatMap((group) => {
+            const groupRows = groups[group]
+            if (groupRows.length === 0) return []
+            return [groupHeader(group, groupRows), ...groupRows.map((row, i) => renderRow(row, i))]
           })}
         </TableBody>
       </Table>

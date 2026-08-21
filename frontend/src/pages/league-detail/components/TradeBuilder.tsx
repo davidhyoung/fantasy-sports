@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { SelectControl } from '@/components/ui/filter-chip'
 import {
-  createLeagueTrade, getLeagueRosters, getLeagueDraftPicks,
+  createLeagueTrade, getLeagueRosters, getLeagueDraftPicks, getLeagueSettings,
   type Team, type TradeAsset,
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
@@ -28,6 +28,13 @@ export function TradeBuilder({ leagueId, teams, onClose }: Props) {
   const [teamBId, setTeamBId] = useState(teams[1]?.id ?? teams[0]?.id ?? 0)
   const [fromA, setFromA] = useState<Set<string>>(new Set())
   const [fromB, setFromB] = useState<Set<string>>(new Set())
+  // Executing immediately with no confirmation was flagged as the only
+  // irreversible action with no gate — "trade it back" isn't a real undo
+  // here, it re-executes contracts and leaves two extra rows in the
+  // activity log that misdescribe what happened. So: a review step, not a
+  // second modal — the same dialog swaps its body for a plain summary
+  // before the mutation actually fires (design review open item 5).
+  const [reviewing, setReviewing] = useState(false)
 
   const { data: rosters = [] } = useQuery({
     queryKey: keys.leagueRosters(leagueId),
@@ -36,6 +43,10 @@ export function TradeBuilder({ leagueId, teams, onClose }: Props) {
   const { data: picks = [] } = useQuery({
     queryKey: keys.leaguePicks(leagueId),
     queryFn: () => getLeagueDraftPicks(leagueId),
+  })
+  const { data: settings } = useQuery({
+    queryKey: keys.leagueSettings(leagueId),
+    queryFn: () => getLeagueSettings(leagueId),
   })
 
   const assetsFor = (teamId: number): SideAsset[] => {
@@ -85,6 +96,25 @@ export function TradeBuilder({ leagueId, teams, onClose }: Props) {
 
   const canSubmit = teamAId !== teamBId && (fromA.size > 0 || fromB.size > 0)
 
+  const capAfter = (teamId: number, sending: Set<string>, sendingAssets: SideAsset[], receivingAssets: SideAsset[], receiving: Set<string>) => {
+    const spent = rosters.filter((r) => r.team_id === teamId).reduce((sum, r) => sum + r.salary, 0)
+    const outgoingSalary = sendingAssets
+      .filter((a) => sending.has(a.key) && a.kind === 'player')
+      .reduce((sum, a) => sum + (rosters.find((r) => r.gsis_id === a.gsisId)?.salary ?? 0), 0)
+    const incomingSalary = receivingAssets
+      .filter((a) => receiving.has(a.key) && a.kind === 'player')
+      .reduce((sum, a) => sum + (rosters.find((r) => r.gsis_id === a.gsisId)?.salary ?? 0), 0)
+    const budget = settings?.budget ?? 0
+    return budget - (spent - outgoingSalary + incomingSalary)
+  }
+
+  const teamName = (id: number) => teams.find((t) => t.id === id)?.name ?? `Team ${id}`
+  const label = (asset: SideAsset) => asset.label
+  const sentA = assetsA.filter((a) => fromA.has(a.key))
+  const sentB = assetsB.filter((a) => fromB.has(a.key))
+  const capA = capAfter(teamAId, fromA, assetsA, assetsB, fromB)
+  const capB = capAfter(teamBId, fromB, assetsB, assetsA, fromA)
+
   const Side = ({
     label, teamId, setTeamId, otherTeamId, assets, selected, setSelected,
   }: {
@@ -119,6 +149,43 @@ export function TradeBuilder({ leagueId, teams, onClose }: Props) {
     </div>
   )
 
+  if (reviewing) {
+    return (
+      <div className="flex flex-col gap-4">
+        <p className="text-xs text-muted-foreground">Executes immediately — both sides are yours.</p>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="rounded-lg border border-border p-4">
+            <div className="font-display text-sm font-bold text-foreground">{teamName(teamAId)} sends</div>
+            <ul className="mt-2 flex flex-col gap-1 text-xs text-foreground">
+              {sentA.length === 0 ? <li className="text-muted-foreground">Nothing</li> : sentA.map((a) => <li key={a.key}>{label(a)}</li>)}
+            </ul>
+            <div className={`mt-3 font-mono text-[11px] ${capA < 0 ? 'text-negative' : 'text-muted-foreground'}`}>
+              Cap after: ${capA}{capA < 0 ? ' · over budget' : ''}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border p-4">
+            <div className="font-display text-sm font-bold text-foreground">{teamName(teamBId)} sends</div>
+            <ul className="mt-2 flex flex-col gap-1 text-xs text-foreground">
+              {sentB.length === 0 ? <li className="text-muted-foreground">Nothing</li> : sentB.map((a) => <li key={a.key}>{label(a)}</li>)}
+            </ul>
+            <div className={`mt-3 font-mono text-[11px] ${capB < 0 ? 'text-negative' : 'text-muted-foreground'}`}>
+              Cap after: ${capB}{capB < 0 ? ' · over budget' : ''}
+            </div>
+          </div>
+        </div>
+
+        {mutation.error && <p className="text-sm text-destructive">{(mutation.error as Error).message}</p>}
+
+        <div className="flex justify-between gap-2 border-t border-border pt-4">
+          <Button variant="outline" onClick={() => setReviewing(false)}>Back</Button>
+          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+            {mutation.isPending ? 'Trading…' : 'Confirm trade'}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex gap-4">
@@ -126,12 +193,10 @@ export function TradeBuilder({ leagueId, teams, onClose }: Props) {
         <Side label="Team B sends" teamId={teamBId} setTeamId={setTeamBId} otherTeamId={teamAId} assets={assetsB} selected={fromB} setSelected={setFromB} />
       </div>
 
-      {mutation.error && <p className="text-sm text-destructive">{(mutation.error as Error).message}</p>}
-
       <div className="flex justify-end gap-2 border-t border-border pt-4">
         <Button variant="outline" onClick={onClose}>Cancel</Button>
-        <Button onClick={() => mutation.mutate()} disabled={!canSubmit || mutation.isPending}>
-          {mutation.isPending ? 'Trading…' : 'Execute trade'}
+        <Button onClick={() => setReviewing(true)} disabled={!canSubmit}>
+          Review trade →
         </Button>
       </div>
     </div>

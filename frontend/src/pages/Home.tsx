@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { ListRow } from '@/components/ui/list-row'
 import { FilterChip } from '@/components/ui/filter-chip'
+import { Badge } from '@/components/ui/badge'
 import { PlayerAvatar } from '@/components/ui/table-helpers'
 import { useDivergences } from './divergences/hooks/useDivergences'
 import { listLeagues, sync, type User, type DivergenceItem } from '../api/client'
@@ -170,7 +171,20 @@ export default function Home({ user }: { user: User | null }) {
                   href={`/leagues/${l.id}`}
                   leading={<LeagueMark name={l.name} logoUrl={l.logo_url} index={i} />}
                   title={l.name}
-                  subtitle={`${SPORT_LABEL[l.sport] ?? l.sport} · ${l.season}`}
+                  subtitle={
+                    <span className="flex items-center gap-2">
+                      {SPORT_LABEL[l.sport] ?? l.sport} · {l.season}
+                      {l.source === 'native' && <Badge variant="format">{l.format}</Badge>}
+                      {l.source !== 'native' && ` · ${l.format.charAt(0).toUpperCase()}${l.format.slice(1)}`}
+                    </span>
+                  }
+                  trailing={
+                    l.source === 'native' ? (
+                      <Badge variant="neutral">Native</Badge>
+                    ) : (
+                      <Badge variant="neutral">⟳ Yahoo</Badge>
+                    )
+                  }
                 />
               ))}
             </div>

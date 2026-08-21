@@ -53,6 +53,28 @@ type standingResp struct {
 	PointsAgainst string `json:"points_against"`
 	StreakType    string `json:"streak_type"`
 	StreakValue   int    `json:"streak_value"`
+	// Native leagues only (see below) — chronological "W"/"L"/"T" for the
+	// team's last up to 5 scored matchups, and whether this rank currently
+	// makes the postseason. There's no real playoff-teams setting yet, so the
+	// cutoff is a heuristic off league size (see playoffCutoff), not a
+	// configured value — flagged as a simplification, not exact.
+	Last5         []string `json:"last5,omitempty"`
+	MakesPlayoffs bool     `json:"makes_playoffs,omitempty"`
+}
+
+// playoffCutoff approximates how many teams make the postseason from league
+// size alone, since native leagues have no real playoff-teams setting (no
+// bracket/seeding is built at all — see native-leagues plan). Small leagues
+// send a majority to the postseason; larger ones settle to half.
+func playoffCutoff(numTeams int) int {
+	switch {
+	case numTeams <= 4:
+		return 2
+	case numTeams <= 8:
+		return 4
+	default:
+		return numTeams / 2
+	}
 }
 
 // leagueSource looks up a league's source ("yahoo"|"native"); empty string
@@ -241,32 +263,55 @@ func (h *Handler) nativeScoreboard(w http.ResponseWriter, r *http.Request, leagu
 	}
 	defer rows.Close()
 
-	resp := scoreboardResp{Week: week, Matchups: []matchupResp{}}
+	type row struct {
+		t1ID, t2ID       int64
+		t1Name, t2Name   string
+		p1, p2           float64
+		isPlayoffs, scored bool
+	}
+	var scanned []row
+	teamSet := map[int64]bool{}
 	for rows.Next() {
-		var t1ID, t2ID int64
-		var t1Name, t2Name string
-		var p1, p2 float64
-		var isPlayoffs, scored bool
-		if err := rows.Scan(&t1ID, &t1Name, &p1, &t2ID, &t2Name, &p2, &isPlayoffs, &scored); err != nil {
+		var rw row
+		if err := rows.Scan(&rw.t1ID, &rw.t1Name, &rw.p1, &rw.t2ID, &rw.t2Name, &rw.p2, &rw.isPlayoffs, &rw.scored); err != nil {
 			respondError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		scanned = append(scanned, rw)
+		if !rw.scored {
+			teamSet[rw.t1ID] = true
+			teamSet[rw.t2ID] = true
+		}
+	}
+	unscoredTeamIDs := make([]int64, 0, len(teamSet))
+	for id := range teamSet {
+		unscoredTeamIDs = append(unscoredTeamIDs, id)
+	}
+	// Projected points give an unscored card something better than a blank
+	// dash — never written, purely a display estimate (see nativeProjectedPoints).
+	projected := h.nativeProjectedPoints(r.Context(), leagueID, unscoredTeamIDs, season)
+
+	resp := scoreboardResp{Week: week, Matchups: []matchupResp{}}
+	for _, rw := range scanned {
 		playoffsFlag := "0"
-		if isPlayoffs {
+		if rw.isPlayoffs {
 			playoffsFlag = "1"
 		}
 		status := "preevent"
-		if scored {
+		if rw.scored {
 			status = "postevent"
+		}
+		t1 := matchupTeamResp{TeamID: rw.t1ID, Name: rw.t1Name, Points: fmt.Sprintf("%.2f", rw.p1)}
+		t2 := matchupTeamResp{TeamID: rw.t2ID, Name: rw.t2Name, Points: fmt.Sprintf("%.2f", rw.p2)}
+		if !rw.scored {
+			t1.ProjectedPoints = fmt.Sprintf("%.1f", projected[rw.t1ID])
+			t2.ProjectedPoints = fmt.Sprintf("%.1f", projected[rw.t2ID])
 		}
 		resp.Matchups = append(resp.Matchups, matchupResp{
 			Week:       week,
 			Status:     status,
 			IsPlayoffs: playoffsFlag,
-			Teams: []matchupTeamResp{
-				{TeamID: t1ID, Name: t1Name, Points: fmt.Sprintf("%.2f", p1)},
-				{TeamID: t2ID, Name: t2Name, Points: fmt.Sprintf("%.2f", p2)},
-			},
+			Teams:      []matchupTeamResp{t1, t2},
 		})
 	}
 	respondJSON(w, http.StatusOK, resp)
@@ -288,6 +333,7 @@ func (h *Handler) nativeStandings(w http.ResponseWriter, r *http.Request, league
 		name                string
 		wins, losses, ties  int
 		pointsFor, pointsAg float64
+		last5               []string
 	}
 	records := map[int64]*record{}
 
@@ -308,10 +354,13 @@ func (h *Handler) nativeStandings(w http.ResponseWriter, r *http.Request, league
 	}
 	trows.Close()
 
+	// Ordered by week so last5 (below) reflects actual chronological order,
+	// not insertion/scan order.
 	mrows, err := h.db.Query(r.Context(), `
 		SELECT team1_id, team2_id, team1_points, team2_points
 		FROM league_matchups
 		WHERE league_id = $1 AND season = $2 AND computed_at IS NOT NULL
+		ORDER BY week ASC
 	`, leagueID, season)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -338,12 +387,18 @@ func (h *Handler) nativeStandings(w http.ResponseWriter, r *http.Request, league
 		case p1 > p2:
 			r1.wins++
 			r2.losses++
+			r1.last5 = append(r1.last5, "W")
+			r2.last5 = append(r2.last5, "L")
 		case p2 > p1:
 			r2.wins++
 			r1.losses++
+			r1.last5 = append(r1.last5, "L")
+			r2.last5 = append(r2.last5, "W")
 		default:
 			r1.ties++
 			r2.ties++
+			r1.last5 = append(r1.last5, "T")
+			r2.last5 = append(r2.last5, "T")
 		}
 	}
 	mrows.Close()
@@ -359,12 +414,17 @@ func (h *Handler) nativeStandings(w http.ResponseWriter, r *http.Request, league
 		return list[i].pointsFor > list[j].pointsFor
 	})
 
+	cutoff := playoffCutoff(len(list))
 	resp := make([]standingResp, 0, len(list))
 	for i, rec := range list {
 		total := rec.wins + rec.losses + rec.ties
 		pct := "0.000"
 		if total > 0 {
 			pct = fmt.Sprintf("%.3f", float64(rec.wins)/float64(total))
+		}
+		last5 := rec.last5
+		if len(last5) > 5 {
+			last5 = last5[len(last5)-5:]
 		}
 		resp = append(resp, standingResp{
 			TeamID:        rec.teamID,
@@ -376,6 +436,8 @@ func (h *Handler) nativeStandings(w http.ResponseWriter, r *http.Request, league
 			Percentage:    pct,
 			PointsFor:     fmt.Sprintf("%.2f", rec.pointsFor),
 			PointsAgainst: fmt.Sprintf("%.2f", rec.pointsAg),
+			Last5:         last5,
+			MakesPlayoffs: i+1 <= cutoff,
 		})
 	}
 	respondJSON(w, http.StatusOK, resp)

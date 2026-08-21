@@ -202,6 +202,12 @@ export interface Standing {
   points_against: string
   streak_type: string
   streak_value: number
+  // Native leagues only — chronological "W"/"L"/"T" for the last up to 5
+  // scored matchups, and whether this rank currently makes the postseason
+  // (a size-based heuristic — see backend playoffCutoff, no real
+  // playoff-teams setting exists yet).
+  last5?: string[]
+  makes_playoffs?: boolean
 }
 
 export const getLeagueScoreboard = (id: number, week?: number) =>
@@ -283,6 +289,9 @@ export interface RosterEntry {
   years_total: number | null
   years_used: number
   stats?: PlayerStat[]
+  // Chronological (oldest first) real fantasy points for the trailing up to
+  // 4 weeks with imported stats — powers the Players tab's "L4 wks" sparkline.
+  trend?: number[]
 }
 
 export interface FreeAgent {
@@ -293,6 +302,7 @@ export interface FreeAgent {
   headshot_url?: string
   proj_fpts_ppr: number | null
   stats?: PlayerStat[]
+  trend?: number[]
 }
 
 export const getLeagueRosters = (leagueId: number) =>

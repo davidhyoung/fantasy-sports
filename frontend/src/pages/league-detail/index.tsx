@@ -76,11 +76,12 @@ export default function LeagueDetail() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-foreground">{league.name}</h1>
-              {isNative && <Badge variant="purple">{league.format}</Badge>}
+              {isNative && <Badge variant="format">{league.format}</Badge>}
             </div>
             <p className="text-sm text-muted-foreground mt-1">
               {SPORT_LABEL[league.sport] ?? league.sport} · {league.season}
               {isNative && ' · Native'}
+              {teams.length > 0 && ` · ${teams.length} team${teams.length === 1 ? '' : 's'}`}
             </p>
           </div>
         </div>
@@ -109,7 +110,7 @@ export default function LeagueDetail() {
 
         <TabsContent value="standings">
           {isNative ? (
-            <NativeStandingsTab leagueId={leagueId} active={visibleTab === 'standings'} />
+            <NativeStandingsTab leagueId={leagueId} active={visibleTab === 'standings'} myTeamId={myTeam?.id} />
           ) : (
             <StandingsTab leagueId={leagueId} active={visibleTab === 'standings'} yahooKeyToId={yahooKeyToId} />
           )}

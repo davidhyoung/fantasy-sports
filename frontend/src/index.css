@@ -62,6 +62,15 @@
     --negative-light: 226 55% 95%;
     --negative-border: 226 35% 82%;
 
+    /* A league's format (dynasty/keeper/redraft) is a current, load-bearing
+       fact, not a call to action — pink is reserved for clickable/primary,
+       purple for projected data, so format gets its own dedicated hue
+       (design review, 2026-08-21). */
+    --format: 150 45% 32%;
+    --format-foreground: 150 55% 28%;
+    --format-light: 150 40% 94%;
+    --format-border: 150 30% 78%;
+
     /* Chart strokes (HSL strings for inline SVG use). Actual seasons use the
        primary accent; projected segments use the purple. */
     --chart-line: 347 62% 48%;
@@ -116,6 +125,11 @@
     --negative-foreground: 226 62% 68%;
     --negative-light: 225 24% 13%;
     --negative-border: 226 25% 22%;
+
+    --format: 150 55% 58%;
+    --format-foreground: 150 55% 58%;
+    --format-light: 150 25% 13%;
+    --format-border: 150 30% 22%;
 
     --chart-line: 347 69% 63%;
     --chart-projected: 256 79% 71%;

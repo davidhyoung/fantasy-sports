@@ -211,15 +211,33 @@ function teamInitials(name: string): string {
     .toUpperCase()
 }
 
+// Same three-hue cycling convention as Home's LeagueMark — a team with no
+// real logo gets a flat colored mark, not an empty blob indistinguishable
+// from every other team's (design review, 2026-08-21: unify the two
+// placeholder conventions rather than have leagues colored and teams gray).
+// Circle vs. LeagueMark's square is the type distinction: teams are
+// people-ish, leagues are containers.
+const TEAM_AVATAR_BG = ['bg-primary', 'bg-secondary', 'bg-highlight']
+
+/** Simple deterministic string hash so the same team name always lands on
+ *  the same hue, independent of array order (which differs between
+ *  Standings/Scoreboard/the team switcher). */
+function hashIndex(s: string, mod: number): number {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  return h % mod
+}
+
 /** Placeholder team "profile picture" — native leagues have no real team
- *  logo pipeline yet, so every team gets a flat circle with its initials
- *  (same shrink-0/bg-muted treatment as PlayerAvatar's no-image fallback)
- *  rather than an empty blob indistinguishable from every other team's. */
+ *  logo pipeline yet, so every team gets a flat colored circle with its
+ *  initials rather than an empty blob indistinguishable from every other
+ *  team's. */
 function TeamAvatar({ name, size = 28 }: TeamAvatarProps) {
   const initials = teamInitials(name)
+  const bg = TEAM_AVATAR_BG[hashIndex(name, TEAM_AVATAR_BG.length)]
   return (
     <div
-      className={`${AVATAR_CLASS[size]} ${TEAM_AVATAR_TEXT_CLASS[size]} flex items-center justify-center rounded-full bg-muted font-display font-semibold text-foreground shrink-0`}
+      className={`${AVATAR_CLASS[size]} ${TEAM_AVATAR_TEXT_CLASS[size]} ${bg} flex items-center justify-center rounded-full font-display font-semibold text-primary-foreground shrink-0`}
     >
       {initials}
     </div>

@@ -18,6 +18,9 @@ const badgeVariants = cva(
         // Reserved for projected/future data.
         purple: 'bg-highlight-light text-highlight-foreground border-highlight-border',
         amber: 'bg-warning-light text-warning-foreground border-warning-border',
+        // A league's format (dynasty/keeper/redraft) — a current fact, not a
+        // CTA (pink) and not projected data (purple), so it gets its own hue.
+        format: 'bg-format-light text-format-foreground border-format-border uppercase tracking-wide',
         outline: 'text-foreground',
         // Solid fills — kept for existing call sites; prefer the tonal variants.
         default: 'border-transparent bg-primary text-primary-foreground hover:bg-primary/80',

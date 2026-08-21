@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/leaguesettings"
+	"github.com/davidyoung/fantasy-sports/backend/internal/services/nflstats"
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/scoring"
 )
 
@@ -31,6 +33,9 @@ type rosterEntryResp struct {
 	YearsTotal   *int              `json:"years_total"`
 	YearsUsed    int               `json:"years_used"`
 	Stats        []playerStatEntry `json:"stats,omitempty"`
+	// Chronological (oldest first) real fantasy points for the trailing up
+	// to 4 weeks with imported stats — see weeklyTrend.
+	Trend []float64 `json:"trend,omitempty"`
 }
 
 // playerStatEntry is one projected season-total stat category, restricted to
@@ -100,6 +105,59 @@ func (h *Handler) relevantPlayerStats(ctx context.Context, leagueID int64, seaso
 	return out, rows.Err()
 }
 
+// weeklyTrend returns each player's real fantasy points (this league's own
+// scoring modifiers) for the trailing up to 4 weeks that have any imported
+// stats for the season — chronological, oldest first, for the Players tab's
+// "L4 wks" sparkline. Independent of whether this league has actually run
+// ScoreLeagueWeek for those weeks — that's a separate, explicit commissioner
+// action; this reads straight from nfl_player_stats like relevantPlayerStats
+// reads from nfl_projections.
+func (h *Handler) weeklyTrend(ctx context.Context, leagueID int64, season int, gsisIDs []string) (map[string][]float64, error) {
+	out := map[string][]float64{}
+	if len(gsisIDs) == 0 {
+		return out, nil
+	}
+	mods, ok := leaguesettings.NewNativeSource(h.db, leagueID).ScoringMods(ctx)
+	if !ok {
+		return out, nil
+	}
+
+	rows, err := h.db.Query(ctx, `
+		SELECT DISTINCT week FROM nfl_player_stats
+		WHERE season = $1 AND season_type = 'REG'
+		ORDER BY week DESC LIMIT 4
+	`, season)
+	if err != nil {
+		return nil, err
+	}
+	var weeks []int
+	for rows.Next() {
+		var wk int
+		if err := rows.Scan(&wk); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		weeks = append(weeks, wk)
+	}
+	rows.Close()
+	sort.Ints(weeks) // oldest first, so the trend reads left-to-right
+
+	for _, wk := range weeks {
+		stats, err := nflstats.LoadWeekStats(ctx, h.db, season, wk, gsisIDs)
+		if err != nil {
+			return nil, err
+		}
+		for _, g := range gsisIDs {
+			pts := 0.0
+			if s, ok := stats[g]; ok {
+				pts = scoring.ScoreWithModifiers(s, mods)
+			}
+			out[g] = append(out[g], pts)
+		}
+	}
+	return out, nil
+}
+
 // GetLeagueRosters returns every rostered player in a native league. The
 // client groups by team_id — the shape is a flat list either way once you're
 // keying off it.
@@ -151,8 +209,14 @@ func (h *Handler) GetLeagueRosters(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	trendByPlayer, err := h.weeklyTrend(r.Context(), leagueID, h.leagueSeasonInt(r, leagueID), gsisIDs)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	for i := range roster {
 		roster[i].Stats = statsByPlayer[roster[i].GsisID]
+		roster[i].Trend = trendByPlayer[roster[i].GsisID]
 	}
 
 	respondJSON(w, http.StatusOK, roster)
@@ -508,6 +572,7 @@ type freeAgentResp struct {
 	HeadshotURL string            `json:"headshot_url,omitempty"`
 	ProjFptsPPR *float64          `json:"proj_fpts_ppr"`
 	Stats       []playerStatEntry `json:"stats,omitempty"`
+	Trend       []float64         `json:"trend,omitempty"`
 }
 
 // GetLeagueFreeAgents returns players in a native league with no roster row —
@@ -580,8 +645,14 @@ func (h *Handler) GetLeagueFreeAgents(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	trendByPlayer, err := h.weeklyTrend(r.Context(), leagueID, season, gsisIDs)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	for i := range agents {
 		agents[i].Stats = statsByPlayer[agents[i].GsisID]
+		agents[i].Trend = trendByPlayer[agents[i].GsisID]
 	}
 
 	respondJSON(w, http.StatusOK, agents)
