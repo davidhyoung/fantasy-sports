@@ -11,17 +11,15 @@ import { EditContractForm } from './EditContractForm'
 interface Props {
   leagueId: number
   teamId: number
-  /** Someone else's team, viewed from its /teams/:id page — matchup card
-   *  stays, but the roster renders read-only (no slot editing, no Edit/Drop). */
-  readOnly?: boolean
 }
 
 /**
  * The current week's matchup card plus roster for one native-league team —
- * shared by the personal My Team tab (editable) and the read-only
- * /teams/:id page anyone can reach by clicking a team name.
+ * used by the Roster tab for whichever team is selected. There's no
+ * separate read-only team page: a native league has no reader who isn't
+ * the commissioner (single-user model), so this is always fully editable.
  */
-export function NativeTeamOverview({ leagueId, teamId, readOnly = false }: Props) {
+export function NativeTeamOverview({ leagueId, teamId }: Props) {
   const [editing, setEditing] = useState<RosterEntry | null>(null)
 
   const { data: rosters, isFetching: loadingRosters } = useQuery({
@@ -51,7 +49,10 @@ export function NativeTeamOverview({ leagueId, teamId, readOnly = false }: Props
               {me.points} <span className="text-muted-foreground">–</span> {opponent.points}
             </span>
             {opponent.team_id ? (
-              <RouterLink to={`/teams/${opponent.team_id}`} className="font-display text-sm font-semibold text-foreground hover:text-primary">
+              <RouterLink
+                to={`/leagues/${leagueId}?tab=roster&team=${opponent.team_id}`}
+                className="font-display text-sm font-semibold text-foreground hover:text-primary"
+              >
                 {opponent.name}
               </RouterLink>
             ) : (
@@ -68,14 +69,12 @@ export function NativeTeamOverview({ leagueId, teamId, readOnly = false }: Props
       {loadingRosters ? (
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       ) : (
-        <NativeRosterTable leagueId={leagueId} roster={roster} onEdit={readOnly ? undefined : setEditing} readOnly={readOnly} />
+        <NativeRosterTable leagueId={leagueId} roster={roster} onEdit={setEditing} />
       )}
 
-      {!readOnly && (
-        <Dialog open={editing != null} onClose={() => setEditing(null)} title="Edit contract">
-          {editing && <EditContractForm leagueId={leagueId} entry={editing} onClose={() => setEditing(null)} />}
-        </Dialog>
-      )}
+      <Dialog open={editing != null} onClose={() => setEditing(null)} title="Edit contract">
+        {editing && <EditContractForm leagueId={leagueId} entry={editing} onClose={() => setEditing(null)} />}
+      </Dialog>
     </>
   )
 }

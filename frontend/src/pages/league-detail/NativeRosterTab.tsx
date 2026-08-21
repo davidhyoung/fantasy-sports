@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link as RouterLink } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -24,24 +24,29 @@ interface Props {
 
 /**
  * The native league's Roster tab — one page for both "my team" and "every
- * team," since they were the same content twice: a team switcher (defaults
- * to your claimed team) picks who you're looking at, and the commissioner
- * tools (assign/trade/rollover/claim/activity log) apply regardless of
- * which team is selected. The matchup card + roster for the selected team
- * comes from the shared NativeTeamOverview, the same component the
- * read-only /teams/:id page uses.
+ * team," since they were the same content twice, and also the destination
+ * for clicking any team name anywhere in the app (Standings, Scoreboard,
+ * Draft Picks, a teammate's matchup opponent) — there's no separate
+ * "full team page," this is it. A team switcher (defaults to your claimed
+ * team) picks who you're looking at; the commissioner tools
+ * (assign/trade/rollover/claim/activity log) apply regardless of which team
+ * is selected. The matchup card + roster for the selected team comes from
+ * the shared NativeTeamOverview.
+ *
+ * The selected team lives in the `team` URL param, not component state —
+ * every other page links here with `?tab=roster&team=<id>` directly, so
+ * deriving from the URL is what makes those links actually land on the
+ * right team, and it sidesteps the class of bug a `useState` initializer
+ * has here: `teams` loads asynchronously, so a value computed once at
+ * mount can freeze on a default before real teams (or the URL) are known.
  */
 export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Props) {
   const qc = useQueryClient()
-  const [teamId, setTeamId] = useState(myTeam?.id ?? teams[0]?.id ?? 0)
-  // `teams` loads asynchronously — if this tab mounts before it resolves,
-  // teamId initializes to 0 and never recovers on its own (useState's
-  // initializer only runs once). Correct it once real teams arrive.
-  useEffect(() => {
-    if (teams.length === 0) return
-    if (teams.some((t) => t.id === teamId)) return
-    setTeamId(myTeam?.id ?? teams[0].id)
-  }, [teams, myTeam, teamId])
+  const [searchParams, setSearchParams] = useSearchParams()
+  const teamParam = Number(searchParams.get('team'))
+  const teamId = teams.some((t) => t.id === teamParam) ? teamParam : (myTeam?.id ?? teams[0]?.id ?? 0)
+  const selectTeam = (id: number) =>
+    setSearchParams((prev) => { prev.set('team', String(id)); return prev }, { replace: true })
   const [assigning, setAssigning] = useState(false)
   const [trading, setTrading] = useState(false)
   const [confirmRollover, setConfirmRollover] = useState(false)
@@ -115,7 +120,7 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex flex-wrap gap-1.5">
           {teams.map((t) => (
-            <FilterChip key={t.id} active={teamId === t.id} onClick={() => setTeamId(t.id)}>
+            <FilterChip key={t.id} active={teamId === t.id} onClick={() => selectTeam(t.id)}>
               {t.name}
             </FilterChip>
           ))}
@@ -136,9 +141,6 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
               </Button>
             )
           )}
-          <RouterLink to={`/teams/${teamId}`} className="font-display text-xs font-semibold text-primary hover:text-primary-hover">
-            Full team page →
-          </RouterLink>
           <Button variant="outline" size="sm" onClick={() => setTrading(true)}>Trade</Button>
           <Button size="sm" onClick={() => setAssigning(true)}>+ Assign player</Button>
         </div>

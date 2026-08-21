@@ -95,11 +95,11 @@ export function NativeDraftPicksTab({ leagueId, active, teams, season }: Props) 
                         <TableRow key={p.id}>
                           <TableCell className="font-mono tabular-nums">{p.round}</TableCell>
                           <TableCell className="text-muted-foreground">
-                            <RouterLink to={`/teams/${p.current_team_id}`} className="hover:text-primary">{p.current_team_name}</RouterLink>
+                            <RouterLink to={`/leagues/${leagueId}?tab=roster&team=${p.current_team_id}`} className="hover:text-primary">{p.current_team_name}</RouterLink>
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             {p.original_team_id !== p.current_team_id ? (
-                              <RouterLink to={`/teams/${p.original_team_id}`} className="hover:text-primary">{p.original_team_name}</RouterLink>
+                              <RouterLink to={`/leagues/${leagueId}?tab=roster&team=${p.original_team_id}`} className="hover:text-primary">{p.original_team_name}</RouterLink>
                             ) : '—'}
                           </TableCell>
                           <TableCell className="text-muted-foreground">{p.used_on_name ?? '—'}</TableCell>

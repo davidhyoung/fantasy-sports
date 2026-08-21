@@ -50,7 +50,7 @@ export function NativeStandingsTab({ leagueId, active }: Props) {
               <TableCell className="font-mono tabular-nums">{s.rank}</TableCell>
               <TableCell className="font-medium">
                 {s.team_id ? (
-                  <RouterLink to={`/teams/${s.team_id}`} className="hover:text-primary">{s.name}</RouterLink>
+                  <RouterLink to={`/leagues/${leagueId}?tab=roster&team=${s.team_id}`} className="hover:text-primary">{s.name}</RouterLink>
                 ) : (
                   s.name
                 )}

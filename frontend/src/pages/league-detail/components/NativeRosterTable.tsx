@@ -10,21 +10,17 @@ import { ROSTER_SLOTS } from '../lib/nativeSlots'
 interface Props {
   leagueId: number
   roster: RosterEntry[]
-  onEdit?: (entry: RosterEntry) => void
-  /** Someone else's team, viewed from its /teams/:id page — no slot editing, no Edit/Drop. */
-  readOnly?: boolean
+  onEdit: (entry: RosterEntry) => void
 }
 
 /**
- * Shared roster table for the commissioner-wide Roster tab, the personal My
- * Team tab, and a read-only team detail page. The Slot cell is an inline
- * `<select>` — that's the actual lineup-setting mechanism for weekly play:
- * there's no separate "Lineup" screen, moving a player between a starter
- * slot and BN/TAXI/IR here is exactly what ScoreLeagueWeek reads when a
- * week gets scored. `readOnly` renders the same columns as plain text
- * instead, for viewing a team that isn't yours.
+ * Shared roster table for the Roster tab, for whichever team is selected.
+ * The Slot cell is an inline `<select>` — that's the actual lineup-setting
+ * mechanism for weekly play: there's no separate "Lineup" screen, moving a
+ * player between a starter slot and BN/TAXI/IR here is exactly what
+ * ScoreLeagueWeek reads when a week gets scored.
  */
-export function NativeRosterTable({ leagueId, roster, onEdit, readOnly = false }: Props) {
+export function NativeRosterTable({ leagueId, roster, onEdit }: Props) {
   const qc = useQueryClient()
   const [confirmDrop, setConfirmDrop] = useState<string | null>(null)
 
@@ -61,7 +57,7 @@ export function NativeRosterTable({ leagueId, roster, onEdit, readOnly = false }
             <TableHead>Slot</TableHead>
             <TableHead className="text-right">Salary</TableHead>
             <TableHead className="text-right">Years</TableHead>
-            {!readOnly && <TableHead />}
+            <TableHead />
           </HeaderRow>
         </TableHeader>
         <TableBody>
@@ -69,42 +65,36 @@ export function NativeRosterTable({ leagueId, roster, onEdit, readOnly = false }
             <ClickableRow key={r.gsis_id} href={`/players/${r.gsis_id}`}>
               <PlayerCell name={r.name} imageUrl={r.headshot_url} linked />
               <TableCell className="text-muted-foreground">{r.position}</TableCell>
-              {readOnly ? (
-                <TableCell className="text-muted-foreground">{r.slot}</TableCell>
-              ) : (
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <select
-                    value={r.slot}
-                    onChange={(e) => slotMutation.mutate({ gsisId: r.gsis_id, slot: e.target.value })}
-                    disabled={slotMutation.isPending}
-                    className="h-7 rounded-md border border-input bg-background px-1.5 font-display text-xs font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {ROSTER_SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </TableCell>
-              )}
+              <TableCell onClick={(e) => e.stopPropagation()}>
+                <select
+                  value={r.slot}
+                  onChange={(e) => slotMutation.mutate({ gsisId: r.gsis_id, slot: e.target.value })}
+                  disabled={slotMutation.isPending}
+                  className="h-7 rounded-md border border-input bg-background px-1.5 font-display text-xs font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {ROSTER_SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </TableCell>
               <TableCell className="text-right font-mono tabular-nums">${r.salary}</TableCell>
               <TableCell className="text-right font-mono tabular-nums">
                 {r.years_total != null ? `${r.years_used}/${r.years_total}` : 'Y2Y'}
               </TableCell>
-              {!readOnly && (
-                <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                  <Button variant="text" size="bare" onClick={() => onEdit?.(r)}>Edit</Button>
-                  {confirmDrop === r.gsis_id ? (
-                    <Button
-                      variant="destructive" size="sm" className="ml-2"
-                      onClick={() => dropMutation.mutate(r.gsis_id)}
-                      disabled={dropMutation.isPending}
-                    >
-                      Confirm drop
-                    </Button>
-                  ) : (
-                    <Button variant="text" size="bare" className="ml-2 text-negative" onClick={() => setConfirmDrop(r.gsis_id)}>
-                      Drop
-                    </Button>
-                  )}
-                </TableCell>
-              )}
+              <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                <Button variant="text" size="bare" onClick={() => onEdit(r)}>Edit</Button>
+                {confirmDrop === r.gsis_id ? (
+                  <Button
+                    variant="destructive" size="sm" className="ml-2"
+                    onClick={() => dropMutation.mutate(r.gsis_id)}
+                    disabled={dropMutation.isPending}
+                  >
+                    Confirm drop
+                  </Button>
+                ) : (
+                  <Button variant="text" size="bare" className="ml-2 text-negative" onClick={() => setConfirmDrop(r.gsis_id)}>
+                    Drop
+                  </Button>
+                )}
+              </TableCell>
             </ClickableRow>
           ))}
         </TableBody>
