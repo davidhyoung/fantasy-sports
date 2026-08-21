@@ -178,13 +178,15 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
   const qc = useQueryClient()
   const [confirmDrop, setConfirmDrop] = useState<string | null>(null)
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
-  // The dragged player, kept in component state (not just the DataTransfer
-  // payload) so onDragOver can check eligibility — browsers don't expose
-  // DataTransfer.getData() until the actual drop fires.
-  const [draggingEntry, setDraggingEntry] = useState<RosterEntry | null>(null)
-  // The player currently being moved via click (Slot was clicked), if any —
-  // only one at a time. While set, every legal destination row is
-  // highlighted and clickable.
+  // The player currently being moved, by click (Slot was clicked) or by
+  // starting a drag — either way, only one at a time, and while set every
+  // legal destination row is highlighted and clickable. Starting a drag sets
+  // this immediately (not just the row under the cursor) so a drag shows the
+  // exact same "every legal destination lit up" feedback as clicking Slot,
+  // rather than a separate, narrower highlight of its own. This also doubles
+  // as the eligibility source for onDragOver — browsers don't expose
+  // DataTransfer.getData() until the actual drop fires, so eligibility
+  // during a drag has to come from component state, not the payload.
   const [pickingFor, setPickingFor] = useState<string | null>(null)
   const tableRef = useRef<HTMLDivElement | null>(null)
 
@@ -284,9 +286,9 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
         // Not calling preventDefault() here is what makes an ineligible slot
         // refuse the drop (browser default) — the dragged player's gsis_id
         // isn't readable from DataTransfer until the actual drop event, so
-        // eligibility here has to come from draggingEntry (component state
-        // set at dragstart).
-        if (draggingEntry && !canDrop(draggingEntry, row.slot, r)) return
+        // eligibility here comes from pickedEntry (set at dragstart), same
+        // as the click-to-pick path.
+        if (pickedEntry && !canDrop(pickedEntry, row.slot, r)) return
         e.preventDefault()
         e.dataTransfer.dropEffect = 'move'
         setDragOverKey(rowKey)
@@ -353,10 +355,10 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
         onDragStart={(e) => {
           e.dataTransfer.setData(DRAG_MIME, r.gsis_id)
           e.dataTransfer.effectAllowed = 'move'
-          setDraggingEntry(r)
+          setPickingFor(r.gsis_id)
         }}
         onDragEnd={() => {
-          setDraggingEntry(null)
+          setPickingFor(null)
           setDragOverKey(null)
         }}
         {...dropTargetProps}
