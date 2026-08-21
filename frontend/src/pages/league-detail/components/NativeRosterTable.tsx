@@ -228,7 +228,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
                     <button
                       type="button"
                       onClick={() => setOpenSlotFor((k) => (k === r.gsis_id ? null : r.gsis_id))}
-                      className="font-display text-xs font-semibold text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="rounded-md border border-input bg-background px-2 py-1 font-display text-xs font-semibold text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {r.position}
                     </button>
