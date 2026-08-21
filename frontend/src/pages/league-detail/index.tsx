@@ -94,9 +94,9 @@ export default function LeagueDetail() {
               and My Team grew commissioner tools. */}
           {myTeam && !isNative && <TabsTrigger value="my-team">My Team</TabsTrigger>}
           <TabsTrigger value="standings">Standings</TabsTrigger>
+          {isNative && <TabsTrigger value="roster">Roster</TabsTrigger>}
           <TabsTrigger value="scoreboard">Scoreboard</TabsTrigger>
           <TabsTrigger value="players">Players</TabsTrigger>
-          {isNative && <TabsTrigger value="roster">Roster</TabsTrigger>}
           {/* Draft covers draft values (NFL) + keepers (or picks, for native). */}
           <TabsTrigger value="draft">Draft</TabsTrigger>
         </TabsList>
@@ -115,6 +115,18 @@ export default function LeagueDetail() {
           )}
         </TabsContent>
 
+        {isNative && (
+          <TabsContent value="roster">
+            <NativeRosterTab
+              leagueId={leagueId}
+              active={visibleTab === 'roster'}
+              teams={teams}
+              myTeam={myTeam}
+              format={league.format}
+            />
+          </TabsContent>
+        )}
+
         <TabsContent value="scoreboard">
           {isNative ? (
             <NativeScoreboardTab leagueId={leagueId} active={visibleTab === 'scoreboard'} />
@@ -130,18 +142,6 @@ export default function LeagueDetail() {
             <PlayersTab leagueId={leagueId} active={visibleTab === 'players'} sport={league.sport} />
           )}
         </TabsContent>
-
-        {isNative && (
-          <TabsContent value="roster">
-            <NativeRosterTab
-              leagueId={leagueId}
-              active={visibleTab === 'roster'}
-              teams={teams}
-              myTeam={myTeam}
-              format={league.format}
-            />
-          </TabsContent>
-        )}
 
         <TabsContent value="draft">
           <DraftSection
