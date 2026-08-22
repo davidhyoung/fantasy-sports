@@ -26,7 +26,12 @@ interface Props {
 export function NativeTeamOverview({ leagueId, teamId, slots }: Props) {
   const [editing, setEditing] = useState<RosterEntry | null>(null)
 
-  const { data: rosters, isFetching: loadingRosters } = useQuery({
+  // isLoading (not isFetching) — isFetching is also true during the
+  // background refetch every roster mutation triggers, which used to
+  // unmount the whole table behind a spinner on every single move. isLoading
+  // is only true before the first successful fetch, so a reorder/drop/etc.
+  // just swaps the updated rows in once the refetch resolves.
+  const { data: rosters, isLoading: loadingRosters } = useQuery({
     queryKey: keys.leagueRosters(leagueId),
     queryFn: () => getLeagueRosters(leagueId),
   })

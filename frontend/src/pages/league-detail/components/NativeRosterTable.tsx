@@ -307,13 +307,18 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
       onDragLeave: () => setDragOverKey((k) => (k === rowKey ? null : k)),
       onDrop: (e: React.DragEvent<HTMLTableRowElement>) => handleDrop(e, row.slot, r),
     }
-    const dragHighlight = dragOverKey === rowKey ? 'bg-muted' : ''
     // While a player is being moved by click (pickedEntry set), every row
     // that's a legal destination for them lights up and becomes clickable —
     // the row itself is the target, so two same-named slots (two RB rows)
     // are distinguishable: one may be empty, one may hold someone else (a
     // swap).
     const isTarget = !!pickedEntry && canDrop(pickedEntry, row.slot, r)
+    // The one row currently under the cursor during an active drag — a
+    // stronger treatment than "eligible" so it's unambiguous which row you'd
+    // actually land on, not just which rows you could. Only ever set on an
+    // eligible row (onDragOver never sets it otherwise), so this is always a
+    // subset of isTarget.
+    const isDragOverTarget = dragOverKey === rowKey
     const targetWord = r ? 'swap here' : 'place here'
     const targetLabel = pickedEntry
       ? r
@@ -334,7 +339,11 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
           },
         }
       : {}
-    const targetHighlight = isTarget ? 'cursor-pointer border-l-[3px] border-l-primary bg-positive-light/40' : ''
+    const targetHighlight = isDragOverTarget
+      ? 'cursor-pointer border-l-[3px] border-l-primary bg-positive-light ring-1 ring-inset ring-primary'
+      : isTarget
+      ? 'cursor-pointer border-l-[3px] border-l-primary bg-positive-light/40'
+      : ''
 
     const dragHandle = (
       <TableCell className={`w-8 px-0 pl-3 text-xs ${dragDisabled ? 'text-muted-foreground/40' : 'text-muted-foreground'}`}>
@@ -344,7 +353,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
 
     if (!r) {
       return (
-        <TableRow key={rowKey} className={`${dragHighlight} ${targetHighlight}`} {...dropTargetProps} {...pickTargetProps}>
+        <TableRow key={rowKey} className={targetHighlight} {...dropTargetProps} {...pickTargetProps}>
           {dragHandle}
           <TableCell className="font-mono text-xs font-semibold text-muted-foreground">{row.slot}</TableCell>
           <TableCell className="italic text-muted-foreground">
@@ -364,7 +373,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
       <ClickableRow
         key={r.gsis_id}
         href={isTarget ? undefined : `/players/${r.gsis_id}?league=${leagueId}`}
-        className={`${dragHighlight} ${targetHighlight} ${dragDisabled ? '' : 'cursor-grab active:cursor-grabbing'}`}
+        className={`${targetHighlight} ${dragDisabled ? '' : 'cursor-grab active:cursor-grabbing'}`}
         draggable={!dragDisabled}
         onDragStart={(e) => {
           e.dataTransfer.setData(DRAG_MIME, r.gsis_id)
