@@ -172,18 +172,20 @@ export default function Home({ user }: { user: User | null }) {
                   leading={<LeagueMark name={l.name} logoUrl={l.logo_url} index={i} />}
                   title={l.name}
                   subtitle={
-                    <span className="flex items-center gap-2">
+                    <span>
                       {SPORT_LABEL[l.sport] ?? l.sport} · {l.season}
-                      {l.source === 'native' && <Badge variant="format">{l.format}</Badge>}
                       {l.source !== 'native' && ` · ${l.format.charAt(0).toUpperCase()}${l.format.slice(1)}`}
                     </span>
                   }
                   trailing={
-                    l.source === 'native' ? (
-                      <Badge variant="neutral">Native</Badge>
-                    ) : (
-                      <Badge variant="neutral">⟳ Yahoo</Badge>
-                    )
+                    <div className="flex items-center gap-1.5">
+                      {l.source === 'native' && <Badge variant="format">{l.format}</Badge>}
+                      {l.source === 'native' ? (
+                        <Badge variant="neutral">Native</Badge>
+                      ) : (
+                        <Badge variant="neutral">⟳ Yahoo</Badge>
+                      )}
+                    </div>
                   }
                 />
               ))}
