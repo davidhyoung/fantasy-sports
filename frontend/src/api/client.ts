@@ -292,6 +292,9 @@ export interface RosterEntry {
   // Chronological (oldest first) real fantasy points for the trailing up to
   // 4 weeks with imported stats — powers the Players tab's "L4 wks" sparkline.
   trend?: number[]
+  // Same nfl_projections figure FreeAgent already carries — used by the
+  // mobile Roster card face (desktop shows the per-category columns instead).
+  proj_fpts_ppr: number | null
 }
 
 export interface FreeAgent {

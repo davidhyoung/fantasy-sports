@@ -36,6 +36,11 @@ type rosterEntryResp struct {
 	// Chronological (oldest first) real fantasy points for the trailing up
 	// to 4 weeks with imported stats — see weeklyTrend.
 	Trend []float64 `json:"trend,omitempty"`
+	// ProjFptsPPR is the same nfl_projections figure GetLeagueFreeAgents
+	// already surfaces — nil when no projection exists for this player/season.
+	// Only consumer today is the mobile Roster card face (the desktop table
+	// shows the league's own per-category columns instead).
+	ProjFptsPPR *float64 `json:"proj_fpts_ppr"`
 }
 
 // playerStatEntry is one projected season-total stat category, restricted to
@@ -170,17 +175,20 @@ func (h *Handler) GetLeagueRosters(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	season := h.leagueSeasonInt(r, leagueID)
 	rows, err := h.db.Query(r.Context(), `
 		SELECT
 			lr.gsis_id, p.name, COALESCE(p.position, ''), COALESCE(p.team, ''), COALESCE(p.headshot_url, ''),
 			lr.team_id, lr.slot, lr.acquired_via, lr.acquired_at,
-			COALESCE(lc.salary, 0), COALESCE(lc.signed_season, 0), lc.years_total, COALESCE(lc.years_used, 1)
+			COALESCE(lc.salary, 0), COALESCE(lc.signed_season, 0), lc.years_total, COALESCE(lc.years_used, 1),
+			pr.proj_fpts_ppr
 		FROM league_rosters lr
 		JOIN nfl_players p ON p.gsis_id = lr.gsis_id
 		LEFT JOIN league_contracts lc ON lc.league_id = lr.league_id AND lc.gsis_id = lr.gsis_id
+		LEFT JOIN nfl_projections pr ON pr.gsis_id = lr.gsis_id AND pr.target_season = $2
 		WHERE lr.league_id = $1
 		ORDER BY lr.team_id, lr.slot, p.name
-	`, leagueID)
+	`, leagueID, season)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -195,6 +203,7 @@ func (h *Handler) GetLeagueRosters(w http.ResponseWriter, r *http.Request) {
 			&e.GsisID, &e.Name, &e.Position, &e.Team, &e.HeadshotURL,
 			&e.TeamID, &e.Slot, &e.AcquiredVia, &e.AcquiredAt,
 			&e.Salary, &e.SignedSeason, &e.YearsTotal, &e.YearsUsed,
+			&e.ProjFptsPPR,
 		); err != nil {
 			respondError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -204,12 +213,12 @@ func (h *Handler) GetLeagueRosters(w http.ResponseWriter, r *http.Request) {
 	}
 	rows.Close()
 
-	statsByPlayer, err := h.relevantPlayerStats(r.Context(), leagueID, h.leagueSeasonInt(r, leagueID), gsisIDs)
+	statsByPlayer, err := h.relevantPlayerStats(r.Context(), leagueID, season, gsisIDs)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	trendByPlayer, err := h.weeklyTrend(r.Context(), leagueID, h.leagueSeasonInt(r, leagueID), gsisIDs)
+	trendByPlayer, err := h.weeklyTrend(r.Context(), leagueID, season, gsisIDs)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

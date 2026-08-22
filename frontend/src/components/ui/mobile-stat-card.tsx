@@ -9,6 +9,11 @@ export interface MobileStatField {
 interface MobileStatCardProps {
   /** Navigates on tap of the card body (not the chevron). Omit for a non-clickable card. */
   href?: string
+  /** Runs on tap of the card body instead of navigating — for a card whose
+   *  tap does something other than go to a detail page (e.g. the Roster
+   *  card's picking-mode "tap to place/swap"). Takes precedence over `href`
+   *  when both are given. */
+  onClick?: () => void
   /** Reuse PlayerAvatar exactly as PlayerCell renders it today. */
   leading?: React.ReactNode
   title: React.ReactNode
@@ -35,25 +40,26 @@ interface MobileStatCardProps {
  * navigates the card.
  */
 export function MobileStatCard({
-  href, leading, title, subtitle, face, faceExtra, expanded, expandedExtra, className,
+  href, onClick, leading, title, subtitle, face, faceExtra, expanded, expandedExtra, className,
 }: MobileStatCardProps) {
   const [open, setOpen] = React.useState(false)
   const navigate = useNavigate()
   const hasExpansion = (expanded && expanded.length > 0) || !!expandedExtra
-  const clickable = !!href
+  const clickable = !!onClick || !!href
+  const activate = onClick ?? (href ? () => navigate(href) : undefined)
 
   return (
     <div
       className={`min-h-[var(--tap-target-min)] rounded-lg border border-border bg-card p-3 ${clickable ? 'cursor-pointer' : ''} ${className ?? ''}`}
-      onClick={clickable ? () => navigate(href!) : undefined}
-      role={clickable ? 'link' : undefined}
+      onClick={activate}
+      role={clickable ? (onClick ? 'button' : 'link') : undefined}
       tabIndex={clickable ? 0 : undefined}
       onKeyDown={
-        clickable
+        activate
           ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault()
-                navigate(href!)
+                activate()
               }
             }
           : undefined

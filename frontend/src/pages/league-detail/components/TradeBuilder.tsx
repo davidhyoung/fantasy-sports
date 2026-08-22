@@ -35,6 +35,9 @@ export function TradeBuilder({ leagueId, teams, onClose }: Props) {
   // second modal — the same dialog swaps its body for a plain summary
   // before the mutation actually fires (design review open item 5).
   const [reviewing, setReviewing] = useState(false)
+  // Mobile only — desktop shows both sides side-by-side, but there's no room
+  // for that below md, so a tab toggle picks which side is visible.
+  const [activeTeam, setActiveTeam] = useState<'A' | 'B'>('A')
 
   const { data: rosters = [] } = useQuery({
     queryKey: keys.leagueRosters(leagueId),
@@ -153,7 +156,7 @@ export function TradeBuilder({ leagueId, teams, onClose }: Props) {
     return (
       <div className="flex flex-col gap-4">
         <p className="text-xs text-muted-foreground">Executes immediately — both sides are yours.</p>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="rounded-lg border border-border p-4">
             <div className="font-display text-sm font-bold text-foreground">{teamName(teamAId)} sends</div>
             <ul className="mt-2 flex flex-col gap-1 text-xs text-foreground">
@@ -188,9 +191,47 @@ export function TradeBuilder({ leagueId, teams, onClose }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-4">
-        <Side label="Team A sends" teamId={teamAId} setTeamId={setTeamAId} otherTeamId={teamBId} assets={assetsA} selected={fromA} setSelected={setFromA} />
-        <Side label="Team B sends" teamId={teamBId} setTeamId={setTeamBId} otherTeamId={teamAId} assets={assetsB} selected={fromB} setSelected={setFromB} />
+      {/* Mobile only — desktop shows both sides at once, so there's nothing
+       *  to switch between at md+. */}
+      <div className="flex gap-1 rounded-lg bg-muted p-1 md:hidden">
+        <button
+          onClick={() => setActiveTeam('A')}
+          className={`flex-1 rounded-md px-3 py-2 font-display text-xs font-semibold ${
+            activeTeam === 'A' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+          }`}
+        >
+          {teamName(teamAId)} sends
+        </button>
+        <button
+          onClick={() => setActiveTeam('B')}
+          className={`flex-1 rounded-md px-3 py-2 font-display text-xs font-semibold ${
+            activeTeam === 'B' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+          }`}
+        >
+          {teamName(teamBId)} sends
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-4 md:flex-row">
+        <div className={activeTeam === 'A' ? 'block' : 'hidden md:block'}>
+          <Side label="Team A sends" teamId={teamAId} setTeamId={setTeamAId} otherTeamId={teamBId} assets={assetsA} selected={fromA} setSelected={setFromA} />
+        </div>
+        <div className={activeTeam === 'B' ? 'block' : 'hidden md:block'}>
+          <Side label="Team B sends" teamId={teamBId} setTeamId={setTeamBId} otherTeamId={teamAId} assets={assetsB} selected={fromB} setSelected={setFromB} />
+        </div>
+      </div>
+
+      {/* Mobile only — desktop's cap math only shows up at the review step;
+       *  below md, both teams' running cap stays visible regardless of which
+       *  tab is active, so switching tabs never hides the numbers you're
+       *  deciding against. */}
+      <div className="flex flex-col gap-1 border-t border-border pt-3 font-mono text-[11px] md:hidden">
+        <div className={capA < 0 ? 'text-negative' : 'text-muted-foreground'}>
+          {teamName(teamAId)}: cap after ${capA}{capA < 0 ? ' · over budget' : ''}
+        </div>
+        <div className={capB < 0 ? 'text-negative' : 'text-muted-foreground'}>
+          {teamName(teamBId)}: cap after ${capB}{capB < 0 ? ' · over budget' : ''}
+        </div>
       </div>
 
       <div className="flex justify-end gap-2 border-t border-border pt-4">

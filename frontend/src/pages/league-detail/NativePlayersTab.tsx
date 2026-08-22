@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
-import { PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
+import { PlayerCell, ClickableRow, HeaderRow, PlayerAvatar } from '@/components/ui/table-helpers'
+import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-stat-card'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { useQuery } from '@tanstack/react-query'
 import { getLeagueRosters, getLeagueFreeAgents, type Team, type PlayerStat } from '../../api/client'
@@ -90,8 +91,11 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
 
   return (
     <>
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="flex w-fit rounded-lg bg-muted overflow-hidden">
+      {/* Below md these become horizontal-scroll trays (MobileSortSheet's
+       *  tray convention) instead of wrapping — a wrapped filter row eats
+       *  vertical space a 390px screen doesn't have to spare. */}
+      <div className="flex items-center gap-3 mb-4 flex-nowrap overflow-x-auto md:flex-wrap md:overflow-visible">
+        <div className="flex w-fit flex-none rounded-lg bg-muted overflow-hidden">
           {([
             { value: 'free-agents' as const, label: 'Free Agents' },
             { value: 'rostered' as const, label: 'Rostered' },
@@ -99,7 +103,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
             <button
               key={s.value}
               onClick={() => setView(s.value)}
-              className={`px-3 py-1.5 font-display text-xs font-semibold ${
+              className={`px-3 py-1.5 font-display text-xs font-semibold whitespace-nowrap ${
                 view === s.value ? 'bg-foreground text-background' : 'bg-card text-muted-foreground hover:bg-muted'
               }`}
             >
@@ -107,7 +111,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
             </button>
           ))}
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex flex-none gap-1.5">
           {POSITIONS.map((p) => (
             <FilterChip key={p} active={positions.has(p)} onClick={() => togglePosition(p)}>
               {positions.has(p) && <span className="mr-1 text-[10px]">✓</span>}
@@ -116,7 +120,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
           ))}
         </div>
         {!loading && (
-          <span className="text-xs text-muted-foreground ml-1">
+          <span className="flex-none text-xs text-muted-foreground ml-1">
             {rows.length} player{rows.length !== 1 ? 's' : ''}
           </span>
         )}
@@ -129,7 +133,69 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
           {view === 'free-agents' ? 'No free agents match this filter.' : 'No players rostered yet.'}
         </p>
       ) : (
-        <div className="rounded-lg bg-card overflow-x-auto max-w-[calc(100vw-3rem)]">
+        <>
+          {/* Card face: Player, L4 trend, Proj Pts — the sparkline earns a
+           *  permanent face slot since it's the one visual a table cell
+           *  can't compress into text. Remaining stat columns (+ Team/Pos,
+           *  and for Rostered: team/salary/years) move to the expand panel. */}
+          <div className="flex flex-col gap-2 md:hidden">
+            {view === 'free-agents'
+              ? (rows as NonNullable<typeof freeAgents>).map((p) => {
+                  const expanded: MobileStatField[] = [
+                    { label: 'Team', value: p.team || '—' },
+                    { label: 'Pos', value: p.position },
+                    ...statColumns.map((s) => ({ label: SCORING_LABELS[s], value: statValue(p.stats, s)?.toFixed(1) ?? '—' })),
+                  ]
+                  return (
+                    <MobileStatCard
+                      key={p.gsis_id}
+                      href={`/players/${p.gsis_id}?league=${leagueId}`}
+                      leading={<PlayerAvatar src={p.headshot_url} alt={p.name} />}
+                      title={p.name}
+                      subtitle={`${p.team || 'FA'} · ${p.position}`}
+                      face={
+                        <>
+                          <L4Sparkline trend={p.trend} />
+                          <span className="w-11 text-right font-mono text-xs tabular-nums text-foreground">
+                            {p.proj_fpts_ppr != null ? p.proj_fpts_ppr.toFixed(1) : '—'}
+                          </span>
+                        </>
+                      }
+                      expanded={expanded}
+                    />
+                  )
+                })
+              : (rows as NonNullable<typeof roster>).map((p) => {
+                  const expanded: MobileStatField[] = [
+                    { label: 'Team', value: p.team || '—' },
+                    { label: 'Pos', value: p.position },
+                    { label: 'Rostered By', value: teamName(p.team_id) },
+                    { label: 'Salary', value: `$${p.salary}` },
+                    { label: 'Years', value: p.years_total != null ? `${p.years_used}/${p.years_total}` : '—' },
+                    ...statColumns.map((s) => ({ label: SCORING_LABELS[s], value: statValue(p.stats, s)?.toFixed(1) ?? '—' })),
+                  ]
+                  return (
+                    <MobileStatCard
+                      key={p.gsis_id}
+                      href={`/players/${p.gsis_id}?league=${leagueId}`}
+                      leading={<PlayerAvatar src={p.headshot_url} alt={p.name} />}
+                      title={p.name}
+                      subtitle={`${p.team || '—'} · ${p.position}`}
+                      face={
+                        <>
+                          <L4Sparkline trend={p.trend} />
+                          <span className="w-11 text-right font-mono text-xs tabular-nums text-foreground">
+                            {p.proj_fpts_ppr != null ? p.proj_fpts_ppr.toFixed(1) : '—'}
+                          </span>
+                        </>
+                      }
+                      expanded={expanded}
+                    />
+                  )
+                })}
+          </div>
+
+        <div className="hidden md:block rounded-lg bg-card overflow-x-auto max-w-[calc(100vw-3rem)]">
           <Table>
             <TableHeader style={{ top: 0 }}>
               <HeaderRow>
@@ -196,6 +262,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
             </TableBody>
           </Table>
         </div>
+        </>
       )}
     </>
   )

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link as RouterLink } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
-import { Dialog } from '@/components/ui/dialog'
+import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
 import { TeamAvatar } from '@/components/ui/table-helpers'
 import { getLeagueRosters, getLeagueScoreboard, type RosterEntry } from '@/api/client'
 import { keys } from '@/api/queryKeys'
@@ -87,9 +87,9 @@ export function NativeTeamOverview({ leagueId, teamId, slots }: Props) {
         <NativeRosterTable leagueId={leagueId} roster={roster} slots={slots} onEdit={setEditing} />
       )}
 
-      <Dialog open={editing != null} onClose={() => setEditing(null)} title="Edit contract">
+      <ResponsiveDialog open={editing != null} onClose={() => setEditing(null)} title="Edit contract">
         {editing && <EditContractForm leagueId={leagueId} entry={editing} onClose={() => setEditing(null)} />}
-      </Dialog>
+      </ResponsiveDialog>
     </>
   )
 }

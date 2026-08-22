@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { SelectControl } from '@/components/ui/filter-chip'
 import { TeamAvatar } from '@/components/ui/table-helpers'
 import { Button } from '@/components/ui/button'
-import { Dialog } from '@/components/ui/dialog'
+import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
 import { Badge } from '@/components/ui/badge'
 import {
   getLeagueRosters, getLeagueSettings, updateLeagueTeam, rolloverLeague,
@@ -212,15 +212,15 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
         </div>
       )}
 
-      <Dialog open={assigning} onClose={() => setAssigning(false)} title="Assign player">
+      <ResponsiveDialog open={assigning} onClose={() => setAssigning(false)} title="Assign player">
         <PlayerAssignForm leagueId={leagueId} teams={teams} mode="assign" defaultTeamId={teamId} onClose={() => setAssigning(false)} />
-      </Dialog>
+      </ResponsiveDialog>
 
-      <Dialog open={trading} onClose={() => setTrading(false)} title="Trade">
+      <ResponsiveDialog open={trading} onClose={() => setTrading(false)} title="Trade">
         <TradeBuilder leagueId={leagueId} teams={teams} onClose={() => setTrading(false)} />
-      </Dialog>
+      </ResponsiveDialog>
 
-      <Dialog open={confirmRollover} onClose={() => setConfirmRollover(false)} title="Roll over season">
+      <ResponsiveDialog open={confirmRollover} onClose={() => setConfirmRollover(false)} title="Roll over season">
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
             {format === 'dynasty'
@@ -235,7 +235,7 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
             </Button>
           </div>
         </div>
-      </Dialog>
+      </ResponsiveDialog>
     </>
   )
 }

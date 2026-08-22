@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Table, TableHeader, TableBody, TableHead, TableCell, TableRow } from '@/components/ui/table'
 import { PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
+import { MobileStatCard } from '@/components/ui/mobile-stat-card'
 import { updateLeagueRoster, dropLeagueRoster, type RosterEntry, type PlayerStat } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 import { contractYearsLabel } from '@/lib/utils'
@@ -431,6 +432,104 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
     )
   }
 
+  // Card face below md: Slot, Player, Proj Pts — Contract/Eligible move to
+  // the expand panel, and Edit/Drop live there too as an action row, since
+  // there's no room for a persistent "⋯" trigger on a 390px card face.
+  // Drag is dropped entirely on mobile (HTML5 DnD has no touch story), so
+  // tapping the Slot chip is the only way in — same picking-mode state as
+  // desktop, just without the drag half of it.
+  const renderMobileCard = (row: Row, i: number) => {
+    const r = row.entry
+    const rowKey = r ? r.gsis_id : `${row.slot}-${i}`
+    const isTarget = !!pickedEntry && canDrop(pickedEntry, row.slot, r)
+    const targetWord = r ? 'swap here' : 'place here'
+    const cardHighlight = isTarget ? 'border-primary bg-positive-light ring-1 ring-inset ring-primary' : ''
+
+    const slotChip = (
+      <button
+        type="button"
+        disabled={!r}
+        onClick={(e) => {
+          e.stopPropagation()
+          if (r) setPickingFor((k) => (k === r.gsis_id ? null : r.gsis_id))
+        }}
+        className={`inline-flex min-w-[42px] items-center justify-center rounded-md border px-2 py-1.5 font-mono text-[10px] font-semibold ${
+          r && pickingFor === r.gsis_id
+            ? 'border-positive-border bg-positive-light text-primary'
+            : 'border-input bg-background text-foreground'
+        }`}
+      >
+        {row.slot}
+      </button>
+    )
+
+    if (!r) {
+      return (
+        <MobileStatCard
+          key={rowKey}
+          onClick={isTarget ? () => handlePick(row.slot, r) : undefined}
+          leading={slotChip}
+          title={<span className="italic text-muted-foreground">Empty</span>}
+          subtitle={isTarget ? <span className="text-primary">{targetWord}</span> : undefined}
+          className={cardHighlight}
+        />
+      )
+    }
+
+    return (
+      <MobileStatCard
+        key={r.gsis_id}
+        href={isTarget ? undefined : `/players/${r.gsis_id}?league=${leagueId}`}
+        onClick={isTarget ? () => handlePick(row.slot, r) : undefined}
+        leading={slotChip}
+        title={r.name}
+        subtitle={isTarget ? targetWord : undefined}
+        face={
+          <span className="font-mono text-xs tabular-nums text-muted-foreground">
+            {r.proj_fpts_ppr != null ? r.proj_fpts_ppr.toFixed(1) : '—'}
+          </span>
+        }
+        expanded={[
+          { label: 'Contract', value: contractLabel(r) },
+          {
+            label: 'Eligible',
+            value: SLOT_DISPLAY_ORDER.filter((s) => !BENCH_SLOTS.has(s) && !DISPLAY_HIDDEN_SLOTS.has(s) && isSlotEligible(s, r.position)).join(' · '),
+          },
+        ]}
+        expandedExtra={
+          <div className="mt-3 flex items-center gap-4">
+            <button onClick={() => onEdit(r)} className="font-display text-xs font-semibold text-foreground">Edit</button>
+            {confirmDrop === r.gsis_id ? (
+              <button
+                onClick={() => dropMutation.mutate(r.gsis_id)}
+                disabled={dropMutation.isPending}
+                className="font-display text-xs font-semibold text-destructive"
+              >
+                {dropMutation.isPending ? 'Dropping…' : 'Confirm drop'}
+              </button>
+            ) : (
+              <button onClick={() => setConfirmDrop(r.gsis_id)} className="font-display text-xs font-semibold text-negative">Drop</button>
+            )}
+          </div>
+        }
+        className={cardHighlight}
+      />
+    )
+  }
+
+  const mobileGroupHeader = (group: Group, groupRows: Row[]) => {
+    const filled = groupRows.filter((r) => r.entry).length
+    const salary = groupRows.reduce((sum, r) => sum + (r.entry?.salary ?? 0), 0)
+    return (
+      <div key={`mobile-header-${group}`} className="px-1 pt-2 font-display text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+        {GROUP_LABEL[group]}{' '}
+        <span className="font-mono text-[11px] font-normal normal-case tracking-normal">
+          · {filled} of {groupRows.length} · ${salary}
+        </span>
+      </div>
+    )
+  }
+
   const groupHeader = (group: Group, groupRows: Row[]) => {
     if (groupRows.length === 0) return null
     const filled = groupRows.filter((r) => r.entry).length
@@ -449,38 +548,62 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
   }
 
   return (
-    <div ref={tableRef} className="rounded-lg bg-card overflow-x-auto max-w-[calc(100vw-3rem)]">
-      <Table>
-        <TableHeader style={{ top: 0 }}>
-          <HeaderRow>
-            <TableHead className="w-8" />
-            <TableHead>Slot</TableHead>
-            <TableHead>Player</TableHead>
-            {statColumns.map((s) => (
-              <TableHead key={s} className="text-right">{SCORING_LABELS[s]}</TableHead>
-            ))}
-            <TableHead className="text-center">L4 wks</TableHead>
-            <TableHead className="text-right">Contract</TableHead>
-            <TableHead />
-          </HeaderRow>
-        </TableHeader>
-        <TableBody>
-          {pickedEntry && (
-            <TableRow className="bg-background hover:bg-background">
-              <TableCell colSpan={totalCols} className="py-1.5 text-xs text-muted-foreground" aria-live="polite">
-                <span className="font-semibold text-primary">Choosing a slot for {pickedEntry.name}</span>
-                {' '}— click a highlighted row to place or swap.
-                <span className="float-right font-semibold">Esc to cancel</span>
-              </TableCell>
-            </TableRow>
-          )}
-          {(['starters', 'bench', 'taxi'] as Group[]).flatMap((group) => {
-            const groupRows = groups[group]
-            if (groupRows.length === 0) return []
-            return [groupHeader(group, groupRows), ...groupRows.map((row, i) => renderRow(row, i))]
-          })}
-        </TableBody>
-      </Table>
+    <div ref={tableRef}>
+      {/* Card list below md — drag is gone (no touch story for HTML5 DnD),
+       *  so the Slot chip's tap-to-pick is the only way to move a player. */}
+      <div className="flex flex-col gap-2 md:hidden">
+        {pickedEntry && (
+          <div
+            className="flex items-center justify-between gap-2 rounded-lg border border-positive-border bg-positive-light px-3 py-2.5 text-xs text-primary"
+            aria-live="polite"
+          >
+            <span className="font-semibold">Choosing a slot for {pickedEntry.name}</span>
+            <button onClick={() => setPickingFor(null)} aria-label="Cancel" className="text-muted-foreground">✕</button>
+          </div>
+        )}
+        {(['starters', 'bench', 'taxi'] as Group[]).flatMap((group) => {
+          const groupRows = groups[group]
+          if (groupRows.length === 0) return []
+          return [
+            mobileGroupHeader(group, groupRows),
+            ...groupRows.map((row, i) => renderMobileCard(row, i)),
+          ]
+        })}
+      </div>
+
+      <div className="hidden rounded-lg bg-card overflow-x-auto max-w-[calc(100vw-3rem)] md:block">
+        <Table>
+          <TableHeader style={{ top: 0 }}>
+            <HeaderRow>
+              <TableHead className="w-8" />
+              <TableHead>Slot</TableHead>
+              <TableHead>Player</TableHead>
+              {statColumns.map((s) => (
+                <TableHead key={s} className="text-right">{SCORING_LABELS[s]}</TableHead>
+              ))}
+              <TableHead className="text-center">L4 wks</TableHead>
+              <TableHead className="text-right">Contract</TableHead>
+              <TableHead />
+            </HeaderRow>
+          </TableHeader>
+          <TableBody>
+            {pickedEntry && (
+              <TableRow className="bg-background hover:bg-background">
+                <TableCell colSpan={totalCols} className="py-1.5 text-xs text-muted-foreground" aria-live="polite">
+                  <span className="font-semibold text-primary">Choosing a slot for {pickedEntry.name}</span>
+                  {' '}— click a highlighted row to place or swap.
+                  <span className="float-right font-semibold">Esc to cancel</span>
+                </TableCell>
+              </TableRow>
+            )}
+            {(['starters', 'bench', 'taxi'] as Group[]).flatMap((group) => {
+              const groupRows = groups[group]
+              if (groupRows.length === 0) return []
+              return [groupHeader(group, groupRows), ...groupRows.map((row, i) => renderRow(row, i))]
+            })}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   )
 }
