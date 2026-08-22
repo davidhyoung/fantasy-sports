@@ -21,6 +21,8 @@ const badgeVariants = cva(
         // A league's format (dynasty/keeper/redraft) — a current fact, not a
         // CTA (pink) and not projected data (purple), so it gets its own hue.
         format: 'bg-format-light text-format-foreground border-format-border uppercase tracking-wide',
+        // A pinned thread — commissioner broadcast, distinct from format/highlight.
+        commissioner: 'bg-commissioner-light text-commissioner-foreground border-commissioner-border',
         outline: 'text-foreground',
         // Solid fills — kept for existing call sites; prefer the tonal variants.
         default: 'border-transparent bg-primary text-primary-foreground hover:bg-primary/80',

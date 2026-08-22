@@ -1089,3 +1089,132 @@ export const getDivergences = (params: {
   const q = qs.toString()
   return request<DivergenceListResponse>(`/divergences${q ? `?${q}` : ''}`)
 }
+
+// --- League message board ---
+// Native leagues only. Authorship is a team, not a separate manager
+// identity — this app has no concept of one beyond team ownership, so
+// posts carry the same author shape as trades/rosters do.
+
+export interface PostAuthor {
+  team_id: number
+  name: string
+}
+
+export interface PostReaction {
+  reaction: string
+  count: number
+  mine: boolean
+}
+
+export interface AttachedPlayer {
+  gsis_id: string
+  name: string
+  position: string
+  team: string
+  headshot_url?: string
+}
+
+export interface PollOption {
+  id: number
+  label: string
+  votes: number
+}
+
+export interface Poll {
+  options: PollOption[]
+  total_votes: number
+  my_option_id?: number
+  closes_at?: string
+  votes_visible: 'after_voting' | 'always'
+}
+
+export interface Post {
+  id: number
+  parent_id?: number
+  author: PostAuthor
+  title?: string
+  body: string
+  image_url?: string
+  attached_player?: AttachedPlayer
+  is_pinned: boolean
+  is_deleted: boolean
+  mine: boolean
+  edited_at?: string
+  created_at: string
+  reactions?: PostReaction[]
+  reply_count?: number
+  last_activity_at?: string
+  unread?: boolean
+  poll?: Poll
+}
+
+export type FeedItem =
+  | { kind: 'post'; post: Post }
+  | { kind: 'event'; event_text: string; event_link: string; event_at: string }
+
+export interface LeagueFeedResponse {
+  items: FeedItem[]
+  unread_count: number
+}
+
+export type ThreadFilter = 'all' | 'unread' | 'mentions' | 'mine'
+
+export interface ThreadListResponse {
+  threads: Post[]
+  total: number
+  has_more: boolean
+}
+
+export interface ThreadDetailResponse {
+  thread: Post
+  replies: Post[]
+}
+
+export const getLeagueFeed = (leagueId: number) =>
+  request<LeagueFeedResponse>(`/leagues/${leagueId}/feed`)
+
+export const listLeagueThreads = (leagueId: number, filter: ThreadFilter = 'all', offset = 0, limit = 25) => {
+  const qs = new URLSearchParams()
+  if (filter !== 'all') qs.set('filter', filter)
+  if (offset) qs.set('offset', String(offset))
+  if (limit !== 25) qs.set('limit', String(limit))
+  const q = qs.toString()
+  return request<ThreadListResponse>(`/leagues/${leagueId}/threads${q ? `?${q}` : ''}`)
+}
+
+export const getLeagueThread = (leagueId: number, threadId: number) =>
+  request<ThreadDetailResponse>(`/leagues/${leagueId}/threads/${threadId}`)
+
+export interface CreatePostRequest {
+  title?: string
+  body: string
+  image_url?: string
+  attached_gsis_id?: string
+  poll_options?: { label: string }[]
+  poll_closes_at?: string
+  poll_votes_visible?: 'after_voting' | 'always'
+}
+
+export const createLeagueThread = (leagueId: number, data: CreatePostRequest) =>
+  request<Post>(`/leagues/${leagueId}/threads`, { method: 'POST', body: JSON.stringify(data) })
+
+export const createLeagueReply = (leagueId: number, threadId: number, data: CreatePostRequest) =>
+  request<Post>(`/leagues/${leagueId}/threads/${threadId}/replies`, { method: 'POST', body: JSON.stringify(data) })
+
+export const markThreadRead = (leagueId: number, threadId: number) =>
+  request<{ ok: boolean }>(`/leagues/${leagueId}/threads/${threadId}/read`, { method: 'POST' })
+
+export const pinLeagueThread = (leagueId: number, threadId: number, pinned: boolean) =>
+  request<Post>(`/leagues/${leagueId}/threads/${threadId}/pin`, { method: 'PUT', body: JSON.stringify({ pinned }) })
+
+export const editLeaguePost = (leagueId: number, postId: number, body: string) =>
+  request<Post>(`/leagues/${leagueId}/posts/${postId}`, { method: 'PUT', body: JSON.stringify({ body }) })
+
+export const deleteLeaguePost = (leagueId: number, postId: number) =>
+  request<{ ok: boolean }>(`/leagues/${leagueId}/posts/${postId}`, { method: 'DELETE' })
+
+export const toggleLeaguePostReaction = (leagueId: number, postId: number) =>
+  request<Post>(`/leagues/${leagueId}/posts/${postId}/react`, { method: 'POST' })
+
+export const voteLeaguePoll = (leagueId: number, postId: number, optionId: number) =>
+  request<Post>(`/leagues/${leagueId}/posts/${postId}/vote`, { method: 'POST', body: JSON.stringify({ option_id: optionId }) })

@@ -131,6 +131,17 @@ func main() {
 			// Fixed path before the wildcard, so "order" isn't read as a player id.
 			r.Put("/{id}/draft-prep/order", h.ReorderDraftPrep)
 			r.Put("/{id}/draft-prep/{gsisId}", h.UpsertDraftPrepPlayer)
+			r.Get("/{id}/feed", h.GetLeagueFeed)
+			r.Get("/{id}/threads", h.ListLeagueThreads)
+			r.Post("/{id}/threads", h.CreateLeagueThread)
+			r.Get("/{id}/threads/{threadId}", h.GetLeagueThread)
+			r.Post("/{id}/threads/{threadId}/replies", h.CreateLeagueReply)
+			r.Post("/{id}/threads/{threadId}/read", h.MarkThreadRead)
+			r.Put("/{id}/threads/{threadId}/pin", h.PinLeagueThread)
+			r.Put("/{id}/posts/{postId}", h.EditLeaguePost)
+			r.Delete("/{id}/posts/{postId}", h.DeleteLeaguePost)
+			r.Post("/{id}/posts/{postId}/react", h.ToggleLeaguePostReaction)
+			r.Post("/{id}/posts/{postId}/vote", h.VoteLeaguePoll)
 		})
 	})
 	r.Route("/api/players", func(r chi.Router) {

@@ -80,6 +80,12 @@ export default {
           light: 'hsl(var(--format-light))',
           border: 'hsl(var(--format-border))',
         },
+        commissioner: {
+          DEFAULT: 'hsl(var(--commissioner))',
+          foreground: 'hsl(var(--commissioner-foreground))',
+          light: 'hsl(var(--commissioner-light))',
+          border: 'hsl(var(--commissioner-border))',
+        },
       },
       borderRadius: {
         // 5px small badges · 6–8px buttons/toggles · 10–12px cards · pill chips/nav

@@ -13,6 +13,9 @@ import { NativeRosterTab } from './NativeRosterTab'
 import { NativeStandingsTab } from './NativeStandingsTab'
 import { NativeScoreboardTab } from './NativeScoreboardTab'
 import { DraftSection } from './DraftSection'
+import { MessagesTab } from './MessagesTab'
+import { ActivityRail } from './components/ActivityRail'
+import { useLeagueFeed } from './hooks/useMessageBoard'
 
 const SPORT_LABEL: Record<string, string> = {
   nfl: '🏈 NFL',
@@ -43,6 +46,7 @@ export default function LeagueDetail() {
 
   const myTeam = teams.find((t) => t.user_id)
   const isNative = league?.source === 'native'
+  const { data: feed } = useLeagueFeed(leagueId, isNative)
 
   // Native leagues have no separate My Team tab — Roster covers both "my
   // team" and "every team" in one page (a team switcher, defaulting to your
@@ -100,6 +104,11 @@ export default function LeagueDetail() {
           <TabsTrigger value="players">Players</TabsTrigger>
           {/* Draft covers draft values (NFL) + keepers (or picks, for native). */}
           <TabsTrigger value="draft">Draft</TabsTrigger>
+          {isNative && (
+            <TabsTrigger value="messages">
+              Messages{feed && feed.unread_count > 0 ? ` (${feed.unread_count})` : ''}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {myTeam && !isNative && (
@@ -110,7 +119,12 @@ export default function LeagueDetail() {
 
         <TabsContent value="standings">
           {isNative ? (
-            <NativeStandingsTab leagueId={leagueId} active={visibleTab === 'standings'} myTeamId={myTeam?.id} />
+            <div className="lg:grid lg:grid-cols-[1fr_320px] lg:items-start lg:gap-6">
+              <NativeStandingsTab leagueId={leagueId} active={visibleTab === 'standings'} myTeamId={myTeam?.id} />
+              <div className="mt-6 lg:mt-0">
+                <ActivityRail leagueId={leagueId} active={visibleTab === 'standings'} />
+              </div>
+            </div>
           ) : (
             <StandingsTab leagueId={leagueId} active={visibleTab === 'standings'} yahooKeyToId={yahooKeyToId} />
           )}
@@ -155,6 +169,17 @@ export default function LeagueDetail() {
             isNative={isNative}
           />
         </TabsContent>
+
+        {isNative && (
+          <TabsContent value="messages">
+            <MessagesTab
+              leagueId={leagueId}
+              active={visibleTab === 'messages'}
+              teams={teams}
+              canModerate={myTeam?.is_commissioner ?? false}
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )

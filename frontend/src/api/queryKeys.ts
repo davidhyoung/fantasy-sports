@@ -46,4 +46,7 @@ export const keys = {
   playerGrades: (gsisId: string) => ['player-grades', gsisId] as const,
   divergences: (season: number, format: string, position: string) =>
     ['divergences', season, format, position] as const,
+  leagueFeed: (id: number) => ['league', id, 'feed'] as const,
+  leagueThreads: (id: number, filter: string) => ['league', id, 'threads', filter] as const,
+  leagueThread: (id: number, threadId: number) => ['league', id, 'thread', threadId] as const,
 }
