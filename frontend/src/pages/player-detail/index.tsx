@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { getNFLPlayer, NFLSeasonStats, ProjStats, ProjDetailResponse } from '@/api/client'
+import { getNFLPlayer, NFLSeasonStats, NFLPlayerContract, ProjStats, ProjDetailResponse } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 import GradeCard from './components/GradeCard'
 import SituationalNotes from './components/SituationalNotes'
@@ -12,7 +12,32 @@ import UniquenessBadge from '@/pages/projections/components/UniquenessBadge'
 import { HeaderTip } from '@/components/ui/table-helpers'
 import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-stat-card'
 import { describeStat } from '@/lib/statDescriptions'
+import { contractYearsLabel } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
+
+// ── contract card ────────────────────────────────────────────────────────
+
+/** Only rendered when this page was reached with a ?league= param the
+ *  player is actually rostered in (see getNFLPlayer) — a player's contract
+ *  isn't a global attribute, it's scoped to one league's roster, so there's
+ *  no meaningful "no contract" state to show otherwise. */
+function ContractCard({ contract }: { contract: NFLPlayerContract }) {
+  return (
+    <div className="rounded-lg bg-card p-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Contract</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {contract.team_name} · {contract.league_name} · {contract.slot}
+          </p>
+        </div>
+        <div className="font-mono text-lg tabular-nums text-foreground">
+          {contractYearsLabel(contract.salary, contract.years_total, contract.years_used)}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -121,11 +146,17 @@ type ScoringFormat = typeof FORMATS[number]['value']
 export default function PlayerDetail() {
   const { gsisId } = useParams<{ gsisId: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  // Present when arriving from a native league's Roster/Players tab —
+  // that's what lets the backend attach this player's contract in that
+  // league, which the page can't otherwise know about (a player's contract
+  // isn't a global attribute, it's scoped to one league's roster).
+  const leagueId = Number(searchParams.get('league')) || undefined
   const [scoringFormat, setScoringFormat] = useState<ScoringFormat>('ppr')
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: keys.nflPlayer(gsisId ?? ''),
-    queryFn: () => getNFLPlayer(gsisId ?? ''),
+    queryKey: keys.nflPlayer(gsisId ?? '', leagueId),
+    queryFn: () => getNFLPlayer(gsisId ?? '', leagueId),
     enabled: !!gsisId,
     staleTime: 5 * 60 * 1000,
   })
@@ -222,6 +253,9 @@ export default function PlayerDetail() {
           )}
         </div>
       </div>
+
+      {/* ── Contract (native league, only when arrived from that league's roster) ── */}
+      {data.contract && <ContractCard contract={data.contract} />}
 
       {/* ── Player Grade ── */}
       <GradeCard grades={grades} positionGroup={player.position_group} />

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -87,6 +88,24 @@ type nflPlayerDetailResp struct {
 	// battles, scheme changes) that the stats-based projection can't see —
 	// both player-specific and team-wide. Empty when none exist.
 	Notes []situationalNote `json:"notes"`
+	// Contract is populated only when the request names a native league
+	// (?league_id=) this player is actually rostered in, and the caller has
+	// a logged-in session — league roster/contract data is treated as
+	// login-gated everywhere else (GetLeagueRosters, GetLeagueFreeAgents,
+	// etc.), so this endpoint stays fully public but only adds contract
+	// data for a signed-in caller, rather than gating the whole page.
+	Contract *nflPlayerContract `json:"contract,omitempty"`
+}
+
+type nflPlayerContract struct {
+	LeagueID   int64  `json:"league_id"`
+	LeagueName string `json:"league_name"`
+	TeamID     int64  `json:"team_id"`
+	TeamName   string `json:"team_name"`
+	Slot       string `json:"slot"`
+	Salary     int    `json:"salary"`
+	YearsTotal *int   `json:"years_total"`
+	YearsUsed  int    `json:"years_used"`
 }
 
 // ── handler ─────────────────────────────────────────────────────────────────
@@ -418,12 +437,41 @@ func (h *Handler) GetNFLPlayer(w http.ResponseWriter, r *http.Request) {
 		notes = n
 	}
 
+	// Contract — only when a native league is named and the caller is
+	// logged in (see nflPlayerDetailResp.Contract doc comment above).
+	var contract *nflPlayerContract
+	if leagueIDStr := r.URL.Query().Get("league_id"); leagueIDStr != "" {
+		if leagueID, err := strconv.ParseInt(leagueIDStr, 10, 64); err == nil {
+			if session, err := h.sessions.Get(r, sessionName); err == nil && !session.IsNew {
+				if userID, ok := session.Values["user_id"].(int64); ok && userID != 0 {
+					var c nflPlayerContract
+					err := h.db.QueryRow(ctx, `
+						SELECT l.id, l.name, t.id, t.name, lr.slot,
+						       COALESCE(lc.salary, 0), lc.years_total, COALESCE(lc.years_used, 1)
+						FROM league_rosters lr
+						JOIN leagues l ON l.id = lr.league_id
+						JOIN teams t ON t.id = lr.team_id
+						LEFT JOIN league_contracts lc ON lc.league_id = lr.league_id AND lc.gsis_id = lr.gsis_id
+						WHERE lr.league_id = $1 AND lr.gsis_id = $2
+					`, leagueID, gsisID).Scan(
+						&c.LeagueID, &c.LeagueName, &c.TeamID, &c.TeamName, &c.Slot,
+						&c.Salary, &c.YearsTotal, &c.YearsUsed,
+					)
+					if err == nil {
+						contract = &c
+					}
+				}
+			}
+		}
+	}
+
 	json.NewEncoder(w).Encode(nflPlayerDetailResp{
 		Player:     meta,
 		Seasons:    seasons,
 		Projection: proj,
 		Grades:     grades,
 		Notes:      notes,
+		Contract:   contract,
 	})
 }
 

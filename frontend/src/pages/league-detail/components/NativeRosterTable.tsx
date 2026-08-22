@@ -2,9 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Table, TableHeader, TableBody, TableHead, TableCell, TableRow } from '@/components/ui/table'
 import { PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
-import { updateLeagueRoster, dropLeagueRoster, type RosterEntry } from '@/api/client'
+import { updateLeagueRoster, dropLeagueRoster, type RosterEntry, type PlayerStat } from '@/api/client'
 import { keys } from '@/api/queryKeys'
+import { contractYearsLabel } from '@/lib/utils'
 import { SLOT_DISPLAY_ORDER, BENCH_SLOTS, DISPLAY_HIDDEN_SLOTS, isSlotEligible } from '../lib/nativeSlots'
+import { SCORING_STATS, SCORING_LABELS, type ScoringStat } from '../hooks/useDraftSettings'
+import { L4Sparkline } from './L4Sparkline'
+
+function statValue(stats: PlayerStat[] | undefined, stat: ScoringStat): number | undefined {
+  return stats?.find((s) => s.stat === stat)?.value
+}
 
 interface Props {
   leagueId: number
@@ -69,15 +76,7 @@ function buildRows(roster: RosterEntry[], slots: Record<string, number>): Row[] 
   return rows
 }
 
-/** "$74 · 2 yrs left" / "$9 · final yr" / "$18 · Y2Y" — years *remaining* is
- *  what a commissioner acts on; total contract length is derivable but less
- *  immediately useful (design review, 2026-08-21). */
-function contractLabel(r: RosterEntry): string {
-  if (r.years_total == null) return `$${r.salary} · Y2Y`
-  const remaining = r.years_total - r.years_used
-  if (remaining <= 0) return `$${r.salary} · final yr`
-  return `$${r.salary} · ${remaining} yr${remaining === 1 ? '' : 's'} left`
-}
+const contractLabel = (r: RosterEntry) => contractYearsLabel(r.salary, r.years_total, r.years_used)
 
 /** Row-actions menu — a single "⋯" trigger replacing separate Edit/Drop text
  *  links, since a row doesn't need two always-visible destructive-adjacent
@@ -243,6 +242,18 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
     return byGroup
   }, [rows])
 
+  // Dynamic, same convention as the Players tab: only the categories this
+  // league's own scoring actually weights nonzero come back from the API at
+  // all, so the column set adapts league to league rather than assuming a
+  // fixed shape.
+  const statColumns = useMemo(() => {
+    const present = new Set<string>()
+    for (const r of roster) for (const s of r.stats ?? []) present.add(s.stat)
+    return SCORING_STATS.filter((s) => present.has(s))
+  }, [roster])
+  // drag handle, slot, player, contract, actions (5 fixed) + one per stat + the L4 wks trend column
+  const totalCols = 5 + statColumns.length + 1
+
   if (rows.length === 0) {
     return <p className="text-muted-foreground">No roster spots configured yet.</p>
   }
@@ -340,7 +351,10 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
             Empty
             {isTarget && <span className="ml-2 not-italic font-mono text-[11px] text-primary">{targetWord}</span>}
           </TableCell>
-          <TableCell className="text-muted-foreground">—</TableCell>
+          {statColumns.map((s) => (
+            <TableCell key={s} className="text-right font-mono tabular-nums text-muted-foreground">—</TableCell>
+          ))}
+          <TableCell className="text-center text-muted-foreground">—</TableCell>
           <TableCell className="text-right font-mono tabular-nums text-muted-foreground">—</TableCell>
           <TableCell />
         </TableRow>
@@ -349,7 +363,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
     return (
       <ClickableRow
         key={r.gsis_id}
-        href={isTarget ? undefined : `/players/${r.gsis_id}`}
+        href={isTarget ? undefined : `/players/${r.gsis_id}?league=${leagueId}`}
         className={`${dragHighlight} ${targetHighlight} ${dragDisabled ? '' : 'cursor-grab active:cursor-grabbing'}`}
         draggable={!dragDisabled}
         onDragStart={(e) => {
@@ -384,6 +398,15 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
           linked
           sub={isTarget ? targetWord : SLOT_DISPLAY_ORDER.filter((s) => !BENCH_SLOTS.has(s) && !DISPLAY_HIDDEN_SLOTS.has(s) && isSlotEligible(s, r.position)).join(' · ')}
         />
+        {statColumns.map((s) => {
+          const v = statValue(r.stats, s)
+          return (
+            <TableCell key={s} className="text-right font-mono tabular-nums">
+              {v != null ? v.toFixed(1) : '—'}
+            </TableCell>
+          )
+        })}
+        <TableCell className="text-center"><L4Sparkline trend={r.trend} /></TableCell>
         <TableCell className="text-right font-mono tabular-nums whitespace-nowrap">{contractLabel(r)}</TableCell>
         <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
           <RowActionsMenu
@@ -405,7 +428,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
     const salary = groupRows.reduce((sum, r) => sum + (r.entry?.salary ?? 0), 0)
     return (
       <TableRow key={`header-${group}`} className="bg-background hover:bg-background">
-        <TableCell colSpan={5} className="py-1.5 font-display text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+        <TableCell colSpan={totalCols} className="py-1.5 font-display text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
           {GROUP_LABEL[group]}{' '}
           <span className="font-mono text-xs font-normal normal-case tracking-normal">
             {filled} of {groupRows.length} filled · ${salary}
@@ -424,6 +447,10 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
             <TableHead className="w-8" />
             <TableHead>Slot</TableHead>
             <TableHead>Player</TableHead>
+            {statColumns.map((s) => (
+              <TableHead key={s} className="text-right">{SCORING_LABELS[s]}</TableHead>
+            ))}
+            <TableHead className="text-center">L4 wks</TableHead>
             <TableHead className="text-right">Contract</TableHead>
             <TableHead />
           </HeaderRow>
@@ -431,7 +458,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
         <TableBody>
           {pickedEntry && (
             <TableRow className="bg-background hover:bg-background">
-              <TableCell colSpan={5} className="py-1.5 text-xs text-muted-foreground" aria-live="polite">
+              <TableCell colSpan={totalCols} className="py-1.5 text-xs text-muted-foreground" aria-live="polite">
                 <span className="font-semibold text-primary">Choosing a slot for {pickedEntry.name}</span>
                 {' '}— click a highlighted row to place or swap.
                 <span className="float-right font-semibold">Esc to cancel</span>

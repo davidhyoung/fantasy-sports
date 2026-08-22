@@ -40,7 +40,7 @@ export const keys = {
     ['league', leagueId, 'draft-values', season, settings] as const,
   draftPrep: (leagueId: number, season: number) =>
     ['league', leagueId, 'draft-prep', season] as const,
-  nflPlayer: (gsisId: string) => ['nfl-player', gsisId] as const,
+  nflPlayer: (gsisId: string, leagueId?: number) => ['nfl-player', gsisId, leagueId] as const,
   grades: (season: number, position: string) =>
     ['grades', season, position] as const,
   playerGrades: (gsisId: string) => ['player-grades', gsisId] as const,

@@ -937,6 +937,17 @@ export interface NFLPlayerGradeSeason {
   yoy_trend: number | null
 }
 
+export interface NFLPlayerContract {
+  league_id: number
+  league_name: string
+  team_id: number
+  team_name: string
+  slot: string
+  salary: number
+  years_total: number | null
+  years_used: number
+}
+
 export interface NFLPlayerDetailResponse {
   player: NFLPlayerMeta
   seasons: NFLSeasonStats[]
@@ -944,10 +955,17 @@ export interface NFLPlayerDetailResponse {
   grades: NFLPlayerGradeSeason[]
   /** External context the stats-based projection can't see. See SituationalNote. */
   notes: SituationalNote[]
+  /** Present only when fetched with a leagueId the player is actually
+   *  rostered in and the caller is logged in — see backend nflPlayerContract. */
+  contract?: NFLPlayerContract
 }
 
-export const getNFLPlayer = (gsisId: string) =>
-  request<NFLPlayerDetailResponse>(`/nfl/players/${encodeURIComponent(gsisId)}`)
+// leagueId is optional — pass it when navigating from a native league's
+// Roster/Players tab so the page can show this player's contract there.
+export const getNFLPlayer = (gsisId: string, leagueId?: number) =>
+  request<NFLPlayerDetailResponse>(
+    `/nfl/players/${encodeURIComponent(gsisId)}${leagueId ? `?league_id=${leagueId}` : ''}`
+  )
 
 // --- Player Grades (real-life value) ---
 
