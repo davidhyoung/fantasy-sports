@@ -80,11 +80,10 @@ export default {
           light: 'hsl(var(--format-light))',
           border: 'hsl(var(--format-border))',
         },
-        commissioner: {
-          DEFAULT: 'hsl(var(--commissioner))',
-          foreground: 'hsl(var(--commissioner-foreground))',
-          light: 'hsl(var(--commissioner-light))',
-          border: 'hsl(var(--commissioner-border))',
+        'pinned-green': {
+          DEFAULT: 'hsl(var(--pinned-green))',
+          fg: 'hsl(var(--pinned-green-fg))',
+          bg: 'hsl(var(--pinned-green-bg))',
         },
       },
       borderRadius: {

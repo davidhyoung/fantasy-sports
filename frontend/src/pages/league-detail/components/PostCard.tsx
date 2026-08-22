@@ -54,7 +54,7 @@ export function PostCard({ leagueId, post, isThread, canModerate, onReact, onVot
   }
 
   return (
-    <div className={`rounded-lg border px-4 py-3 ${post.is_pinned ? 'border-commissioner-border bg-commissioner-light' : 'border-border'}`}>
+    <div className={`rounded-lg border px-4 py-3 ${post.is_pinned ? 'border-pinned-green bg-pinned-green-bg' : 'border-border'}`}>
       <div className="flex items-start gap-2.5">
         <TeamAvatar name={post.author.name} size={32} />
         <div className="min-w-0 flex-1">
