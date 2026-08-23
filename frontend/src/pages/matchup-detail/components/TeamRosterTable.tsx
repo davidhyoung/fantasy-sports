@@ -54,11 +54,13 @@ export function TeamRosterTable({ teamName, roster, statLabels }: Props) {
             {roster.map((p) => {
               const canLink = !!p.gsis_id
               return (
-                <ClickableRow
-                  key={p.player_key}
-                  href={canLink ? `/players/${p.gsis_id}` : undefined}
-                >
-                  <PlayerCell name={p.name.full} imageUrl={p.image_url} linked={canLink} notes={p.notes} />
+                <ClickableRow key={p.player_key}>
+                  <PlayerCell
+                    name={p.name.full}
+                    imageUrl={p.image_url}
+                    href={canLink ? `/players/${p.gsis_id}` : undefined}
+                    notes={p.notes}
+                  />
                   <TableCell className="text-muted-foreground">{p.selected_position.position}</TableCell>
                   {statLabels.map((label) => {
                     const stat = p.stats?.find((s: RosterStat) => s.label === label)

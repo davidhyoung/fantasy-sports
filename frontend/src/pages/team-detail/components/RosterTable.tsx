@@ -92,11 +92,14 @@ export function RosterTable({ roster, statLabels, rankByPlayer }: Props) {
             const rp = rankByPlayer?.get(p.player_key)
             const canLink = !!p.gsis_id
             return (
-              <ClickableRow
-                key={p.player_key}
-                href={canLink ? `/players/${p.gsis_id}` : undefined}
-              >
-                <PlayerCell name={p.name.full} imageUrl={p.image_url} linked={canLink} avatarSize={32} notes={p.notes} />
+              <ClickableRow key={p.player_key}>
+                <PlayerCell
+                  name={p.name.full}
+                  imageUrl={p.image_url}
+                  href={canLink ? `/players/${p.gsis_id}` : undefined}
+                  avatarSize={32}
+                  notes={p.notes}
+                />
                 <TableCell className="text-muted-foreground">{p.team_abbr}</TableCell>
                 <TableCell className="text-muted-foreground">{p.display_position}</TableCell>
                 <TableCell className="text-muted-foreground">{p.selected_position.position}</TableCell>

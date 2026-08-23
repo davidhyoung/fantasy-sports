@@ -220,8 +220,8 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
             <TableBody>
               {view === 'free-agents'
                 ? (rows as NonNullable<typeof freeAgents>).map((p) => (
-                    <ClickableRow key={p.gsis_id} href={`/players/${p.gsis_id}?league=${leagueId}`}>
-                      <PlayerCell name={p.name} imageUrl={p.headshot_url} linked notes={p.notes} />
+                    <ClickableRow key={p.gsis_id}>
+                      <PlayerCell name={p.name} imageUrl={p.headshot_url} href={`/players/${p.gsis_id}?league=${leagueId}`} notes={p.notes} />
                       <TableCell className="text-muted-foreground">{p.team || '—'}</TableCell>
                       <TableCell className="text-muted-foreground">{p.position}</TableCell>
                       {statColumns.map((s) => {
@@ -239,8 +239,8 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                     </ClickableRow>
                   ))
                 : (rows as NonNullable<typeof roster>).map((p) => (
-                    <ClickableRow key={p.gsis_id} href={`/players/${p.gsis_id}?league=${leagueId}`}>
-                      <PlayerCell name={p.name} imageUrl={p.headshot_url} linked notes={p.notes} />
+                    <ClickableRow key={p.gsis_id}>
+                      <PlayerCell name={p.name} imageUrl={p.headshot_url} href={`/players/${p.gsis_id}?league=${leagueId}`} notes={p.notes} />
                       <TableCell className="text-muted-foreground">{p.team || '—'}</TableCell>
                       <TableCell className="text-muted-foreground">{p.position}</TableCell>
                       {statColumns.map((s) => {

@@ -116,11 +116,11 @@ export default function GradesTable({ players }: { players: GradePlayerItem[] })
           {sorted.map((p, i) => {
             const trend = trendIndicator(p.yoy_trend)
             return (
-              <ClickableRow key={p.gsis_id} href={`/players/${p.gsis_id}`}>
+              <ClickableRow key={p.gsis_id}>
                 <TableCell className="text-center text-muted-foreground font-mono tabular-nums">
                   {sortCol === 'overall' ? p.overall_rank : i + 1}
                 </TableCell>
-                <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} linked notes={p.notes} />
+                <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} href={`/players/${p.gsis_id}`} notes={p.notes} />
                 <TableCell className="text-center text-muted-foreground">{p.position_group}</TableCell>
                 <TableCell className="text-right text-muted-foreground font-mono tabular-nums">{p.age || '—'}</TableCell>
                 {(['overall', 'production', 'efficiency', 'usage', 'durability'] as const).map(key => (

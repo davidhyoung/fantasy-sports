@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Newspaper } from 'lucide-react'
 import { TableHead, TableRow, TableCell } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -254,8 +254,10 @@ interface PlayerCellProps {
   imageUrl?: string | null
   /** Optional subtitle shown below the name (e.g. team abbreviation). */
   sub?: string
-  /** Whether this row is clickable (adds hover:text-primary to name). */
-  linked?: boolean
+  /** Player-detail URL. When set, the name itself (not the row) is the
+   *  click/keyboard target — a real `<Link>`, so cmd/ctrl-click and
+   *  middle-click "open in new tab" work too. Omit for an unlinked name. */
+  href?: string
   /** Avatar size. Default 28. */
   avatarSize?: AvatarSize
   /** Situational notes (injury, depth chart, etc.). Renders a notes button
@@ -263,14 +265,28 @@ interface PlayerCellProps {
   notes?: SituationalNote[]
 }
 
-/** Standard player cell with avatar + name (+ optional subtitle). */
-function PlayerCell({ name, imageUrl, sub, linked, avatarSize = 28, notes }: PlayerCellProps) {
+/** Standard player cell with avatar + name (+ optional subtitle). The name is
+ *  the only click target for player detail — the surrounding row is not
+ *  (see ClickableRow), since a row-wide click target swallowed clicks meant
+ *  for other cells (stats, contract actions, drag handles) and made "click
+ *  to see this player" ambiguous on rows with several interactive parts. */
+function PlayerCell({ name, imageUrl, sub, href, avatarSize = 28, notes }: PlayerCellProps) {
   return (
     <TableCell className="font-medium">
       <div className="flex items-center gap-2">
         <PlayerAvatar src={imageUrl} alt={name} size={avatarSize} />
         <div>
-          <span className={linked ? 'hover:text-primary' : undefined}>{name}</span>
+          {href ? (
+            <Link
+              to={href}
+              onClick={(e) => e.stopPropagation()}
+              className="rounded-sm hover:text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {name}
+            </Link>
+          ) : (
+            <span>{name}</span>
+          )}
           {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
         </div>
         <NotesButton notes={notes} />
@@ -378,34 +394,25 @@ function NotesButton({ notes }: NotesButtonProps) {
 
 // ── Clickable row ───────────────────────────────────────────────────────────
 
-const CLICKABLE_ROW_CLASS = 'cursor-pointer hover:bg-card focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+const ROW_HOVER_CLASS = 'hover:bg-card'
 
 interface ClickableRowProps extends React.HTMLAttributes<HTMLTableRowElement> {
-  /** URL to navigate to. If undefined, the row renders as a normal non-clickable row. */
-  href?: string
   children: React.ReactNode
 }
 
-/** TableRow that optionally navigates on click/Enter/Space. Pass `href` to enable. */
-function ClickableRow({ href, children, className, ...rest }: ClickableRowProps) {
-  const navigate = useNavigate()
-  if (!href) {
-    return <TableRow className={className} {...rest}>{children}</TableRow>
-  }
+/**
+ * TableRow with the standard row-hover treatment. Player-detail navigation
+ * lives on the player's name (PlayerCell's `href`, a real `<Link>`), not the
+ * row — a row-wide click target swallowed clicks meant for other cells
+ * (stats, drag handles, action menus) and made "click to see this player"
+ * ambiguous on rows with several interactive parts. This is now just a thin
+ * hover-styled wrapper; callers that need a real row-level interaction
+ * (NativeRosterTable's drag/pick, DraftBoardTable's drag-to-reorder) wire
+ * their own onClick/onDrag* handlers through normal props.
+ */
+function ClickableRow({ children, className, ...rest }: ClickableRowProps) {
   return (
-    <TableRow
-      className={`${CLICKABLE_ROW_CLASS} ${className ?? ''}`}
-      onClick={() => navigate(href)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          navigate(href)
-        }
-      }}
-      tabIndex={0}
-      role="link"
-      {...rest}
-    >
+    <TableRow className={`${ROW_HOVER_CLASS} ${className ?? ''}`} {...rest}>
       {children}
     </TableRow>
   )

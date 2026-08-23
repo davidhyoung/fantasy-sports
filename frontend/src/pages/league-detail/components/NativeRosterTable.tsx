@@ -373,7 +373,6 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
     return (
       <ClickableRow
         key={r.gsis_id}
-        href={isTarget ? undefined : `/players/${r.gsis_id}?league=${leagueId}`}
         className={`${targetHighlight} ${dragDisabled ? '' : 'cursor-grab active:cursor-grabbing'}`}
         draggable={!dragDisabled}
         onDragStart={(e) => {
@@ -405,7 +404,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
         <PlayerCell
           name={r.name}
           imageUrl={r.headshot_url}
-          linked
+          href={isTarget ? undefined : `/players/${r.gsis_id}?league=${leagueId}`}
           sub={isTarget ? targetWord : SLOT_DISPLAY_ORDER.filter((s) => !BENCH_SLOTS.has(s) && !DISPLAY_HIDDEN_SLOTS.has(s) && isSlotEligible(s, r.position)).join(' · ')}
           notes={r.notes}
         />

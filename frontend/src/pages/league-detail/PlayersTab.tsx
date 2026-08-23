@@ -326,11 +326,13 @@ export function PlayersTab({ leagueId, active, sport }: Props) {
                 const canLink = !!row.gsisId
                 const isAvailable = row.ownerTeamKey === ''
                 return (
-                  <ClickableRow
-                    key={row.playerKey}
-                    href={canLink ? `/players/${row.gsisId}` : undefined}
-                  >
-                    <PlayerCell name={row.name} imageUrl={row.imageUrl} linked={canLink} notes={row.rp?.notes} />
+                  <ClickableRow key={row.playerKey}>
+                    <PlayerCell
+                      name={row.name}
+                      imageUrl={row.imageUrl}
+                      href={canLink ? `/players/${row.gsisId}` : undefined}
+                      notes={row.rp?.notes}
+                    />
                     <TableCell className="text-muted-foreground">{row.teamAbbr || '—'}</TableCell>
                     <TableCell className="text-muted-foreground">{row.position}</TableCell>
 

@@ -444,7 +444,6 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                   </TableRow>
                 )}
               <ClickableRow
-                href={`/players/${p.gsis_id}`}
                 // A rated player is marked on his own row rather than repeated in a
                 // panel: an accent edge whose weight tracks how strongly you feel.
                 // Dragging gets two static (no-transition) cues layered on top:
@@ -573,7 +572,7 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                 <TableCell className="text-center text-muted-foreground font-mono tabular-nums">
                   {p.overall_rank}
                 </TableCell>
-                <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} linked notes={p.notes} />
+                <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} href={`/players/${p.gsis_id}`} notes={p.notes} />
                 {prep && (
                   <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                     {/* Target or avoid — one thumb each way, re-click to clear. */}

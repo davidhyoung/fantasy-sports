@@ -258,11 +258,11 @@ export default function Divergences() {
                 </TableHeader>
                 <TableBody>
                   {players.map((p) => (
-                    <ClickableRow key={p.gsis_id} href={`/players/${p.gsis_id}`}>
+                    <ClickableRow key={p.gsis_id}>
                       <TableCell className="text-right">
                         <DeltaBadge delta={p.rank_delta} />
                       </TableCell>
-                      <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} linked />
+                      <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} href={`/players/${p.gsis_id}`} />
                       <TableCell className="text-center text-xs text-muted-foreground">
                         {p.position_group}
                       </TableCell>
