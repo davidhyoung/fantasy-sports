@@ -286,60 +286,93 @@ interface NotesButtonProps {
 }
 
 /**
- * Small button next to a player's name that opens a tooltip with their
+ * Small button next to a player's name that opens a popover with their
  * situational notes (injury, depth-chart battle, etc.) — renders nothing when
  * there are none. Highlights (positive accent) when any note is recent
  * enough to count as "new" (server-computed — see SituationalNote.is_new).
  *
- * Controlled (rather than Radix's default hover/focus trigger) so a tap
- * reliably opens it on touch devices, not just desktop hover.
+ * Hand-rolled click-toggle popover, not the Radix Tooltip primitive used
+ * elsewhere in this file — a Tooltip's hover/focus-triggered open and
+ * mouse-leave-to-dismiss behavior fight with wanting this to open and close
+ * only on an explicit click (including on touch, where hover doesn't exist).
+ * Same "own markup, closes on outside click" convention as NativeRosterTable's
+ * RowActionsMenu/slot picker.
  */
 function NotesButton({ notes }: NotesButtonProps) {
   const [open, setOpen] = React.useState(false)
+  const ref = React.useRef<HTMLSpanElement | null>(null)
+
+  React.useEffect(() => {
+    if (!open) return
+    const clickHandler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', clickHandler)
+    document.addEventListener('keydown', keyHandler)
+    return () => {
+      document.removeEventListener('mousedown', clickHandler)
+      document.removeEventListener('keydown', keyHandler)
+    }
+  }, [open])
+
   if (!notes || notes.length === 0) return null
   const hasNew = notes.some((n) => n.is_new)
 
   return (
-    <Tooltip open={open} onOpenChange={setOpen}>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            setOpen((o) => !o)
-          }}
-          onKeyDown={(e) => e.stopPropagation()}
-          aria-label={hasNew ? 'New player news' : 'Player news'}
-          className={cn(
-            'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border',
-            hasNew
-              ? 'border-positive-border bg-positive-light text-positive-foreground'
-              : 'border-border bg-muted text-muted-foreground hover:text-foreground'
-          )}
+    <span ref={ref} className="relative inline-block shrink-0">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setOpen((o) => !o)
+        }}
+        onKeyDown={(e) => e.stopPropagation()}
+        aria-label={hasNew ? 'New player news' : 'Player news'}
+        aria-expanded={open}
+        className={cn(
+          'inline-flex h-5 w-5 items-center justify-center rounded-full border',
+          hasNew
+            ? 'border-positive-border bg-positive-light text-positive-foreground'
+            : 'border-border bg-muted text-muted-foreground hover:text-foreground'
+        )}
+      >
+        <Newspaper className="h-3 w-3" aria-hidden />
+      </button>
+      {open && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute left-0 top-full z-30 mt-1 w-72 max-w-[80vw] rounded-md border border-border bg-card p-2.5 normal-case"
         >
-          <Newspaper className="h-3 w-3" aria-hidden />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" align="start" className="max-w-72 normal-case">
-        <ul className="space-y-2">
-          {notes.map((n, i) => (
-            <li key={i}>
-              <span
-                className={cn(
-                  'inline-block rounded border px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap',
-                  NOTE_DIRECTION_STYLES[n.impact_direction] ?? NOTE_DIRECTION_STYLES.neutral
+          <ul className="space-y-2.5">
+            {notes.map((n, i) => (
+              <li key={i} className="text-xs">
+                <span
+                  className={cn(
+                    'inline-block rounded border px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap',
+                    NOTE_DIRECTION_STYLES[n.impact_direction] ?? NOTE_DIRECTION_STYLES.neutral
+                  )}
+                >
+                  {NOTE_CATEGORY_LABELS[n.category] ?? n.category}
+                  {n.is_new ? ' · new' : ''}
+                </span>
+                <p className="mt-1 text-foreground leading-snug">{n.summary}</p>
+                {(n.source || n.reported_date) && (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {n.source}
+                    {n.source && n.reported_date ? ' · ' : ''}
+                    {n.reported_date}
+                  </p>
                 )}
-              >
-                {NOTE_CATEGORY_LABELS[n.category] ?? n.category}
-                {n.is_new ? ' · new' : ''}
-              </span>
-              <p className="mt-1 text-popover-foreground leading-snug">{n.summary}</p>
-            </li>
-          ))}
-        </ul>
-      </TooltipContent>
-    </Tooltip>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </span>
   )
 }
 
