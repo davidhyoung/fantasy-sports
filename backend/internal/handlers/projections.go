@@ -67,25 +67,26 @@ type projStats struct {
 }
 
 type projPlayerListItem struct {
-	GsisID        string  `json:"gsis_id"`
-	Name          string  `json:"name"`
-	Position      string  `json:"position"`
-	PositionGroup string  `json:"position_group"`
-	Team          string  `json:"team"`
-	HeadshotURL   string  `json:"headshot_url"`
-	Age           int     `json:"age"`
-	TargetSeason  int     `json:"target_season"`
-	ProjFpts      float64 `json:"proj_fpts"`
-	ProjFptsPPR   float64 `json:"proj_fpts_ppr"`
-	ProjFptsHalf  float64 `json:"proj_fpts_half"`
-	ProjFptsPPRPG float64 `json:"proj_fpts_ppr_pg"`
-	Confidence    float64 `json:"confidence"`
-	CompCount     int     `json:"comp_count"`
-	Uniqueness    string  `json:"uniqueness"`
-	OverallRank   int      `json:"overall_rank"`
-	PositionRank  int      `json:"position_rank"`
-	PlayerGrade   *float64 `json:"player_grade"`
-	GradeRank     *int     `json:"grade_rank"`
+	GsisID        string            `json:"gsis_id"`
+	Name          string            `json:"name"`
+	Position      string            `json:"position"`
+	PositionGroup string            `json:"position_group"`
+	Team          string            `json:"team"`
+	HeadshotURL   string            `json:"headshot_url"`
+	Age           int               `json:"age"`
+	TargetSeason  int               `json:"target_season"`
+	ProjFpts      float64           `json:"proj_fpts"`
+	ProjFptsPPR   float64           `json:"proj_fpts_ppr"`
+	ProjFptsHalf  float64           `json:"proj_fpts_half"`
+	ProjFptsPPRPG float64           `json:"proj_fpts_ppr_pg"`
+	Confidence    float64           `json:"confidence"`
+	CompCount     int               `json:"comp_count"`
+	Uniqueness    string            `json:"uniqueness"`
+	OverallRank   int               `json:"overall_rank"`
+	PositionRank  int               `json:"position_rank"`
+	PlayerGrade   *float64          `json:"player_grade"`
+	GradeRank     *int              `json:"grade_rank"`
+	Notes         []situationalNote `json:"notes,omitempty"`
 }
 
 type projListResp struct {
@@ -103,19 +104,19 @@ type historicalSeason struct {
 }
 
 type projDetailResp struct {
-	GsisID        string           `json:"gsis_id"`
-	Name          string           `json:"name"`
-	Position      string           `json:"position"`
-	PositionGroup string           `json:"position_group"`
-	Team          string           `json:"team"`
-	HeadshotURL   string           `json:"headshot_url"`
-	Age           int              `json:"age"`
-	BaseSeason    int              `json:"base_season"`
-	TargetSeason  int              `json:"target_season"`
-	Projection    projStats        `json:"projection"`
-	Confidence    projConfidence   `json:"confidence"`
-	CompCount     int              `json:"comp_count"`
-	Uniqueness    string           `json:"uniqueness"`
+	GsisID        string             `json:"gsis_id"`
+	Name          string             `json:"name"`
+	Position      string             `json:"position"`
+	PositionGroup string             `json:"position_group"`
+	Team          string             `json:"team"`
+	HeadshotURL   string             `json:"headshot_url"`
+	Age           int                `json:"age"`
+	BaseSeason    int                `json:"base_season"`
+	TargetSeason  int                `json:"target_season"`
+	Projection    projStats          `json:"projection"`
+	Confidence    projConfidence     `json:"confidence"`
+	CompCount     int                `json:"comp_count"`
+	Uniqueness    string             `json:"uniqueness"`
 	Comps         []projComp         `json:"comps"`
 	Historical    []historicalSeason `json:"historical"`
 	PlayerGrade   *float64           `json:"player_grade"`
@@ -249,6 +250,16 @@ func (h *Handler) ListProjections(w http.ResponseWriter, r *http.Request) {
 	for rank, ig := range withGrade {
 		r := rank + 1
 		players[ig.idx].GradeRank = &r
+	}
+
+	gsisIDs := make([]string, len(players))
+	for i, p := range players {
+		gsisIDs[i] = p.GsisID
+	}
+	if notes, err := h.loadNotesForPlayers(r.Context(), h.config.DefaultSeason, gsisIDs); err == nil {
+		for i := range players {
+			players[i].Notes = notes[players[i].GsisID]
+		}
 	}
 
 	// Get total count
@@ -423,21 +434,21 @@ func (h *Handler) GetProjectionDetail(w http.ResponseWriter, r *http.Request) {
 		BaseSeason:    pr.BaseSeason,
 		TargetSeason:  pr.TargetSeason,
 		Projection: projStats{
-			FptsPG:    pr.ProjFptsPG,
-			FptsPPRPG: pr.ProjFptsPPRPG,
-			PassYdsPG: pr.ProjPassYdsPG,
-			PassTdPG:  pr.ProjPassTdPG,
-			RushYdsPG: pr.ProjRushYdsPG,
-			RushTdPG:  pr.ProjRushTdPG,
-			RecPG:     pr.ProjRecPG,
-			RecYdsPG:  pr.ProjRecYdsPG,
-			RecTdPG:   pr.ProjRecTdPG,
-			FgMadePG:  pr.ProjFgMadePG,
-			PatMadePG: pr.ProjPatMadePG,
-			Games:     pr.ProjGames,
-			Fpts:      pr.ProjFpts,
-			FptsPPR:   pr.ProjFptsPPR,
-			FptsHalf:  pr.ProjFptsHalf,
+			FptsPG:         pr.ProjFptsPG,
+			FptsPPRPG:      pr.ProjFptsPPRPG,
+			PassYdsPG:      pr.ProjPassYdsPG,
+			PassTdPG:       pr.ProjPassTdPG,
+			RushYdsPG:      pr.ProjRushYdsPG,
+			RushTdPG:       pr.ProjRushTdPG,
+			RecPG:          pr.ProjRecPG,
+			RecYdsPG:       pr.ProjRecYdsPG,
+			RecTdPG:        pr.ProjRecTdPG,
+			FgMadePG:       pr.ProjFgMadePG,
+			PatMadePG:      pr.ProjPatMadePG,
+			Games:          pr.ProjGames,
+			Fpts:           pr.ProjFpts,
+			FptsPPR:        pr.ProjFptsPPR,
+			FptsHalf:       pr.ProjFptsHalf,
 			FptsPPRStdevPG: pr.ProjStdevPG,
 			FptsPPRP10:     pr.ProjP10,
 			FptsPPRP50:     pr.ProjP50,

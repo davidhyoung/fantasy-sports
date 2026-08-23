@@ -40,7 +40,8 @@ type rosterEntryResp struct {
 	// already surfaces — nil when no projection exists for this player/season.
 	// Only consumer today is the mobile Roster card face (the desktop table
 	// shows the league's own per-category columns instead).
-	ProjFptsPPR *float64 `json:"proj_fpts_ppr"`
+	ProjFptsPPR *float64          `json:"proj_fpts_ppr"`
+	Notes       []situationalNote `json:"notes,omitempty"`
 }
 
 // playerStatEntry is one projected season-total stat category, restricted to
@@ -223,9 +224,15 @@ func (h *Handler) GetLeagueRosters(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	notesByPlayer, err := h.loadNotesForPlayers(r.Context(), h.config.DefaultSeason, gsisIDs)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	for i := range roster {
 		roster[i].Stats = statsByPlayer[roster[i].GsisID]
 		roster[i].Trend = trendByPlayer[roster[i].GsisID]
+		roster[i].Notes = notesByPlayer[roster[i].GsisID]
 	}
 
 	respondJSON(w, http.StatusOK, roster)
@@ -584,6 +591,7 @@ type freeAgentResp struct {
 	ProjFptsPPR *float64          `json:"proj_fpts_ppr"`
 	Stats       []playerStatEntry `json:"stats,omitempty"`
 	Trend       []float64         `json:"trend,omitempty"`
+	Notes       []situationalNote `json:"notes,omitempty"`
 }
 
 // GetLeagueFreeAgents returns players in a native league with no roster row —
@@ -661,9 +669,15 @@ func (h *Handler) GetLeagueFreeAgents(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	notesByPlayer, err := h.loadNotesForPlayers(r.Context(), h.config.DefaultSeason, gsisIDs)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	for i := range agents {
 		agents[i].Stats = statsByPlayer[agents[i].GsisID]
 		agents[i].Trend = trendByPlayer[agents[i].GsisID]
+		agents[i].Notes = notesByPlayer[agents[i].GsisID]
 	}
 
 	respondJSON(w, http.StatusOK, agents)

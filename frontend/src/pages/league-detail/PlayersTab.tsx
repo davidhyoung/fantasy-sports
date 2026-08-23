@@ -330,7 +330,7 @@ export function PlayersTab({ leagueId, active, sport }: Props) {
                     key={row.playerKey}
                     href={canLink ? `/players/${row.gsisId}` : undefined}
                   >
-                    <PlayerCell name={row.name} imageUrl={row.imageUrl} linked={canLink} />
+                    <PlayerCell name={row.name} imageUrl={row.imageUrl} linked={canLink} notes={row.rp?.notes} />
                     <TableCell className="text-muted-foreground">{row.teamAbbr || '—'}</TableCell>
                     <TableCell className="text-muted-foreground">{row.position}</TableCell>
 

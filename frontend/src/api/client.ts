@@ -77,6 +77,7 @@ export interface RosterPlayer {
   selected_position: { position: string }
   image_url?: string
   stats?: RosterStat[]
+  notes?: SituationalNote[]
 }
 
 export interface Player {
@@ -295,6 +296,7 @@ export interface RosterEntry {
   // Same nfl_projections figure FreeAgent already carries — used by the
   // mobile Roster card face (desktop shows the per-category columns instead).
   proj_fpts_ppr: number | null
+  notes?: SituationalNote[]
 }
 
 export interface FreeAgent {
@@ -306,6 +308,7 @@ export interface FreeAgent {
   proj_fpts_ppr: number | null
   stats?: PlayerStat[]
   trend?: number[]
+  notes?: SituationalNote[]
 }
 
 export const getLeagueRosters = (leagueId: number) =>
@@ -538,6 +541,7 @@ export interface RankedPlayer {
   trajectory?: RankingTrajectoryPoint[]  // year-over-year fpts_ppr_pg from season profiles
   player_grade?: number | null
   yoy_trend?: number | null
+  notes?: SituationalNote[]
 }
 
 export interface ReplacementLevel {
@@ -586,6 +590,7 @@ export interface ProjPlayerListItem {
   position_rank: number
   player_grade: number | null
   grade_rank: number | null
+  notes?: SituationalNote[]
 }
 
 export interface ProjListResponse {
@@ -787,6 +792,7 @@ export interface DraftPlayer {
   consensus_derived: boolean
   trajectory?: RankingTrajectoryPoint[]
   player_grade: number | null
+  notes?: SituationalNote[]
 }
 
 /** The settings a board was computed with, in the vocabulary overrides use. */
@@ -989,6 +995,7 @@ export interface GradePlayerItem {
   yoy_trend: number | null
   overall_rank: number
   position_rank: number
+  notes?: SituationalNote[]
 }
 
 export interface GradeListResponse {
@@ -1040,6 +1047,8 @@ export interface SituationalNote {
   reported_date: string
   /** 'player' = about this player; 'team' = team-wide context affecting them. */
   scope: 'player' | 'team'
+  /** True when reported (or, absent that, imported) within the last few days. */
+  is_new: boolean
 }
 
 export interface DivergenceItem {

@@ -178,7 +178,7 @@ export default function ProjectionTable({
               <TableCell className="text-center text-muted-foreground font-mono tabular-nums">
                 {p.overall_rank}
               </TableCell>
-              <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} linked />
+              <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} linked notes={p.notes} />
               <TableCell className="text-center text-muted-foreground">{p.position_group}</TableCell>
               <TableCell className="text-center text-muted-foreground font-mono tabular-nums">{p.age || '—'}</TableCell>
               <TableCell className="text-right tabular-nums font-mono">

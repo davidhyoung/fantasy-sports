@@ -1,8 +1,11 @@
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Newspaper } from 'lucide-react'
 import { TableHead, TableRow, TableCell } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { zScoreIndicator, zScoreColor } from '@/lib/utils'
+import { zScoreIndicator, zScoreColor, cn } from '@/lib/utils'
+import { NOTE_CATEGORY_LABELS, NOTE_DIRECTION_STYLES } from '@/lib/notes'
+import type { SituationalNote } from '@/api/client'
 
 // ── Sortable column header ──────────────────────────────────────────────────
 
@@ -255,10 +258,13 @@ interface PlayerCellProps {
   linked?: boolean
   /** Avatar size. Default 28. */
   avatarSize?: AvatarSize
+  /** Situational notes (injury, depth chart, etc.). Renders a notes button
+   *  next to the name — absent entirely when there's nothing to show. */
+  notes?: SituationalNote[]
 }
 
 /** Standard player cell with avatar + name (+ optional subtitle). */
-function PlayerCell({ name, imageUrl, sub, linked, avatarSize = 28 }: PlayerCellProps) {
+function PlayerCell({ name, imageUrl, sub, linked, avatarSize = 28, notes }: PlayerCellProps) {
   return (
     <TableCell className="font-medium">
       <div className="flex items-center gap-2">
@@ -267,8 +273,73 @@ function PlayerCell({ name, imageUrl, sub, linked, avatarSize = 28 }: PlayerCell
           <span className={linked ? 'hover:text-primary' : undefined}>{name}</span>
           {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
         </div>
+        <NotesButton notes={notes} />
       </div>
     </TableCell>
+  )
+}
+
+// ── Notes button ────────────────────────────────────────────────────────────
+
+interface NotesButtonProps {
+  notes?: SituationalNote[]
+}
+
+/**
+ * Small button next to a player's name that opens a tooltip with their
+ * situational notes (injury, depth-chart battle, etc.) — renders nothing when
+ * there are none. Highlights (positive accent) when any note is recent
+ * enough to count as "new" (server-computed — see SituationalNote.is_new).
+ *
+ * Controlled (rather than Radix's default hover/focus trigger) so a tap
+ * reliably opens it on touch devices, not just desktop hover.
+ */
+function NotesButton({ notes }: NotesButtonProps) {
+  const [open, setOpen] = React.useState(false)
+  if (!notes || notes.length === 0) return null
+  const hasNew = notes.some((n) => n.is_new)
+
+  return (
+    <Tooltip open={open} onOpenChange={setOpen}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setOpen((o) => !o)
+          }}
+          onKeyDown={(e) => e.stopPropagation()}
+          aria-label={hasNew ? 'New player news' : 'Player news'}
+          className={cn(
+            'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border',
+            hasNew
+              ? 'border-positive-border bg-positive-light text-positive-foreground'
+              : 'border-border bg-muted text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Newspaper className="h-3 w-3" aria-hidden />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" align="start" className="max-w-72 normal-case">
+        <ul className="space-y-2">
+          {notes.map((n, i) => (
+            <li key={i}>
+              <span
+                className={cn(
+                  'inline-block rounded border px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap',
+                  NOTE_DIRECTION_STYLES[n.impact_direction] ?? NOTE_DIRECTION_STYLES.neutral
+                )}
+              >
+                {NOTE_CATEGORY_LABELS[n.category] ?? n.category}
+                {n.is_new ? ' · new' : ''}
+              </span>
+              <p className="mt-1 text-popover-foreground leading-snug">{n.summary}</p>
+            </li>
+          ))}
+        </ul>
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -351,6 +422,7 @@ export {
   PlayerAvatar,
   TeamAvatar,
   PlayerCell,
+  NotesButton,
   ClickableRow,
   ZScoreCell,
   HeaderRow,

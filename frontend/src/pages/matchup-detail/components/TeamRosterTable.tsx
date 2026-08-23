@@ -58,7 +58,7 @@ export function TeamRosterTable({ teamName, roster, statLabels }: Props) {
                   key={p.player_key}
                   href={canLink ? `/players/${p.gsis_id}` : undefined}
                 >
-                  <PlayerCell name={p.name.full} imageUrl={p.image_url} linked={canLink} />
+                  <PlayerCell name={p.name.full} imageUrl={p.image_url} linked={canLink} notes={p.notes} />
                   <TableCell className="text-muted-foreground">{p.selected_position.position}</TableCell>
                   {statLabels.map((label) => {
                     const stat = p.stats?.find((s: RosterStat) => s.label === label)

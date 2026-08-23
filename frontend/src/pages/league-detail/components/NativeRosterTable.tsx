@@ -407,6 +407,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
           imageUrl={r.headshot_url}
           linked
           sub={isTarget ? targetWord : SLOT_DISPLAY_ORDER.filter((s) => !BENCH_SLOTS.has(s) && !DISPLAY_HIDDEN_SLOTS.has(s) && isSlotEligible(s, r.position)).join(' · ')}
+          notes={r.notes}
         />
         {statColumns.map((s) => {
           const v = statValue(r.stats, s)

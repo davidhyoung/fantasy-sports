@@ -58,6 +58,7 @@ type draftPlayer struct {
 	ConsensusDerived      bool              `json:"consensus_derived"`
 	Trajectory            []trajectoryPoint `json:"trajectory,omitempty"`
 	PlayerGrade           *float64          `json:"player_grade"`
+	Notes                 []situationalNote `json:"notes,omitempty"`
 }
 
 // draftSettings echoes the settings a board was computed with, in the same
@@ -593,6 +594,11 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	trajectories := h.loadPlayerTrajectories(r.Context(), gsisIDs)
 	for i := range players {
 		players[i].Trajectory = trajectories[players[i].GsisID]
+	}
+	if notes, err := h.loadNotesForPlayers(r.Context(), h.config.DefaultSeason, gsisIDs); err == nil {
+		for i := range players {
+			players[i].Notes = notes[players[i].GsisID]
+		}
 	}
 
 	// A season with no projections yields nil slices, which marshal to JSON `null`.

@@ -1,24 +1,9 @@
 import type { SituationalNote } from '@/api/client'
 import { cn } from '@/lib/utils'
+import { NOTE_CATEGORY_LABELS, NOTE_DIRECTION_STYLES } from '@/lib/notes'
 
 interface SituationalNotesProps {
   notes: SituationalNote[]
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  injury: 'Injury',
-  depth_chart: 'Depth chart',
-  scheme: 'Scheme',
-  holdout: 'Holdout',
-  suspension: 'Suspension',
-  rookie_buzz: 'Rookie buzz',
-  trade: 'Trade',
-}
-
-const DIRECTION_STYLES: Record<string, string> = {
-  positive: 'bg-positive-light text-positive-foreground border-positive-border',
-  negative: 'bg-negative-light text-negative-foreground border-negative-border',
-  neutral: 'bg-muted text-muted-foreground border-border',
 }
 
 /**
@@ -48,10 +33,10 @@ export default function SituationalNotes({ notes }: SituationalNotesProps) {
               <span
                 className={cn(
                   'text-xs px-1.5 py-0.5 rounded border whitespace-nowrap',
-                  DIRECTION_STYLES[n.impact_direction] ?? DIRECTION_STYLES.neutral
+                  NOTE_DIRECTION_STYLES[n.impact_direction] ?? NOTE_DIRECTION_STYLES.neutral
                 )}
               >
-                {CATEGORY_LABELS[n.category] ?? n.category} · {n.impact_magnitude}
+                {NOTE_CATEGORY_LABELS[n.category] ?? n.category} · {n.impact_magnitude}
               </span>
 
               {/* Team-scoped notes are about the team, not this player specifically —
@@ -59,6 +44,12 @@ export default function SituationalNotes({ notes }: SituationalNotesProps) {
               {n.scope === 'team' && (
                 <span className="text-xs px-1.5 py-0.5 rounded border bg-muted text-muted-foreground border-border whitespace-nowrap">
                   team context
+                </span>
+              )}
+
+              {n.is_new && (
+                <span className="text-xs px-1.5 py-0.5 rounded border bg-positive-light text-positive-foreground border-positive-border whitespace-nowrap">
+                  new
                 </span>
               )}
 

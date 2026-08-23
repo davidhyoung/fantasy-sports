@@ -12,22 +12,23 @@ import (
 // ── response types ───────────────────────────────────────────────────────────
 
 type gradePlayerItem struct {
-	GsisID        string  `json:"gsis_id"`
-	Name          string  `json:"name"`
-	Position      string  `json:"position"`
-	PositionGroup string  `json:"position_group"`
-	Team          string  `json:"team"`
-	HeadshotURL   string  `json:"headshot_url"`
-	Age           int     `json:"age"`
-	Overall       float64 `json:"overall"`
-	Production    float64 `json:"production"`
-	Efficiency    float64 `json:"efficiency"`
-	Usage         float64 `json:"usage"`
-	Durability    float64 `json:"durability"`
-	CareerPhase   string  `json:"career_phase"`
-	YoYTrend      *float64 `json:"yoy_trend"`
-	OverallRank   int     `json:"overall_rank"`
-	PositionRank  int     `json:"position_rank"`
+	GsisID        string            `json:"gsis_id"`
+	Name          string            `json:"name"`
+	Position      string            `json:"position"`
+	PositionGroup string            `json:"position_group"`
+	Team          string            `json:"team"`
+	HeadshotURL   string            `json:"headshot_url"`
+	Age           int               `json:"age"`
+	Overall       float64           `json:"overall"`
+	Production    float64           `json:"production"`
+	Efficiency    float64           `json:"efficiency"`
+	Usage         float64           `json:"usage"`
+	Durability    float64           `json:"durability"`
+	CareerPhase   string            `json:"career_phase"`
+	YoYTrend      *float64          `json:"yoy_trend"`
+	OverallRank   int               `json:"overall_rank"`
+	PositionRank  int               `json:"position_rank"`
+	Notes         []situationalNote `json:"notes,omitempty"`
 }
 
 type gradeListResp struct {
@@ -148,6 +149,16 @@ func (h *Handler) ListGrades(w http.ResponseWriter, r *http.Request) {
 		pos := players[i].PositionGroup
 		posRanks[pos]++
 		players[i].PositionRank = posRanks[pos]
+	}
+
+	gsisIDs := make([]string, len(players))
+	for i, p := range players {
+		gsisIDs[i] = p.GsisID
+	}
+	if notes, err := h.loadNotesForPlayers(r.Context(), h.config.DefaultSeason, gsisIDs); err == nil {
+		for i := range players {
+			players[i].Notes = notes[players[i].GsisID]
+		}
 	}
 
 	// Total count

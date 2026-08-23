@@ -22,6 +22,13 @@ type situationalNote struct {
 	Source          string `json:"source"`
 	ReportedDate    string `json:"reported_date"`
 	Scope           string `json:"scope"`
+	// IsNew is true when reported_date (falling back to created_at, for notes
+	// with no reported date) falls within the last 3 days — the "new news"
+	// signal every notes-button consumer highlights on. Recency-based rather
+	// than per-user read-tracking: this app has no per-manager identity
+	// beyond team ownership (see the message-board convention), so there's
+	// no "who's seen this" to key a read state off of.
+	IsNew bool `json:"is_new"`
 }
 
 type divergenceItem struct {
@@ -65,7 +72,8 @@ func (h *Handler) loadNotesForPlayers(ctx context.Context, season int, gsisIDs [
 	rows, err := h.db.Query(ctx, `
 		SELECT p.gsis_id, n.category, n.summary, n.impact_direction,
 		       n.impact_magnitude, n.confidence, COALESCE(n.source, ''),
-		       COALESCE(n.reported_date::text, ''), n.scope
+		       COALESCE(n.reported_date::text, ''), n.scope,
+		       COALESCE(n.reported_date, n.created_at::date) >= (CURRENT_DATE - INTERVAL '3 days') AS is_new
 		FROM nfl_players p
 		JOIN nfl_player_situational_notes n
 		  ON (n.scope = 'player' AND n.gsis_id = p.gsis_id)
@@ -82,7 +90,7 @@ func (h *Handler) loadNotesForPlayers(ctx context.Context, season int, gsisIDs [
 		var gsisID string
 		var n situationalNote
 		if err := rows.Scan(&gsisID, &n.Category, &n.Summary, &n.ImpactDirection,
-			&n.ImpactMagnitude, &n.Confidence, &n.Source, &n.ReportedDate, &n.Scope); err != nil {
+			&n.ImpactMagnitude, &n.Confidence, &n.Source, &n.ReportedDate, &n.Scope, &n.IsNew); err != nil {
 			return nil, err
 		}
 		result[gsisID] = append(result[gsisID], n)

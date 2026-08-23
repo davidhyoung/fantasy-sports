@@ -32,6 +32,7 @@ type rosterPlayerResp struct {
 	SelectedPosition yahoo.SelectedPosition `json:"selected_position"`
 	ImageURL         string                 `json:"image_url,omitempty"`
 	Stats            []statEntry            `json:"stats,omitempty"`
+	Notes            []situationalNote      `json:"notes,omitempty"`
 }
 
 func (h *Handler) ListLeagueTeams(w http.ResponseWriter, r *http.Request) {
@@ -225,6 +226,18 @@ func (h *Handler) GetTeamRoster(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		resp = append(resp, entry)
+	}
+
+	gsisIDs := make([]string, 0, len(resp))
+	for _, e := range resp {
+		if e.GsisID != "" {
+			gsisIDs = append(gsisIDs, e.GsisID)
+		}
+	}
+	if notes, err := h.loadNotesForPlayers(r.Context(), h.config.DefaultSeason, gsisIDs); err == nil {
+		for i := range resp {
+			resp[i].Notes = notes[resp[i].GsisID]
+		}
 	}
 
 	respondJSON(w, http.StatusOK, resp)

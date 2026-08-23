@@ -59,6 +59,7 @@ type rankedPlayerResp struct {
 	Trajectory     []trajectoryPoint     `json:"trajectory,omitempty"` // year-over-year PPR/G from nfl_player_season_profiles
 	PlayerGrade    *float64              `json:"player_grade,omitempty"`
 	YoYTrend       *float64              `json:"yoy_trend,omitempty"`
+	Notes          []situationalNote     `json:"notes,omitempty"`
 }
 
 type replacementLevelResp struct {
@@ -449,6 +450,7 @@ func (h *Handler) writeRankingsResponse(
 	trajectories := h.loadPlayerTrajectories(ctx, gsisIDs)
 	headshots := h.loadPlayerHeadshots(ctx, gsisIDs)
 	grades := h.loadPlayerGrades(ctx, gsisIDs)
+	notes, _ := h.loadNotesForPlayers(ctx, h.config.DefaultSeason, gsisIDs)
 
 	respPlayers := make([]rankedPlayerResp, len(players))
 	for i, sp := range players {
@@ -476,6 +478,7 @@ func (h *Handler) writeRankingsResponse(
 			TotalPoints:    sp.TotalPoints,
 			CategoryScores: catScores,
 			Trajectory:     trajectories[gsisForPlayer[i]],
+			Notes:          notes[gsisForPlayer[i]],
 		}
 		if g, ok := grades[gsisForPlayer[i]]; ok {
 			rp.PlayerGrade = &g.Overall
@@ -738,4 +741,3 @@ func buildLocalPlayerData(
 		IsRostered:   isRostered,
 	}
 }
-

@@ -573,7 +573,7 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus }: 
                 <TableCell className="text-center text-muted-foreground font-mono tabular-nums">
                   {p.overall_rank}
                 </TableCell>
-                <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} linked />
+                <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} linked notes={p.notes} />
                 {prep && (
                   <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                     {/* Target or avoid — one thumb each way, re-click to clear. */}
