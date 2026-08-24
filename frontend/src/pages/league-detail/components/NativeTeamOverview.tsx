@@ -8,6 +8,7 @@ import { getLeagueRosters, getLeagueScoreboard, type RosterEntry } from '@/api/c
 import { keys } from '@/api/queryKeys'
 import { NativeRosterTable } from './NativeRosterTable'
 import { EditContractForm } from './EditContractForm'
+import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
 
 interface Props {
   leagueId: number
@@ -25,6 +26,7 @@ interface Props {
  */
 export function NativeTeamOverview({ leagueId, teamId, slots }: Props) {
   const [editing, setEditing] = useState<RosterEntry | null>(null)
+  const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
 
   // isLoading (not isFetching) — isFetching is also true during the
   // background refetch every roster mutation triggers, which used to
@@ -84,12 +86,20 @@ export function NativeTeamOverview({ leagueId, teamId, slots }: Props) {
       {loadingRosters ? (
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       ) : (
-        <NativeRosterTable leagueId={leagueId} roster={roster} slots={slots} onEdit={setEditing} />
+        <NativeRosterTable
+          leagueId={leagueId}
+          roster={roster}
+          slots={slots}
+          onEdit={setEditing}
+          onPlayerClick={setViewingPlayer}
+        />
       )}
 
       <ResponsiveDialog open={editing != null} onClose={() => setEditing(null)} title="Edit contract">
         {editing && <EditContractForm leagueId={leagueId} entry={editing} onClose={() => setEditing(null)} />}
       </ResponsiveDialog>
+
+      <PlayerDetailPanel gsisId={viewingPlayer} leagueId={leagueId} onClose={() => setViewingPlayer(null)} />
     </>
   )
 }

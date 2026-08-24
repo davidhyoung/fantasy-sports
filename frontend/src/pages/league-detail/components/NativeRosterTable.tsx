@@ -22,6 +22,9 @@ interface Props {
    *  all. Omit (or pass {}) to just show whoever's actually rostered. */
   slots?: Record<string, number>
   onEdit: (entry: RosterEntry) => void
+  /** Opens a player's detail in place (side panel/bottom sheet) instead of
+   *  navigating to `/players/:gsisId`. */
+  onPlayerClick: (gsisId: string) => void
 }
 
 interface Row {
@@ -174,7 +177,7 @@ function RowActionsMenu({
  * one swaps the two players' slots, matching how drag-and-drop lineups
  * behave elsewhere (Yahoo, ESPN) rather than silently doubling up a slot.
  */
-export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Props) {
+export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit, onPlayerClick }: Props) {
   const qc = useQueryClient()
   const [confirmDrop, setConfirmDrop] = useState<string | null>(null)
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
@@ -404,7 +407,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
         <PlayerCell
           name={r.name}
           imageUrl={r.headshot_url}
-          href={isTarget ? undefined : `/players/${r.gsis_id}?league=${leagueId}`}
+          onClick={isTarget ? undefined : () => onPlayerClick(r.gsis_id)}
           sub={isTarget ? targetWord : SLOT_DISPLAY_ORDER.filter((s) => !BENCH_SLOTS.has(s) && !DISPLAY_HIDDEN_SLOTS.has(s) && isSlotEligible(s, r.position)).join(' · ')}
           notes={r.notes}
         />
@@ -479,8 +482,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit }: Prop
     return (
       <MobileStatCard
         key={r.gsis_id}
-        href={isTarget ? undefined : `/players/${r.gsis_id}?league=${leagueId}`}
-        onClick={isTarget ? () => handlePick(row.slot, r) : undefined}
+        onClick={isTarget ? () => handlePick(row.slot, r) : () => onPlayerClick(r.gsis_id)}
         leading={slotChip}
         title={r.name}
         subtitle={isTarget ? targetWord : undefined}

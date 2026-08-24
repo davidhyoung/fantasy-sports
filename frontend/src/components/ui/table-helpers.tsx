@@ -256,8 +256,13 @@ interface PlayerCellProps {
   sub?: string
   /** Player-detail URL. When set, the name itself (not the row) is the
    *  click/keyboard target — a real `<Link>`, so cmd/ctrl-click and
-   *  middle-click "open in new tab" work too. Omit for an unlinked name. */
+   *  middle-click "open in new tab" work too. Omit for an unlinked name.
+   *  Ignored when `onClick` is given. */
   href?: string
+  /** Runs instead of navigating — e.g. opening the player in a side
+   *  panel/bottom sheet in place rather than going to `/players/:gsisId`.
+   *  Takes precedence over `href`, same convention as MobileStatCard. */
+  onClick?: () => void
   /** Avatar size. Default 28. */
   avatarSize?: AvatarSize
   /** Situational notes (injury, depth chart, etc.). Renders a notes button
@@ -270,13 +275,24 @@ interface PlayerCellProps {
  *  (see ClickableRow), since a row-wide click target swallowed clicks meant
  *  for other cells (stats, contract actions, drag handles) and made "click
  *  to see this player" ambiguous on rows with several interactive parts. */
-function PlayerCell({ name, imageUrl, sub, href, avatarSize = 28, notes }: PlayerCellProps) {
+function PlayerCell({ name, imageUrl, sub, href, onClick, avatarSize = 28, notes }: PlayerCellProps) {
   return (
     <TableCell className="font-medium">
       <div className="flex items-center gap-2">
         <PlayerAvatar src={imageUrl} alt={name} size={avatarSize} />
         <div>
-          {href ? (
+          {onClick ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onClick()
+              }}
+              className="rounded-sm text-left hover:text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {name}
+            </button>
+          ) : href ? (
             <Link
               to={href}
               onClick={(e) => e.stopPropagation()}
