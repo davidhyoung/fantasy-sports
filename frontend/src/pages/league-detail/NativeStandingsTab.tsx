@@ -105,7 +105,7 @@ export function NativeStandingsTab({ leagueId, active, myTeamId }: Props) {
               className={isMe ? 'bg-muted' : ''}
             />
           )
-          return isCutoffRow ? [card, <div key={`${s.team_id}-cutoff`} className="border-b border-dashed border-muted-foreground/30" />] : [card]
+          return isCutoffRow ? [card, <div key={`${s.team_id}-cutoff`} className="border-b border-dashed border-primary/35" />] : [card]
         })}
       </div>
 
@@ -128,7 +128,7 @@ export function NativeStandingsTab({ leagueId, active, myTeamId }: Props) {
               return (
                 <TableRow
                   key={s.team_id ?? s.team_key}
-                  className={`${isMe ? 'bg-muted' : ''} ${isCutoffRow ? 'border-b border-dashed border-muted-foreground/30' : ''}`}
+                  className={`${isMe ? 'bg-muted' : ''} ${isCutoffRow ? 'border-b border-dashed border-primary/35' : ''}`}
                 >
                   <TableCell className="font-mono tabular-nums">{s.rank}</TableCell>
                   <TableCell className="font-medium">
