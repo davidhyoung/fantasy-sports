@@ -46,11 +46,6 @@ function groupOf(slot: string): Group {
   return 'starters'
 }
 
-// A drag payload is just the gsis_id being moved — text/plain is enough and
-// keeps this readable from a browser's native drag inspector if anything
-// ever goes wrong.
-const DRAG_MIME = 'text/plain'
-
 /** One row per configured slot, filled with whichever rostered player (if
  *  any) currently occupies it — padded with empty rows up to the league's
  *  configured count, and never hiding an actual player even if the league's
@@ -156,40 +151,32 @@ function RowActionsMenu({
  * Shared roster table for the Roster tab, for whichever team is selected.
  * Rows are grouped into Starters / Bench / Taxi & IR (each with a fill-count
  * + total-salary header) since that's the arithmetic a lineup pass is
- * actually checking, and it gives the drag handle somewhere to live without
- * adding chrome to every row.
+ * actually checking.
  *
- * Slot is changed by dragging a player's row onto another row (desktop
- * only — native HTML5 drag-and-drop has no touch story) or by clicking the
- * Slot button to enter "picking" mode: every row that's a legal destination
- * for that player lights up and becomes clickable — the row itself is the
- * target, not an abstract slot name, which is what lets a league with two
- * RB slots distinguish "the empty one" from "the one Jahmyr's in" (a swap).
- * Picking mode is announced with an in-table banner (aria-live) plus a
- * per-row "place here"/"swap here" label — color and cursor alone don't
- * exist for a screen reader, and barely exist on a glance at a long table
- * (design review open item 4, its highest-priority fix).
+ * Slot is changed by clicking the Slot button to enter "picking" mode: every
+ * row that's a legal destination for that player lights up and becomes
+ * clickable — the row itself is the target, not an abstract slot name, which
+ * is what lets a league with two RB slots distinguish "the empty one" from
+ * "the one Jahmyr's in" (a swap). Picking mode is announced with an in-table
+ * banner (aria-live) plus a per-row "place here"/"swap here" label — color
+ * and cursor alone don't exist for a screen reader, and barely exist on a
+ * glance at a long table (design review open item 4, its highest-priority
+ * fix). Drag-and-drop was tried and removed — same picking mechanism works
+ * on both desktop and mobile, so there was no touch-only gap it filled, just
+ * a second way to do the same thing.
  *
- * Either way it's the same lineup-setting mechanism: there's no separate
- * "Lineup" screen, moving a player between a starter slot and BN/TAXI/IR
- * here is exactly what ScoreLeagueWeek reads when a week gets scored.
- * Landing on an empty row just reassigns the player; landing on an occupied
- * one swaps the two players' slots, matching how drag-and-drop lineups
- * behave elsewhere (Yahoo, ESPN) rather than silently doubling up a slot.
+ * This is the same lineup-setting mechanism as everywhere else: there's no
+ * separate "Lineup" screen, moving a player between a starter slot and
+ * BN/TAXI/IR here is exactly what ScoreLeagueWeek reads when a week gets
+ * scored. Landing on an empty row just reassigns the player; landing on an
+ * occupied one swaps the two players' slots.
  */
 export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit, onPlayerClick }: Props) {
   const qc = useQueryClient()
   const [confirmDrop, setConfirmDrop] = useState<string | null>(null)
-  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
-  // The player currently being moved, by click (Slot was clicked) or by
-  // starting a drag — either way, only one at a time, and while set every
-  // legal destination row is highlighted and clickable. Starting a drag sets
-  // this immediately (not just the row under the cursor) so a drag shows the
-  // exact same "every legal destination lit up" feedback as clicking Slot,
-  // rather than a separate, narrower highlight of its own. This also doubles
-  // as the eligibility source for onDragOver — browsers don't expose
-  // DataTransfer.getData() until the actual drop fires, so eligibility
-  // during a drag has to come from component state, not the payload.
+  // The player currently being moved (Slot was clicked) — only one at a
+  // time, and while set every legal destination row is highlighted and
+  // clickable.
   const [pickingFor, setPickingFor] = useState<string | null>(null)
   const tableRef = useRef<HTMLDivElement | null>(null)
 
@@ -227,14 +214,14 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit, onPlay
 
   const moveMutation = useMutation({
     mutationFn: async ({
-      draggedGsisId, draggedSlot, targetSlot, targetGsisId,
-    }: { draggedGsisId: string; draggedSlot: string; targetSlot: string; targetGsisId?: string }) => {
+      movedGsisId, movedSlot, targetSlot, targetGsisId,
+    }: { movedGsisId: string; movedSlot: string; targetSlot: string; targetGsisId?: string }) => {
       if (targetGsisId) {
-        // Swap: the player who was in the target slot takes the dragged
+        // Swap: the player who was in the target slot takes the moved
         // player's old slot, rather than leaving a duplicate at the target.
-        await updateLeagueRoster(leagueId, targetGsisId, { slot: draggedSlot })
+        await updateLeagueRoster(leagueId, targetGsisId, { slot: movedSlot })
       }
-      await updateLeagueRoster(leagueId, draggedGsisId, { slot: targetSlot })
+      await updateLeagueRoster(leagueId, movedGsisId, { slot: targetSlot })
     },
     onSuccess: invalidate,
   })
@@ -255,40 +242,29 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit, onPlay
     for (const r of roster) for (const s of r.stats ?? []) present.add(s.stat)
     return SCORING_STATS.filter((s) => present.has(s))
   }, [roster])
-  // drag handle, slot, player, contract, actions (5 fixed) + one per stat + the L4 wks trend column
-  const totalCols = 5 + statColumns.length + 1
+  // slot, player, contract, actions (4 fixed) + one per stat + the L4 wks trend column
+  const totalCols = 4 + statColumns.length + 1
 
   if (rows.length === 0) {
     return <p className="text-muted-foreground">No roster spots configured yet.</p>
   }
 
-  const dragDisabled = moveMutation.isPending
-
-  // Both directions have to clear eligibility: the dragged player has to be
+  // Both directions have to clear eligibility: the moved player has to be
   // allowed in the target slot, and — for a swap onto an occupied row — the
-  // occupant has to be allowed in the slot the dragged player is leaving.
-  const canDrop = (dragged: RosterEntry, targetSlot: string, targetEntry: RosterEntry | undefined) => {
-    if (targetEntry?.gsis_id === dragged.gsis_id) return false
-    if (!isSlotEligible(targetSlot, dragged.position)) return false
-    if (targetEntry && !isSlotEligible(dragged.slot, targetEntry.position)) return false
+  // occupant has to be allowed in the slot the moved player is leaving.
+  const canMove = (moved: RosterEntry, targetSlot: string, targetEntry: RosterEntry | undefined) => {
+    if (targetEntry?.gsis_id === moved.gsis_id) return false
+    if (!isSlotEligible(targetSlot, moved.position)) return false
+    if (targetEntry && !isSlotEligible(moved.slot, targetEntry.position)) return false
     return true
-  }
-
-  const handleDrop = (e: React.DragEvent<HTMLTableRowElement>, targetSlot: string, targetEntry: RosterEntry | undefined) => {
-    e.preventDefault()
-    setDragOverKey(null)
-    const draggedGsisId = e.dataTransfer.getData(DRAG_MIME)
-    const dragged = roster.find((r) => r.gsis_id === draggedGsisId)
-    if (!dragged || !canDrop(dragged, targetSlot, targetEntry)) return
-    moveMutation.mutate({ draggedGsisId, draggedSlot: dragged.slot, targetSlot, targetGsisId: targetEntry?.gsis_id })
   }
 
   const pickedEntry = pickingFor ? roster.find((r) => r.gsis_id === pickingFor) : undefined
 
   const handlePick = (targetSlot: string, targetEntry: RosterEntry | undefined) => {
-    if (!pickedEntry || !canDrop(pickedEntry, targetSlot, targetEntry)) return
+    if (!pickedEntry || !canMove(pickedEntry, targetSlot, targetEntry)) return
     moveMutation.mutate({
-      draggedGsisId: pickedEntry.gsis_id, draggedSlot: pickedEntry.slot, targetSlot, targetGsisId: targetEntry?.gsis_id,
+      movedGsisId: pickedEntry.gsis_id, movedSlot: pickedEntry.slot, targetSlot, targetGsisId: targetEntry?.gsis_id,
     })
     setPickingFor(null)
   }
@@ -296,33 +272,12 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit, onPlay
   const renderRow = (row: Row, i: number) => {
     const r = row.entry
     const rowKey = r ? r.gsis_id : `${row.slot}-${i}`
-    const dropTargetProps = {
-      onDragOver: (e: React.DragEvent<HTMLTableRowElement>) => {
-        // Not calling preventDefault() here is what makes an ineligible slot
-        // refuse the drop (browser default) — the dragged player's gsis_id
-        // isn't readable from DataTransfer until the actual drop event, so
-        // eligibility here comes from pickedEntry (set at dragstart), same
-        // as the click-to-pick path.
-        if (pickedEntry && !canDrop(pickedEntry, row.slot, r)) return
-        e.preventDefault()
-        e.dataTransfer.dropEffect = 'move'
-        setDragOverKey(rowKey)
-      },
-      onDragLeave: () => setDragOverKey((k) => (k === rowKey ? null : k)),
-      onDrop: (e: React.DragEvent<HTMLTableRowElement>) => handleDrop(e, row.slot, r),
-    }
     // While a player is being moved by click (pickedEntry set), every row
     // that's a legal destination for them lights up and becomes clickable —
     // the row itself is the target, so two same-named slots (two RB rows)
     // are distinguishable: one may be empty, one may hold someone else (a
     // swap).
-    const isTarget = !!pickedEntry && canDrop(pickedEntry, row.slot, r)
-    // The one row currently under the cursor during an active drag — a
-    // stronger treatment than "eligible" so it's unambiguous which row you'd
-    // actually land on, not just which rows you could. Only ever set on an
-    // eligible row (onDragOver never sets it otherwise), so this is always a
-    // subset of isTarget.
-    const isDragOverTarget = dragOverKey === rowKey
+    const isTarget = !!pickedEntry && canMove(pickedEntry, row.slot, r)
     const targetWord = r ? 'swap here' : 'place here'
     const targetLabel = pickedEntry
       ? r
@@ -343,22 +298,13 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit, onPlay
           },
         }
       : {}
-    const targetHighlight = isDragOverTarget
-      ? 'cursor-pointer border-l-[3px] border-l-primary bg-positive-light ring-1 ring-inset ring-primary'
-      : isTarget
+    const targetHighlight = isTarget
       ? 'cursor-pointer border-l-[3px] border-l-primary bg-positive-light/40'
       : ''
 
-    const dragHandle = (
-      <TableCell className={`w-8 px-0 pl-3 text-xs ${dragDisabled ? 'text-muted-foreground/40' : 'text-muted-foreground'}`}>
-        {r ? '⠿' : ''}
-      </TableCell>
-    )
-
     if (!r) {
       return (
-        <TableRow key={rowKey} className={targetHighlight} {...dropTargetProps} {...pickTargetProps}>
-          {dragHandle}
+        <TableRow key={rowKey} className={targetHighlight} {...pickTargetProps}>
           <TableCell className="font-mono text-xs font-semibold text-muted-foreground">{row.slot}</TableCell>
           <TableCell className="italic text-muted-foreground">
             Empty
@@ -374,23 +320,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit, onPlay
       )
     }
     return (
-      <ClickableRow
-        key={r.gsis_id}
-        className={`${targetHighlight} ${dragDisabled ? '' : 'cursor-grab active:cursor-grabbing'}`}
-        draggable={!dragDisabled}
-        onDragStart={(e) => {
-          e.dataTransfer.setData(DRAG_MIME, r.gsis_id)
-          e.dataTransfer.effectAllowed = 'move'
-          setPickingFor(r.gsis_id)
-        }}
-        onDragEnd={() => {
-          setPickingFor(null)
-          setDragOverKey(null)
-        }}
-        {...dropTargetProps}
-        {...pickTargetProps}
-      >
-        {dragHandle}
+      <ClickableRow key={r.gsis_id} className={targetHighlight} {...pickTargetProps}>
         <TableCell onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
@@ -438,13 +368,12 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit, onPlay
   // Card face below md: Slot, Player, Proj Pts — Contract/Eligible move to
   // the expand panel, and Edit/Drop live there too as an action row, since
   // there's no room for a persistent "⋯" trigger on a 390px card face.
-  // Drag is dropped entirely on mobile (HTML5 DnD has no touch story), so
-  // tapping the Slot chip is the only way in — same picking-mode state as
-  // desktop, just without the drag half of it.
+  // Tapping the Slot chip is the only way to move a player — same
+  // picking-mode state as desktop.
   const renderMobileCard = (row: Row, i: number) => {
     const r = row.entry
     const rowKey = r ? r.gsis_id : `${row.slot}-${i}`
-    const isTarget = !!pickedEntry && canDrop(pickedEntry, row.slot, r)
+    const isTarget = !!pickedEntry && canMove(pickedEntry, row.slot, r)
     const targetWord = r ? 'swap here' : 'place here'
     const cardHighlight = isTarget ? 'border-primary bg-positive-light ring-1 ring-inset ring-primary' : ''
 
@@ -551,8 +480,8 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit, onPlay
 
   return (
     <div ref={tableRef}>
-      {/* Card list below md — drag is gone (no touch story for HTML5 DnD),
-       *  so the Slot chip's tap-to-pick is the only way to move a player. */}
+      {/* Card list below md — the Slot chip's tap-to-pick is the only way
+       *  to move a player. */}
       <div className="flex flex-col gap-2 md:hidden">
         {pickedEntry && (
           <div
@@ -577,7 +506,6 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit, onPlay
         <Table>
           <TableHeader style={{ top: 0 }}>
             <HeaderRow>
-              <TableHead className="w-8" />
               <TableHead>Slot</TableHead>
               <TableHead>Player</TableHead>
               {statColumns.map((s) => (
