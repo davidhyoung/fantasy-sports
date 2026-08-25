@@ -2,10 +2,29 @@
 
 ## Status (2026-08-25)
 
-Design settled in conversation, nothing built yet. This document is the agreed
-model plus the phased plan; `native-leagues.md` remains the parent initiative
-and its Phases 0–4 (settings, rosters, contracts, picks, trades, rollover,
-weekly play) are the foundation everything here sits on.
+**Phase 5 — done.** Migration 000026 (`league_settings.taxi_cap_pct`/`ir_cap_pct`,
+`league_team_seasons`, `league_dead_money`). `internal/handlers/cap.go`:
+`teamCap` (season-aware breakdown, works for a future season too since it
+checks each contract's coverage against the requested season rather than
+just reading current state), `capCheckAdd`/`capCheckDelta` (the two gates),
+`deadMoneySeasons`/`writeDeadMoney`. Wired into `AssignLeagueRoster`,
+`UpdateLeagueRoster`, `UseLeagueDraftPick`, `DropLeagueRoster` (writes dead
+money before cascading), and `CreateLeagueTrade` (restructured into a
+resolve-then-check-then-write two-pass shape so a multi-asset trade's net
+effect per team is checked as a whole). New `GET
+/api/leagues/{id}/teams/{teamId}/cap?seasons=N`. Frontend:
+`NativeRosterTab.tsx`'s summary strip is now real numbers from that endpoint,
+plus a "looking ahead" future-seasons strip. Verified end-to-end against real
+league data (league 42) and a disposable synthetic league — see
+`project_dynasty_transactions.md` memory entry for the specific test cases.
+Max roster size (sum of configured slots) is enforced as part of this phase,
+not deferred as originally sketched — the FA-offer gate in Phase 7 needs it
+to exist regardless, and it was a two-line addition once `teamCap` existed.
+
+This document is the agreed model plus the phased plan; `native-leagues.md`
+remains the parent initiative and its Phases 0–4 (settings, rosters,
+contracts, picks, trades, rollover, weekly play) are the foundation
+everything here sits on.
 
 The one-line summary of what changes: **contracts stop being decorative.**
 Today the cap is computed in the frontend for display only, no backend
@@ -202,7 +221,7 @@ stop using `acquired_via = 'waiver'` rather than adding it.
 
 | Phase | Scope |
 |---|---|
-| **5** | **Cap becomes real.** `league_team_seasons`, `league_dead_money`, one server-side cap function, hard enforcement on every mutation (assign, slot change, trade, pick use), max roster size enforcement, drops write dead money, taxi/IR discounting, multi-season cap panel replacing the frontend-only strip. |
+| **5** | ✅ done. **Cap becomes real.** `league_team_seasons`, `league_dead_money`, one server-side cap function, hard enforcement on every mutation (assign, slot change, trade, pick use), max roster size enforcement, drops write dead money, taxi/IR discounting, multi-season cap panel replacing the frontend-only strip. |
 | **6** | **Rookie scale.** Reverse-standings draft order into `overall_pick`, `rookie_scale` config, `UseLeagueDraftPick` derives terms. |
 | **7** | **Free agency offers.** `league_fa_offers` + windows, valuation service (`L*`, reservation off draft-values), resolution algorithm, offer-sheet UI with drag-priority, player card showing preference and floor. |
 | **8** | **Rollover integration.** Dead-money decrement, banking freeze, window open. |

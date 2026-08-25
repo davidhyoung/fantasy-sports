@@ -29,16 +29,16 @@ type dbtx interface {
 // hard cap, full dead money on cuts, and cap space that banks between
 // seasons.
 type capBreakdown struct {
-	Season      int `json:"season"`
-	BaseBudget  int `json:"base_budget"`
-	Banked      int `json:"banked"`
-	Cap         int `json:"cap"` // base_budget + banked
-	ActiveSpend int `json:"active_spend"`
-	DeadMoney   int `json:"dead_money"`
-	Spend       int `json:"spend"` // active_spend + dead_money
-	Available   int `json:"available"`
-	RosterCount int `json:"roster_count"`
-	RosterMax   int `json:"roster_max"`
+	Season      int     `json:"season"`
+	BaseBudget  int     `json:"base_budget"`
+	Banked      int     `json:"banked"`
+	Cap         int     `json:"cap"` // base_budget + banked
+	ActiveSpend int     `json:"active_spend"`
+	DeadMoney   int     `json:"dead_money"`
+	Spend       int     `json:"spend"` // active_spend + dead_money
+	Available   int     `json:"available"`
+	RosterCount int     `json:"roster_count"`
+	RosterMax   int     `json:"roster_max"`
 	TaxiCapPct  float64 `json:"taxi_cap_pct"`
 	IRCapPct    float64 `json:"ir_cap_pct"`
 }
@@ -59,19 +59,6 @@ func slotCapFactor(slot string, taxiCapPct, irCapPct float64) float64 {
 	}
 }
 
-// teamCap computes one team's full cap breakdown for a given season. Season
-// need not be the league's current season — a contract's coverage
-// (signed_season .. signed_season+years_total-1, or forever when
-// years_total is NULL, matching how rolloverDynasty never auto-expires a
-// NULL-years_total deal) is checked against the requested season, so this
-// same query answers both "can this signing happen right now" and "what
-// does this team owe in three years" projections.
-//
-// league_team_seasons has no row until Phase 8's rollover integration writes
-// one — a league's first season, and every season before that phase lands,
-// falls back to league_settings.budget with banked = 0. That's a genuine
-// boundary condition (there is no prior season to have banked anything from
-// yet), not a stand-in for unfinished work.
 // leagueCapSettings loads the league-wide (not team-specific) inputs to cap
 // math: the base budget, roster-slot count, and taxi/IR discount rates.
 // Split out of teamCap so a check that needs these numbers for several teams
@@ -94,6 +81,19 @@ func leagueCapSettings(ctx context.Context, db dbtx, leagueID int64) (capBreakdo
 	return cb, nil
 }
 
+// teamCap computes one team's full cap breakdown for a given season. Season
+// need not be the league's current season — a contract's coverage
+// (signed_season .. signed_season+years_total-1, or forever when
+// years_total is NULL, matching how rolloverDynasty never auto-expires a
+// NULL-years_total deal) is checked against the requested season, so this
+// same query answers both "can this signing happen right now" and "what
+// does this team owe in three years" projections.
+//
+// league_team_seasons has no row until Phase 8's rollover integration writes
+// one — a league's first season, and every season before that phase lands,
+// falls back to league_settings.budget with banked = 0. That's a genuine
+// boundary condition (there is no prior season to have banked anything from
+// yet), not a stand-in for unfinished work.
 func teamCap(ctx context.Context, db dbtx, leagueID, teamID int64, season int) (capBreakdown, error) {
 	cb, err := leagueCapSettings(ctx, db, leagueID)
 	if err != nil {
@@ -224,9 +224,9 @@ func writeDeadMoney(ctx context.Context, tx pgx.Tx, leagueID, teamID int64, gsis
 // charges dead money to future seasons, and multi-year contracts already
 // project forward on their own.
 type teamCapResp struct {
-	LeagueID    int64          `json:"league_id"`
-	TeamID      int64          `json:"team_id"`
-	Breakdowns  []capBreakdown `json:"breakdowns"`
+	LeagueID   int64          `json:"league_id"`
+	TeamID     int64          `json:"team_id"`
+	Breakdowns []capBreakdown `json:"breakdowns"`
 }
 
 // GetTeamCap returns a team's cap breakdown for the league's current season

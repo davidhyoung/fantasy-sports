@@ -38,13 +38,13 @@ type League struct {
 // league, in the same vocabulary the draft-values ?slots=&scoring= overrides
 // use (see internal/services/leaguesettings).
 type LeagueSettings struct {
-	LeagueID    int64              `json:"league_id"`
-	NumTeams    int                `json:"num_teams"`
-	Budget      int                `json:"budget"`
-	Slots       map[string]int     `json:"slots"`
-	Scoring     map[string]float64 `json:"scoring"`
-	TaxiSlots   int                `json:"taxi_slots"`
-	IRSlots     int                `json:"ir_slots"`
+	LeagueID  int64              `json:"league_id"`
+	NumTeams  int                `json:"num_teams"`
+	Budget    int                `json:"budget"`
+	Slots     map[string]int     `json:"slots"`
+	Scoring   map[string]float64 `json:"scoring"`
+	TaxiSlots int                `json:"taxi_slots"`
+	IRSlots   int                `json:"ir_slots"`
 	// TaxiCapPct/IRCapPct are how much of a stashed player's salary counts
 	// against the hard cap (0-1) — a taxi/IR player isn't on the active
 	// competitive roster, so their salary is discounted, not exempted.

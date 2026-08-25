@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
 import { Badge } from '@/components/ui/badge'
 import {
-  getLeagueRosters, getLeagueSettings, updateLeagueTeam, rolloverLeague,
+  getLeagueSettings, updateLeagueTeam, rolloverLeague,
   getLeagueTransactions, getTeamCap, type Team,
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
@@ -57,11 +57,6 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
   const [tradeSeed, setTradeSeed] = useState<TradeInitialSelection | undefined>(undefined)
   const [confirmRollover, setConfirmRollover] = useState(false)
 
-  const { data: rosters } = useQuery({
-    queryKey: keys.leagueRosters(leagueId),
-    queryFn: () => getLeagueRosters(leagueId),
-    enabled: active,
-  })
   const { data: settings } = useQuery({
     queryKey: keys.leagueSettings(leagueId),
     queryFn: () => getLeagueSettings(leagueId),
@@ -95,10 +90,6 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
     },
   })
 
-  const teamRoster = useMemo(
-    () => (rosters ?? []).filter((r) => r.team_id === teamId),
-    [rosters, teamId]
-  )
   const cap = capResp?.breakdowns[0]
   // Seasons after the current one that already carry a real cap hit worth
   // flagging (dead money from a cut, or a multi-year deal ending) — mostly
