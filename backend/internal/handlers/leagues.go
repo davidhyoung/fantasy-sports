@@ -51,6 +51,30 @@ type createSettingsReq struct {
 	IRSlots            int                `json:"ir_slots"`
 	DraftRounds        int                `json:"draft_rounds"`
 	RegularSeasonWeeks int                `json:"regular_season_weeks"`
+	// Pointers, not plain floats: 0 is a real, deliberate choice here ("no
+	// cap discount at all for stashes") distinct from "not sent" — a plain
+	// float64 can't tell the two apart, and collapsing them would silently
+	// override a league that wants a 0% discount back to the default every
+	// time settings are saved.
+	TaxiCapPct *float64 `json:"taxi_cap_pct"`
+	IRCapPct   *float64 `json:"ir_cap_pct"`
+}
+
+// Cap discounting defaults for stashed players — see league_settings'
+// taxi_cap_pct/ir_cap_pct.
+const (
+	defaultTaxiCapPct = 0.25
+	defaultIRCapPct   = 0.50
+)
+
+func capPctOrDefault(v *float64, def float64) (float64, error) {
+	if v == nil {
+		return def, nil
+	}
+	if *v < 0 || *v > 1 {
+		return 0, fmt.Errorf("cap percentage must be between 0 and 1")
+	}
+	return *v, nil
 }
 
 // validateNativeSlots rejects a starting-lineup slot vocabulary that a native
@@ -139,6 +163,16 @@ func (h *Handler) CreateLeague(w http.ResponseWriter, r *http.Request) {
 	if req.Settings.RegularSeasonWeeks <= 0 {
 		req.Settings.RegularSeasonWeeks = 14
 	}
+	taxiCapPct, err := capPctOrDefault(req.Settings.TaxiCapPct, defaultTaxiCapPct)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	irCapPct, err := capPctOrDefault(req.Settings.IRCapPct, defaultIRCapPct)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	slotsJSON, err := json.Marshal(req.Settings.Slots)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid slots")
@@ -179,11 +213,13 @@ func (h *Handler) CreateLeague(w http.ResponseWriter, r *http.Request) {
 		IRSlots:            req.Settings.IRSlots,
 		DraftRounds:        req.Settings.DraftRounds,
 		RegularSeasonWeeks: req.Settings.RegularSeasonWeeks,
+		TaxiCapPct:         taxiCapPct,
+		IRCapPct:           irCapPct,
 	}
 	if _, err := tx.Exec(r.Context(), `
-		INSERT INTO league_settings (league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds, regular_season_weeks)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`, l.ID, settings.NumTeams, settings.Budget, slotsJSON, scoringJSON, settings.TaxiSlots, settings.IRSlots, settings.DraftRounds, settings.RegularSeasonWeeks,
+		INSERT INTO league_settings (league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds, regular_season_weeks, taxi_cap_pct, ir_cap_pct)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`, l.ID, settings.NumTeams, settings.Budget, slotsJSON, scoringJSON, settings.TaxiSlots, settings.IRSlots, settings.DraftRounds, settings.RegularSeasonWeeks, settings.TaxiCapPct, settings.IRCapPct,
 	); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

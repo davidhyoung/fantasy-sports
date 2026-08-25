@@ -8,11 +8,11 @@ import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
 import { Badge } from '@/components/ui/badge'
 import {
   getLeagueRosters, getLeagueSettings, updateLeagueTeam, rolloverLeague,
-  getLeagueTransactions, type Team,
+  getLeagueTransactions, getTeamCap, type Team,
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 import { PlayerAssignForm } from './components/PlayerAssignForm'
-import { TradeBuilder } from './components/TradeBuilder'
+import { TradeBuilder, type TradeInitialSelection } from './components/TradeBuilder'
 import { NativeTeamOverview } from './components/NativeTeamOverview'
 
 interface Props {
@@ -50,6 +50,11 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
     setSearchParams((prev) => { prev.set('team', String(id)); return prev }, { replace: true })
   const [assigning, setAssigning] = useState(false)
   const [trading, setTrading] = useState(false)
+  // Set when the trade dialog is opened from a player's detail panel
+  // (Trade/Trade for) instead of the plain "Trade" button, so the builder
+  // opens pre-seeded around that player. Cleared on close so a later plain
+  // "Trade" click doesn't inherit a stale seed.
+  const [tradeSeed, setTradeSeed] = useState<TradeInitialSelection | undefined>(undefined)
   const [confirmRollover, setConfirmRollover] = useState(false)
 
   const { data: rosters } = useQuery({
@@ -67,6 +72,11 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
     queryFn: () => getLeagueTransactions(leagueId),
     enabled: active,
   })
+  const { data: capResp } = useQuery({
+    queryKey: keys.teamCap(leagueId, teamId),
+    queryFn: () => getTeamCap(leagueId, teamId, 4),
+    enabled: active && teamId > 0,
+  })
 
   const claimMutation = useMutation({
     mutationFn: (id: number) => updateLeagueTeam(leagueId, id, { claim: true }),
@@ -80,6 +90,7 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
       qc.invalidateQueries({ queryKey: keys.leagueRosters(leagueId) })
       qc.invalidateQueries({ queryKey: keys.leaguePicks(leagueId) })
       qc.invalidateQueries({ queryKey: keys.leagueTransactions(leagueId) })
+      qc.invalidateQueries({ queryKey: ['league', leagueId, 'team'] })
       setConfirmRollover(false)
     },
   })
@@ -88,10 +99,12 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
     () => (rosters ?? []).filter((r) => r.team_id === teamId),
     [rosters, teamId]
   )
-  const spent = teamRoster.reduce((sum, r) => sum + r.salary, 0)
-  const budget = settings?.budget ?? 0
-  const remaining = budget - spent
-  const rosterSpots = settings ? Object.values(settings.slots).reduce((a, b) => a + b, 0) : 0
+  const cap = capResp?.breakdowns[0]
+  // Seasons after the current one that already carry a real cap hit worth
+  // flagging (dead money from a cut, or a multi-year deal ending) — mostly
+  // empty in a league's early days, since Phase 8's cap-space banking is
+  // what makes every future season interesting on its own.
+  const futureCommitments = (capResp?.breakdowns ?? []).slice(1).filter((b) => b.spend > 0)
 
   const teamName = useMemo(() => {
     const m = new Map(teams.map((t) => [t.id, t.name]))
@@ -110,6 +123,26 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
     }
     if (t.kind === 'draft') return 'Draft pick used'
     return t.kind
+  }
+
+  // Opens the trade builder pre-seeded around one player, from the
+  // player-detail panel's Trade/Trade for action — `playerTeamId` is
+  // whichever team currently rosters them. Only ever called when `myTeam`
+  // is set (the panel doesn't render the button otherwise).
+  const openTradeFor = (playerTeamId: number, gsisId: string) => {
+    if (!myTeam) return
+    const assetKey = `player:${gsisId}`
+    setTradeSeed(
+      playerTeamId === myTeam.id
+        ? { teamAId: myTeam.id, side: 'A', assetKey }
+        : { teamAId: myTeam.id, teamBId: playerTeamId, side: 'B', assetKey }
+    )
+    setTrading(true)
+  }
+
+  const closeTrade = () => {
+    setTrading(false)
+    setTradeSeed(undefined)
   }
 
   if (!active) return null
@@ -141,35 +174,63 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
               </Button>
             )
           )}
-          <Button variant="outline" size="sm" onClick={() => setTrading(true)}>Trade</Button>
+          <Button variant="outline" size="sm" onClick={() => { setTradeSeed(undefined); setTrading(true) }}>Trade</Button>
           <Button size="sm" onClick={() => setAssigning(true)}>+ Assign player</Button>
         </div>
       </div>
 
-      {settings && (
-        <div className="mb-4 flex flex-wrap gap-4 rounded-lg bg-card px-4 py-3">
-          <div>
-            <div className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Budget</div>
-            <div className="font-mono text-sm tabular-nums text-foreground">${budget}</div>
-          </div>
-          <div>
-            <div className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Spent</div>
-            <div className="font-mono text-sm tabular-nums text-foreground">${spent}</div>
-          </div>
-          <div>
-            <div className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Remaining</div>
-            <div className={`font-mono text-sm tabular-nums ${remaining < 0 ? 'text-negative' : 'text-foreground'}`}>${remaining}</div>
-          </div>
-          <div>
-            <div className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Roster</div>
-            <div className={`font-mono text-sm tabular-nums ${teamRoster.length > rosterSpots ? 'text-negative' : 'text-foreground'}`}>
-              {teamRoster.length}/{rosterSpots}
+      {cap && (
+        <div className="mb-4 rounded-lg bg-card px-4 py-3">
+          <div className="flex flex-wrap gap-4">
+            <div>
+              <div className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Cap</div>
+              <div className="font-mono text-sm tabular-nums text-foreground">
+                ${cap.cap}
+                {cap.banked !== 0 && <span className="text-muted-foreground"> ({cap.banked > 0 ? '+' : ''}{cap.banked} banked)</span>}
+              </div>
+            </div>
+            <div>
+              <div className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Active spend</div>
+              <div className="font-mono text-sm tabular-nums text-foreground">${cap.active_spend}</div>
+            </div>
+            {cap.dead_money > 0 && (
+              <div>
+                <div className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Dead money</div>
+                <div className="font-mono text-sm tabular-nums text-negative">${cap.dead_money}</div>
+              </div>
+            )}
+            <div>
+              <div className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Available</div>
+              <div className={`font-mono text-sm tabular-nums ${cap.available < 0 ? 'text-negative' : 'text-foreground'}`}>${cap.available}</div>
+            </div>
+            <div>
+              <div className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Roster</div>
+              <div className={`font-mono text-sm tabular-nums ${cap.roster_count > cap.roster_max ? 'text-negative' : 'text-foreground'}`}>
+                {cap.roster_count}/{cap.roster_max}
+              </div>
             </div>
           </div>
+          {futureCommitments.length > 0 && (
+            <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-2.5 text-xs text-muted-foreground">
+              <span className="font-display font-semibold uppercase tracking-wide">Looking ahead</span>
+              {futureCommitments.map((b) => (
+                <span key={b.season} className="font-mono tabular-nums">
+                  {b.season}: ${b.spend} committed
+                  {b.dead_money > 0 && <span className="text-negative"> (${b.dead_money} dead)</span>}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      <NativeTeamOverview leagueId={leagueId} teamId={teamId} slots={settings?.slots} />
+      <NativeTeamOverview
+        leagueId={leagueId}
+        teamId={teamId}
+        slots={settings?.slots}
+        myTeamId={myTeam?.id}
+        onTradeFor={openTradeFor}
+      />
 
       {/* Single-user model: whoever's signed in manages every team, and the
           backend's requireCommissioner already gates the actual mutation —
@@ -216,8 +277,8 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
         <PlayerAssignForm leagueId={leagueId} teams={teams} mode="assign" defaultTeamId={teamId} onClose={() => setAssigning(false)} />
       </ResponsiveDialog>
 
-      <ResponsiveDialog open={trading} onClose={() => setTrading(false)} title="Trade">
-        <TradeBuilder leagueId={leagueId} teams={teams} onClose={() => setTrading(false)} />
+      <ResponsiveDialog open={trading} onClose={closeTrade} title="Trade">
+        <TradeBuilder leagueId={leagueId} teams={teams} onClose={closeTrade} initialSelection={tradeSeed} />
       </ResponsiveDialog>
 
       <ResponsiveDialog open={confirmRollover} onClose={() => setConfirmRollover(false)} title="Roll over season">

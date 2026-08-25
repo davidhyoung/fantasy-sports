@@ -108,6 +108,7 @@ func main() {
 			r.Put("/{id}/rosters/{gsisId}", h.UpdateLeagueRoster)
 			r.Delete("/{id}/rosters/{gsisId}", h.DropLeagueRoster)
 			r.Get("/{id}/free-agents", h.GetLeagueFreeAgents)
+			r.Get("/{id}/teams/{teamId}/cap", h.GetTeamCap)
 			r.Get("/{id}/picks", h.ListLeagueDraftPicks)
 			r.Post("/{id}/picks/generate", h.GenerateLeagueDraftPicks)
 			r.Post("/{id}/picks/{pickId}/use", h.UseLeagueDraftPick)

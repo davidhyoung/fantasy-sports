@@ -8,10 +8,27 @@ import {
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 
+export interface TradeInitialSelection {
+  /** Always "my team" — the side the asset is pre-checked on when `side`
+   *  is 'A'. Falls back to the ordinary default (teams[0]) if omitted. */
+  teamAId?: number
+  /** The other team — set for a "trade for" seed (someone else's player);
+   *  left unset for a plain "trade" seed (falls back to the ordinary
+   *  default, the first team that isn't teamAId). */
+  teamBId?: number
+  /** Which side the pre-checked asset belongs to. */
+  side: 'A' | 'B'
+  assetKey: string
+}
+
 interface Props {
   leagueId: number
   teams: Team[]
   onClose: () => void
+  /** Pre-seeds the builder for a specific player — e.g. opened from the
+   *  player-detail panel's Trade/Trade for action, rather than the blank
+   *  "Trade" button. */
+  initialSelection?: TradeInitialSelection
 }
 
 type SideAsset = { key: string; kind: 'player' | 'pick'; gsisId?: string; pickId?: number; label: string }
@@ -22,12 +39,24 @@ type SideAsset = { key: string; kind: 'player' | 'pick'; gsisId?: string; pickId
  * N-asset trades, but a 2-team swap is what actually gets used; the UI is
  * scoped to that instead of building a picker for a shape nobody needs yet.
  */
-export function TradeBuilder({ leagueId, teams, onClose }: Props) {
+export function TradeBuilder({ leagueId, teams, onClose, initialSelection }: Props) {
   const qc = useQueryClient()
-  const [teamAId, setTeamAId] = useState(teams[0]?.id ?? 0)
-  const [teamBId, setTeamBId] = useState(teams[1]?.id ?? teams[0]?.id ?? 0)
-  const [fromA, setFromA] = useState<Set<string>>(new Set())
-  const [fromB, setFromB] = useState<Set<string>>(new Set())
+  const [teamAId, setTeamAId] = useState(initialSelection?.teamAId ?? teams[0]?.id ?? 0)
+  const [teamBId, setTeamBId] = useState(
+    initialSelection?.teamBId
+      ?? teams.find((t) => t.id !== (initialSelection?.teamAId ?? teams[0]?.id))?.id
+      ?? teams[0]?.id
+      ?? 0
+  )
+  // Seeded directly from the caller's asset key rather than waiting for
+  // assetsA/assetsB to load — the checkbox state (`selected.has(key)`)
+  // doesn't depend on the asset list being populated yet.
+  const [fromA, setFromA] = useState<Set<string>>(
+    () => new Set(initialSelection?.side === 'A' ? [initialSelection.assetKey] : [])
+  )
+  const [fromB, setFromB] = useState<Set<string>>(
+    () => new Set(initialSelection?.side === 'B' ? [initialSelection.assetKey] : [])
+  )
   // Executing immediately with no confirmation was flagged as the only
   // irreversible action with no gate — "trade it back" isn't a real undo
   // here, it re-executes contracts and leaves two extra rows in the
@@ -93,6 +122,7 @@ export function TradeBuilder({ leagueId, teams, onClose }: Props) {
       qc.invalidateQueries({ queryKey: keys.leagueRosters(leagueId) })
       qc.invalidateQueries({ queryKey: keys.leaguePicks(leagueId) })
       qc.invalidateQueries({ queryKey: keys.leagueTransactions(leagueId) })
+      qc.invalidateQueries({ queryKey: ['league', leagueId, 'team'] })
       onClose()
     },
   })

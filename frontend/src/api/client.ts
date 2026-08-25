@@ -31,6 +31,33 @@ export interface LeagueSettings {
   taxi_slots: number
   ir_slots: number
   draft_rounds: number
+  // How much of a taxi/IR player's salary counts against the hard cap
+  // (0-1) — a stashed player isn't on the active competitive roster, so
+  // their salary is discounted rather than exempted.
+  taxi_cap_pct: number
+  ir_cap_pct: number
+}
+
+// One team's full cap position for one season — see GET .../teams/{id}/cap.
+export interface CapBreakdown {
+  season: number
+  base_budget: number
+  banked: number
+  cap: number
+  active_spend: number
+  dead_money: number
+  spend: number
+  available: number
+  roster_count: number
+  roster_max: number
+  taxi_cap_pct: number
+  ir_cap_pct: number
+}
+
+export interface TeamCapResponse {
+  league_id: number
+  team_id: number
+  breakdowns: CapBreakdown[]
 }
 
 export interface CreateLeagueRequest {
@@ -134,9 +161,22 @@ export const getLeagueSettings = (leagueId: number) =>
 
 export const updateLeagueSettings = (
   leagueId: number,
-  settings: { num_teams: number; budget: number; slots: Record<string, number>; scoring: Record<string, number>; taxi_slots: number; ir_slots: number; draft_rounds: number }
+  settings: {
+    num_teams: number; budget: number; slots: Record<string, number>; scoring: Record<string, number>
+    taxi_slots: number; ir_slots: number; draft_rounds: number
+    taxi_cap_pct?: number; ir_cap_pct?: number
+  }
 ) =>
   request<LeagueSettings>(`/leagues/${leagueId}/settings`, { method: 'PUT', body: JSON.stringify(settings) })
+
+// --- Cap ---
+
+// getTeamCap returns a team's cap breakdown for the league's current season
+// and `seasons` seasons after it (default 3 on the backend) — dead money
+// from a cut and multi-year contract coverage already project forward
+// correctly; only banked cap space (a later phase) doesn't yet.
+export const getTeamCap = (leagueId: number, teamId: number, seasons?: number) =>
+  request<TeamCapResponse>(`/leagues/${leagueId}/teams/${teamId}/cap${seasons ? `?seasons=${seasons}` : ''}`)
 
 // --- Teams ---
 

@@ -4,10 +4,13 @@ import { Button } from '@/components/ui/button'
 import { updateLeagueRoster, type RosterEntry } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 
-/** Shared by the commissioner-wide Roster tab and the personal My Team tab. */
+/** Shared by the commissioner-wide Roster tab, the personal My Team tab, and
+ *  the player-detail panel's fixed action bar — the last of those only has
+ *  a player's contract (from `GET /nfl/players/:gsisId`), not a full roster
+ *  row, so this only asks for the three fields it actually reads. */
 export function EditContractForm({
   leagueId, entry, onClose,
-}: { leagueId: number; entry: RosterEntry; onClose: () => void }) {
+}: { leagueId: number; entry: Pick<RosterEntry, 'gsis_id' | 'salary' | 'years_total'>; onClose: () => void }) {
   const qc = useQueryClient()
   const [salary, setSalary] = useState(entry.salary)
   const [yearToYear, setYearToYear] = useState(entry.years_total == null)
@@ -22,6 +25,7 @@ export function EditContractForm({
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.leagueRosters(leagueId) })
+      qc.invalidateQueries({ queryKey: ['league', leagueId, 'team'] })
       onClose()
     },
   })

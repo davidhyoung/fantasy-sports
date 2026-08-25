@@ -5,6 +5,10 @@ interface MobileSheetProps {
   onClose: () => void
   title?: string
   children: React.ReactNode
+  /** Optional action-button row pinned to the bottom of the sheet, outside
+   *  the scrollable body — e.g. player-detail's Edit contract/Drop/Trade
+   *  actions, which should stay reachable without scrolling a long profile. */
+  footer?: React.ReactNode
 }
 
 /**
@@ -17,7 +21,7 @@ interface MobileSheetProps {
  * slide/fade). No drag handle either, to avoid gesture logic for a purely
  * decorative element — a plain close button does the same job.
  */
-export function MobileSheet({ open, onClose, title, children }: MobileSheetProps) {
+export function MobileSheet({ open, onClose, title, children, footer }: MobileSheetProps) {
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
@@ -30,9 +34,9 @@ export function MobileSheet({ open, onClose, title, children }: MobileSheetProps
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative max-h-[85vh] overflow-y-auto rounded-t-lg border-t border-border bg-background p-4"
+        className="relative flex max-h-[85vh] flex-col rounded-t-lg border-t border-border bg-background"
       >
-        <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 p-4 pb-3">
           {title && <h2 className="font-display text-sm font-semibold text-foreground">{title}</h2>}
           <button
             onClick={onClose}
@@ -42,7 +46,14 @@ export function MobileSheet({ open, onClose, title, children }: MobileSheetProps
             ✕
           </button>
         </div>
-        {children}
+        <div className="flex-1 overflow-y-auto px-4 pb-4">
+          {children}
+        </div>
+        {footer && (
+          <div className="border-t border-border p-3">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -5,6 +5,10 @@ interface SidePanelProps {
   onClose: () => void
   title?: string
   children: React.ReactNode
+  /** Optional action-button row pinned to the bottom of the panel, outside
+   *  the scrollable body — e.g. player-detail's Edit contract/Drop/Trade
+   *  actions, which should stay reachable without scrolling a long profile. */
+  footer?: React.ReactNode
 }
 
 /**
@@ -14,7 +18,7 @@ interface SidePanelProps {
  * Dialog instead. Same no-animation, instant-state-change convention as
  * Dialog/MobileSheet, and the same backdrop-click/Escape-to-close behavior.
  */
-export function SidePanel({ open, onClose, title, children }: SidePanelProps) {
+export function SidePanel({ open, onClose, title, children, footer }: SidePanelProps) {
   React.useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
@@ -32,9 +36,9 @@ export function SidePanel({ open, onClose, title, children }: SidePanelProps) {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative h-full w-full max-w-lg overflow-y-auto border-l border-border bg-background p-5"
+        className="relative flex h-full w-full max-w-lg flex-col border-l border-border bg-background"
       >
-        <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 p-5 pb-4">
           {title && <h2 className="font-display text-sm font-semibold text-foreground">{title}</h2>}
           <button
             onClick={onClose}
@@ -44,7 +48,14 @@ export function SidePanel({ open, onClose, title, children }: SidePanelProps) {
             ✕
           </button>
         </div>
-        {children}
+        <div className="flex-1 overflow-y-auto px-5 pb-5">
+          {children}
+        </div>
+        {footer && (
+          <div className="border-t border-border p-4">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   )

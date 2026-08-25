@@ -16,6 +16,12 @@ interface Props {
   /** League's configured slot counts — lets the roster table show the full
    *  lineup shape (empty spots included), not just whoever's rostered. */
   slots?: Record<string, number>
+  /** The signed-in user's own claimed team in this league, if any — passed
+   *  through to the player-detail panel's action bar (see its own doc). */
+  myTeamId?: number
+  /** Opens the league's trade builder pre-seeded around a specific player;
+   *  passed through to the player-detail panel's Trade/Trade for button. */
+  onTradeFor?: (playerTeamId: number, gsisId: string) => void
 }
 
 /**
@@ -24,7 +30,7 @@ interface Props {
  * separate read-only team page: a native league has no reader who isn't
  * the commissioner (single-user model), so this is always fully editable.
  */
-export function NativeTeamOverview({ leagueId, teamId, slots }: Props) {
+export function NativeTeamOverview({ leagueId, teamId, slots, myTeamId, onTradeFor }: Props) {
   const [editing, setEditing] = useState<RosterEntry | null>(null)
   const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
 
@@ -99,7 +105,13 @@ export function NativeTeamOverview({ leagueId, teamId, slots }: Props) {
         {editing && <EditContractForm leagueId={leagueId} entry={editing} onClose={() => setEditing(null)} />}
       </ResponsiveDialog>
 
-      <PlayerDetailPanel gsisId={viewingPlayer} leagueId={leagueId} onClose={() => setViewingPlayer(null)} />
+      <PlayerDetailPanel
+        gsisId={viewingPlayer}
+        leagueId={leagueId}
+        onClose={() => setViewingPlayer(null)}
+        myTeamId={myTeamId}
+        onTradeFor={onTradeFor}
+      />
     </>
   )
 }

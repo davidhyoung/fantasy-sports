@@ -202,6 +202,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit, onPlay
     qc.invalidateQueries({ queryKey: keys.leagueRosters(leagueId) })
     qc.invalidateQueries({ queryKey: ['league', leagueId, 'free-agents'] })
     qc.invalidateQueries({ queryKey: keys.leagueTransactions(leagueId) })
+    qc.invalidateQueries({ queryKey: ['league', leagueId, 'team'] })
   }
 
   const dropMutation = useMutation({
@@ -480,6 +481,16 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit, onPlay
 
   return (
     <div ref={tableRef}>
+      {/* A move or drop can now fail on the salary cap (unstashing a big
+       *  contract, cutting into dead money isn't possible but a full-cost
+       *  slot swap can be) where it never could before slot eligibility was
+       *  the only gate — surface it rather than letting the mutation fail
+       *  silently. */}
+      {(moveMutation.error || dropMutation.error) && (
+        <p className="mb-2 text-sm text-destructive">
+          {((moveMutation.error ?? dropMutation.error) as Error).message}
+        </p>
+      )}
       {/* Card list below md — the Slot chip's tap-to-pick is the only way
        *  to move a player. */}
       <div className="flex flex-col gap-2 md:hidden">

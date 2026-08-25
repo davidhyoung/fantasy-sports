@@ -259,6 +259,14 @@ func (h *Handler) UseLeagueDraftPick(w http.ResponseWriter, r *http.Request) {
 		signedSeason = season
 	}
 
+	if msg, err := capCheckAdd(r.Context(), tx, leagueID, currentTeamID, signedSeason, req.Slot, req.Salary); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	} else if msg != "" {
+		respondError(w, http.StatusUnprocessableEntity, msg)
+		return
+	}
+
 	if err := assignRosterTx(r.Context(), tx, leagueID, currentTeamID, req.GsisID, req.Slot, "draft", req.Salary, signedSeason, req.YearsTotal); err != nil {
 		respondError(w, http.StatusConflict, "player is already rostered in this league (or not a known player)")
 		return

@@ -45,6 +45,11 @@ type LeagueSettings struct {
 	Scoring     map[string]float64 `json:"scoring"`
 	TaxiSlots   int                `json:"taxi_slots"`
 	IRSlots     int                `json:"ir_slots"`
+	// TaxiCapPct/IRCapPct are how much of a stashed player's salary counts
+	// against the hard cap (0-1) — a taxi/IR player isn't on the active
+	// competitive roster, so their salary is discounted, not exempted.
+	TaxiCapPct float64 `json:"taxi_cap_pct"`
+	IRCapPct   float64 `json:"ir_cap_pct"`
 	// DraftRounds is how many rounds a generated draft class has — a short
 	// rookie draft for dynasty, a full re-draft's worth for redraft rollover.
 	DraftRounds int `json:"draft_rounds"`

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -88,8 +89,19 @@ func (h *Handler) CreateLeagueTrade(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 
-	moves := []map[string]any{}
-	teamsSeen := map[int64]bool{}
+	// Pass 1: resolve and lock every asset (FOR UPDATE), same validation as
+	// before, but nothing is written yet — a trade's cap effect on a team
+	// depends on every asset moving in or out of it, so the check below has
+	// to see the whole trade's net effect before any of it is applied.
+	type resolved struct {
+		asset      tradeAssetReq
+		fromTeamID int64
+		slot       string // player assets only
+		salary     int    // player assets only
+		round      int    // pick assets only
+		season     int    // pick assets only
+	}
+	var players, picks []resolved
 	for _, a := range req.Assets {
 		var toTeamInLeague bool
 		if err := tx.QueryRow(r.Context(),
@@ -104,11 +116,15 @@ func (h *Handler) CreateLeagueTrade(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if a.Kind == "player" {
-			var fromTeamID int64
-			err := tx.QueryRow(r.Context(),
-				`SELECT team_id FROM league_rosters WHERE league_id = $1 AND gsis_id = $2 FOR UPDATE`,
-				leagueID, a.GsisID,
-			).Scan(&fromTeamID)
+			var res resolved
+			res.asset = a
+			err := tx.QueryRow(r.Context(), `
+				SELECT lr.team_id, lr.slot, lc.salary
+				FROM league_rosters lr
+				JOIN league_contracts lc ON lc.league_id = lr.league_id AND lc.gsis_id = lr.gsis_id
+				WHERE lr.league_id = $1 AND lr.gsis_id = $2
+				FOR UPDATE OF lr
+			`, leagueID, a.GsisID).Scan(&res.fromTeamID, &res.slot, &res.salary)
 			if errors.Is(err, pgx.ErrNoRows) {
 				respondError(w, http.StatusBadRequest, "player is not rostered in this league")
 				return
@@ -117,28 +133,19 @@ func (h *Handler) CreateLeagueTrade(w http.ResponseWriter, r *http.Request) {
 				respondError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
-			if fromTeamID == a.ToTeamID {
+			if res.fromTeamID == a.ToTeamID {
 				respondError(w, http.StatusBadRequest, "player is already on the destination team")
 				return
 			}
-			if _, err := tx.Exec(r.Context(),
-				`UPDATE league_rosters SET team_id = $1 WHERE league_id = $2 AND gsis_id = $3`,
-				a.ToTeamID, leagueID, a.GsisID,
-			); err != nil {
-				respondError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
-			teamsSeen[fromTeamID] = true
-			teamsSeen[a.ToTeamID] = true
-			moves = append(moves, map[string]any{"asset": "player", "gsis_id": a.GsisID, "from_team_id": fromTeamID, "to_team_id": a.ToTeamID})
+			players = append(players, res)
 		} else {
-			var fromTeamID int64
+			var res resolved
+			res.asset = a
 			var used *string
-			var round, season int
 			err := tx.QueryRow(r.Context(),
 				`SELECT current_team_id, used_on_gsis_id, round, season FROM league_draft_picks WHERE id = $1 AND league_id = $2 FOR UPDATE`,
 				a.PickID, leagueID,
-			).Scan(&fromTeamID, &used, &round, &season)
+			).Scan(&res.fromTeamID, &used, &res.round, &res.season)
 			if errors.Is(err, pgx.ErrNoRows) {
 				respondError(w, http.StatusNotFound, "pick not found in this league")
 				return
@@ -151,28 +158,90 @@ func (h *Handler) CreateLeagueTrade(w http.ResponseWriter, r *http.Request) {
 				respondError(w, http.StatusConflict, "pick has already been used")
 				return
 			}
-			if fromTeamID == a.ToTeamID {
+			if res.fromTeamID == a.ToTeamID {
 				respondError(w, http.StatusBadRequest, "pick is already owned by the destination team")
 				return
 			}
-			if _, err := tx.Exec(r.Context(),
-				`UPDATE league_draft_picks SET current_team_id = $1 WHERE id = $2`, a.ToTeamID, a.PickID,
-			); err != nil {
-				respondError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
-			teamsSeen[fromTeamID] = true
-			teamsSeen[a.ToTeamID] = true
-			moves = append(moves, map[string]any{"asset": "pick", "pick_id": a.PickID, "season": season, "round": round, "from_team_id": fromTeamID, "to_team_id": a.ToTeamID})
+			picks = append(picks, res)
 		}
+	}
+
+	teamsSeen := map[int64]bool{}
+	for _, res := range players {
+		teamsSeen[res.fromTeamID] = true
+		teamsSeen[res.asset.ToTeamID] = true
+	}
+	for _, res := range picks {
+		teamsSeen[res.fromTeamID] = true
+		teamsSeen[res.asset.ToTeamID] = true
 	}
 	if len(teamsSeen) < 2 {
 		respondError(w, http.StatusBadRequest, "a trade must involve at least two teams")
 		return
 	}
 
-	payload, _ := json.Marshal(map[string]any{"moves": moves})
+	// Cap gate: only players move payroll (picks don't), and only a team
+	// receiving more salary than it sends away is "adding" anything — a
+	// team shedding salary via this same trade, even one currently over
+	// cap, is always allowed to do that. Same "additions only" rule as
+	// every other cap-gated mutation.
 	season := h.leagueSeasonInt(r, leagueID)
+	capDelta := map[int64]int{}
+	countDelta := map[int64]int{}
+	settingsCB, err := leagueCapSettings(r.Context(), tx, leagueID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for _, res := range players {
+		factored := int(math.Round(float64(res.salary) * slotCapFactor(res.slot, settingsCB.TaxiCapPct, settingsCB.IRCapPct)))
+		capDelta[res.asset.ToTeamID] += factored
+		capDelta[res.fromTeamID] -= factored
+		countDelta[res.asset.ToTeamID]++
+		countDelta[res.fromTeamID]--
+	}
+	for teamID := range teamsSeen {
+		if capDelta[teamID] <= 0 && countDelta[teamID] <= 0 {
+			continue
+		}
+		cb, err := teamCap(r.Context(), tx, leagueID, teamID, season)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if countDelta[teamID] > 0 && cb.RosterCount+countDelta[teamID] > cb.RosterMax {
+			respondError(w, http.StatusUnprocessableEntity, fmt.Sprintf("team %d's roster would be full (%d/%d spots)", teamID, cb.RosterCount+countDelta[teamID], cb.RosterMax))
+			return
+		}
+		if capDelta[teamID] > cb.Available {
+			respondError(w, http.StatusUnprocessableEntity, fmt.Sprintf("team %d would be over the salary cap: this trade needs $%d, they have $%d available", teamID, capDelta[teamID], cb.Available))
+			return
+		}
+	}
+
+	// Pass 2: the checks passed, so actually move everything.
+	moves := []map[string]any{}
+	for _, res := range players {
+		if _, err := tx.Exec(r.Context(),
+			`UPDATE league_rosters SET team_id = $1 WHERE league_id = $2 AND gsis_id = $3`,
+			res.asset.ToTeamID, leagueID, res.asset.GsisID,
+		); err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		moves = append(moves, map[string]any{"asset": "player", "gsis_id": res.asset.GsisID, "from_team_id": res.fromTeamID, "to_team_id": res.asset.ToTeamID})
+	}
+	for _, res := range picks {
+		if _, err := tx.Exec(r.Context(),
+			`UPDATE league_draft_picks SET current_team_id = $1 WHERE id = $2`, res.asset.ToTeamID, res.asset.PickID,
+		); err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		moves = append(moves, map[string]any{"asset": "pick", "pick_id": res.asset.PickID, "season": res.season, "round": res.round, "from_team_id": res.fromTeamID, "to_team_id": res.asset.ToTeamID})
+	}
+
+	payload, _ := json.Marshal(map[string]any{"moves": moves})
 	if _, err := tx.Exec(r.Context(),
 		`INSERT INTO league_transactions (league_id, season, kind, payload, created_by) VALUES ($1,$2,'trade',$3,$4)`,
 		leagueID, season, payload, user.ID,

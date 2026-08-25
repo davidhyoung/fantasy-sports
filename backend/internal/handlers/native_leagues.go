@@ -21,9 +21,9 @@ func (h *Handler) GetLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	var s models.LeagueSettings
 	var slotsRaw, scoringRaw []byte
 	err = h.db.QueryRow(r.Context(), `
-		SELECT league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds, regular_season_weeks
+		SELECT league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds, regular_season_weeks, taxi_cap_pct, ir_cap_pct
 		FROM league_settings WHERE league_id = $1
-	`, leagueID).Scan(&s.LeagueID, &s.NumTeams, &s.Budget, &slotsRaw, &scoringRaw, &s.TaxiSlots, &s.IRSlots, &s.DraftRounds, &s.RegularSeasonWeeks)
+	`, leagueID).Scan(&s.LeagueID, &s.NumTeams, &s.Budget, &slotsRaw, &scoringRaw, &s.TaxiSlots, &s.IRSlots, &s.DraftRounds, &s.RegularSeasonWeeks, &s.TaxiCapPct, &s.IRCapPct)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "no settings for this league")
 		return
@@ -87,6 +87,27 @@ func (h *Handler) UpdateLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	if req.RegularSeasonWeeks <= 0 {
 		req.RegularSeasonWeeks = 14
 	}
+	// This is an update, not a creation — an omitted field falls back to
+	// whatever the league already has, not the global default, or every save
+	// from a client that doesn't yet send these two fields would silently
+	// reset a deliberately-customized discount back to 0.25/0.50.
+	var currentTaxiCapPct, currentIRCapPct float64
+	if err := h.db.QueryRow(r.Context(),
+		"SELECT taxi_cap_pct, ir_cap_pct FROM league_settings WHERE league_id = $1", leagueID,
+	).Scan(&currentTaxiCapPct, &currentIRCapPct); err != nil {
+		respondError(w, http.StatusNotFound, "no settings for this league")
+		return
+	}
+	taxiCapPct, err := capPctOrDefault(req.TaxiCapPct, currentTaxiCapPct)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	irCapPct, err := capPctOrDefault(req.IRCapPct, currentIRCapPct)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	slotsJSON, err := json.Marshal(req.Slots)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid slots")
@@ -101,9 +122,10 @@ func (h *Handler) UpdateLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	tag, err := h.db.Exec(r.Context(), `
 		UPDATE league_settings
 		SET num_teams = $2, budget = $3, slots = $4, scoring = $5,
-		    taxi_slots = $6, ir_slots = $7, draft_rounds = $8, regular_season_weeks = $9, updated_at = NOW()
+		    taxi_slots = $6, ir_slots = $7, draft_rounds = $8, regular_season_weeks = $9,
+		    taxi_cap_pct = $10, ir_cap_pct = $11, updated_at = NOW()
 		WHERE league_id = $1
-	`, leagueID, req.NumTeams, req.Budget, slotsJSON, scoringJSON, req.TaxiSlots, req.IRSlots, req.DraftRounds, req.RegularSeasonWeeks)
+	`, leagueID, req.NumTeams, req.Budget, slotsJSON, scoringJSON, req.TaxiSlots, req.IRSlots, req.DraftRounds, req.RegularSeasonWeeks, taxiCapPct, irCapPct)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -116,6 +138,7 @@ func (h *Handler) UpdateLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, models.LeagueSettings{
 		LeagueID: leagueID, NumTeams: req.NumTeams, Budget: req.Budget,
 		Slots: req.Slots, Scoring: req.Scoring, TaxiSlots: req.TaxiSlots, IRSlots: req.IRSlots,
+		TaxiCapPct: taxiCapPct, IRCapPct: irCapPct,
 		DraftRounds: req.DraftRounds, RegularSeasonWeeks: req.RegularSeasonWeeks,
 	})
 }

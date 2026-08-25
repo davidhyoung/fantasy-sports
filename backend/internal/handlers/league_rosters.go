@@ -432,6 +432,14 @@ func (h *Handler) AssignLeagueRoster(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 
+	if msg, err := capCheckAdd(r.Context(), tx, leagueID, req.TeamID, req.SignedSeason, req.Slot, req.Salary); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	} else if msg != "" {
+		respondError(w, http.StatusUnprocessableEntity, msg)
+		return
+	}
+
 	if err := assignRosterTx(r.Context(), tx, leagueID, req.TeamID, req.GsisID, req.Slot, req.AcquiredVia, req.Salary, req.SignedSeason, req.YearsTotal); err != nil {
 		respondError(w, http.StatusConflict, "player is already rostered in this league (or not a known player)")
 		return
@@ -515,6 +523,55 @@ func (h *Handler) UpdateLeagueRoster(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 
+	// Cap-check before writing anything: a slot/salary change alters this
+	// contract's cap hit in place; a team_id change is an addition to the
+	// destination team (a new roster spot and its full salary, unrelated to
+	// whatever the origin team was charged) — same "additions only" rule
+	// CreateLeagueTrade and AssignLeagueRoster follow. Locked FOR UPDATE so
+	// the numbers this check reasons about are the ones the writes below
+	// actually apply to.
+	if req.TeamID != nil || req.Slot != nil || req.Salary != nil {
+		var curTeamID int64
+		var curSlot string
+		var curSalary int
+		if err := tx.QueryRow(r.Context(), `
+			SELECT lr.team_id, lr.slot, lc.salary
+			FROM league_rosters lr
+			JOIN league_contracts lc ON lc.league_id = lr.league_id AND lc.gsis_id = lr.gsis_id
+			WHERE lr.league_id = $1 AND lr.gsis_id = $2
+			FOR UPDATE OF lr
+		`, leagueID, gsisID).Scan(&curTeamID, &curSlot, &curSalary); err != nil {
+			respondError(w, http.StatusNotFound, "player is not rostered in this league")
+			return
+		}
+
+		newSlot := curSlot
+		if req.Slot != nil {
+			newSlot = *req.Slot
+		}
+		newSalary := curSalary
+		if req.Salary != nil {
+			newSalary = *req.Salary
+		}
+		season := h.leagueSeasonInt(r, leagueID)
+
+		if req.TeamID != nil && *req.TeamID != curTeamID {
+			if msg, err := capCheckAdd(r.Context(), tx, leagueID, *req.TeamID, season, newSlot, newSalary); err != nil {
+				respondError(w, http.StatusInternalServerError, err.Error())
+				return
+			} else if msg != "" {
+				respondError(w, http.StatusUnprocessableEntity, msg)
+				return
+			}
+		} else if msg, err := capCheckDelta(r.Context(), tx, leagueID, curTeamID, season, curSlot, curSalary, newSlot, newSalary); err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		} else if msg != "" {
+			respondError(w, http.StatusUnprocessableEntity, msg)
+			return
+		}
+	}
+
 	if req.TeamID != nil || req.Slot != nil {
 		tag, err := tx.Exec(r.Context(), `
 			UPDATE league_rosters
@@ -551,7 +608,10 @@ func (h *Handler) UpdateLeagueRoster(w http.ResponseWriter, r *http.Request) {
 }
 
 // DropLeagueRoster releases a player back to free agency. The contract row
-// cascades with it (FK ON DELETE CASCADE).
+// cascades with it (FK ON DELETE CASCADE) — but under the full-dead-cap
+// rule, the salary it represented doesn't disappear with it: writeDeadMoney
+// charges every season still owed on the contract before the roster/contract
+// rows are deleted, so a cut frees the roster spot but never the cap hit.
 //
 // DELETE /api/leagues/{id}/rosters/{gsisId}
 func (h *Handler) DropLeagueRoster(w http.ResponseWriter, r *http.Request) {
@@ -567,15 +627,57 @@ func (h *Handler) DropLeagueRoster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tag, err := h.db.Exec(r.Context(),
-		"DELETE FROM league_rosters WHERE league_id = $1 AND gsis_id = $2", leagueID, gsisID,
-	)
+	tx, err := h.db.Begin(r.Context())
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if tag.RowsAffected() == 0 {
+	defer tx.Rollback(r.Context())
+
+	var teamID int64
+	var salary, yearsUsed int
+	var yearsTotal *int
+	if err := tx.QueryRow(r.Context(), `
+		SELECT lr.team_id, lc.salary, lc.years_total, lc.years_used
+		FROM league_rosters lr
+		JOIN league_contracts lc ON lc.league_id = lr.league_id AND lc.gsis_id = lr.gsis_id
+		WHERE lr.league_id = $1 AND lr.gsis_id = $2
+		FOR UPDATE OF lr
+	`, leagueID, gsisID).Scan(&teamID, &salary, &yearsTotal, &yearsUsed); err != nil {
 		respondError(w, http.StatusNotFound, "player is not rostered in this league")
+		return
+	}
+
+	currentSeason := h.leagueSeasonInt(r, leagueID)
+	seasons := deadMoneySeasons(yearsTotal, yearsUsed)
+	if salary > 0 {
+		if err := writeDeadMoney(r.Context(), tx, leagueID, teamID, gsisID, currentSeason, salary, seasons); err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+
+	if _, err := tx.Exec(r.Context(),
+		"DELETE FROM league_rosters WHERE league_id = $1 AND gsis_id = $2", leagueID, gsisID,
+	); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	payload, _ := json.Marshal(map[string]any{
+		"gsis_id": gsisID, "team_id": teamID,
+		"dead_money_per_season": salary, "dead_money_seasons": seasons,
+	})
+	if _, err := tx.Exec(r.Context(),
+		`INSERT INTO league_transactions (league_id, season, kind, payload, created_by) VALUES ($1,$2,'drop',$3,$4)`,
+		leagueID, currentSeason, payload, user.ID,
+	); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if err := tx.Commit(r.Context()); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "dropped"})

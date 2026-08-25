@@ -17,6 +17,7 @@ export const keys = {
   leaguePicks: (id: number, season?: number) =>
     season != null ? ['league', id, 'picks', season] as const : ['league', id, 'picks'] as const,
   leagueTransactions: (id: number) => ['league', id, 'transactions'] as const,
+  teamCap: (leagueId: number, teamId: number) => ['league', leagueId, 'team', teamId, 'cap'] as const,
   team: (id: number) => ['team', id] as const,
   teamRoster: (id: number, statType?: string) =>
     statType ? ['team', id, 'roster', statType] as const : ['team', id, 'roster'] as const,

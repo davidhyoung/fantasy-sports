@@ -75,6 +75,7 @@ export function PlayerAssignForm(props: Props | PickProps) {
       qc.invalidateQueries({ queryKey: ['league', leagueId, 'free-agents'] })
       if (props.mode === 'pick') qc.invalidateQueries({ queryKey: keys.leaguePicks(leagueId) })
       qc.invalidateQueries({ queryKey: keys.leagueTransactions(leagueId) })
+      qc.invalidateQueries({ queryKey: ['league', leagueId, 'team'] })
       onClose()
     },
   })
