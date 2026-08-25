@@ -154,7 +154,10 @@ func (h *Handler) rolloverDynasty(ctx context.Context, user *models.User, league
 		return err
 	}
 
-	teamIDs, err := h.leagueTeamIDs(ctx, tx, leagueID)
+	// Next season's draft order comes from how teams finished the season
+	// that just ended — the standard "next year's order is set by this
+	// year's standings" rule.
+	teamIDs, err := h.reverseStandingsOrder(ctx, tx, leagueID, fromSeason)
 	if err != nil {
 		return err
 	}
@@ -192,7 +195,7 @@ func (h *Handler) rolloverRedraft(ctx context.Context, user *models.User, league
 		return err
 	}
 
-	teamIDs, err := h.leagueTeamIDs(ctx, tx, leagueID)
+	teamIDs, err := h.reverseStandingsOrder(ctx, tx, leagueID, fromSeason)
 	if err != nil {
 		return err
 	}

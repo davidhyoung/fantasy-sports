@@ -19,11 +19,11 @@ func (h *Handler) GetLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var s models.LeagueSettings
-	var slotsRaw, scoringRaw []byte
+	var slotsRaw, scoringRaw, rookieScaleRaw []byte
 	err = h.db.QueryRow(r.Context(), `
-		SELECT league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds, regular_season_weeks, taxi_cap_pct, ir_cap_pct
+		SELECT league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds, regular_season_weeks, taxi_cap_pct, ir_cap_pct, rookie_scale
 		FROM league_settings WHERE league_id = $1
-	`, leagueID).Scan(&s.LeagueID, &s.NumTeams, &s.Budget, &slotsRaw, &scoringRaw, &s.TaxiSlots, &s.IRSlots, &s.DraftRounds, &s.RegularSeasonWeeks, &s.TaxiCapPct, &s.IRCapPct)
+	`, leagueID).Scan(&s.LeagueID, &s.NumTeams, &s.Budget, &slotsRaw, &scoringRaw, &s.TaxiSlots, &s.IRSlots, &s.DraftRounds, &s.RegularSeasonWeeks, &s.TaxiCapPct, &s.IRCapPct, &rookieScaleRaw)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "no settings for this league")
 		return
@@ -33,6 +33,10 @@ func (h *Handler) GetLeagueSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := json.Unmarshal(scoringRaw, &s.Scoring); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := json.Unmarshal(rookieScaleRaw, &s.RookieScale); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -89,12 +93,14 @@ func (h *Handler) UpdateLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	// This is an update, not a creation — an omitted field falls back to
 	// whatever the league already has, not the global default, or every save
-	// from a client that doesn't yet send these two fields would silently
-	// reset a deliberately-customized discount back to 0.25/0.50.
+	// from a client that doesn't yet send these fields would silently reset a
+	// deliberate customization (a 0% cap discount, a tuned rookie scale) back
+	// to the default.
 	var currentTaxiCapPct, currentIRCapPct float64
+	var currentRookieScaleRaw []byte
 	if err := h.db.QueryRow(r.Context(),
-		"SELECT taxi_cap_pct, ir_cap_pct FROM league_settings WHERE league_id = $1", leagueID,
-	).Scan(&currentTaxiCapPct, &currentIRCapPct); err != nil {
+		"SELECT taxi_cap_pct, ir_cap_pct, rookie_scale FROM league_settings WHERE league_id = $1", leagueID,
+	).Scan(&currentTaxiCapPct, &currentIRCapPct, &currentRookieScaleRaw); err != nil {
 		respondError(w, http.StatusNotFound, "no settings for this league")
 		return
 	}
@@ -108,6 +114,24 @@ func (h *Handler) UpdateLeagueSettings(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	var currentRookieScale models.RookieScale
+	if err := json.Unmarshal(currentRookieScaleRaw, &currentRookieScale); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	// Every field of RookieScale is meaningless at its zero value (nobody
+	// deliberately wants a 0% top percentile or an empty years-by-round map),
+	// so — unlike taxi/IR pct, which can legitimately be 0 — a plain
+	// zero-check is enough to tell "not sent" from "sent," no pointers needed.
+	if req.RookieScale.TopPct <= 0 {
+		req.RookieScale.TopPct = currentRookieScale.TopPct
+	}
+	if req.RookieScale.BottomPct <= 0 {
+		req.RookieScale.BottomPct = currentRookieScale.BottomPct
+	}
+	if len(req.RookieScale.YearsByRound) == 0 {
+		req.RookieScale.YearsByRound = currentRookieScale.YearsByRound
+	}
 	slotsJSON, err := json.Marshal(req.Slots)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid slots")
@@ -118,14 +142,19 @@ func (h *Handler) UpdateLeagueSettings(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid scoring")
 		return
 	}
+	rookieScaleJSON, err := json.Marshal(req.RookieScale)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid rookie_scale")
+		return
+	}
 
 	tag, err := h.db.Exec(r.Context(), `
 		UPDATE league_settings
 		SET num_teams = $2, budget = $3, slots = $4, scoring = $5,
 		    taxi_slots = $6, ir_slots = $7, draft_rounds = $8, regular_season_weeks = $9,
-		    taxi_cap_pct = $10, ir_cap_pct = $11, updated_at = NOW()
+		    taxi_cap_pct = $10, ir_cap_pct = $11, rookie_scale = $12, updated_at = NOW()
 		WHERE league_id = $1
-	`, leagueID, req.NumTeams, req.Budget, slotsJSON, scoringJSON, req.TaxiSlots, req.IRSlots, req.DraftRounds, req.RegularSeasonWeeks, taxiCapPct, irCapPct)
+	`, leagueID, req.NumTeams, req.Budget, slotsJSON, scoringJSON, req.TaxiSlots, req.IRSlots, req.DraftRounds, req.RegularSeasonWeeks, taxiCapPct, irCapPct, rookieScaleJSON)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -138,7 +167,7 @@ func (h *Handler) UpdateLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, models.LeagueSettings{
 		LeagueID: leagueID, NumTeams: req.NumTeams, Budget: req.Budget,
 		Slots: req.Slots, Scoring: req.Scoring, TaxiSlots: req.TaxiSlots, IRSlots: req.IRSlots,
-		TaxiCapPct: taxiCapPct, IRCapPct: irCapPct,
+		TaxiCapPct: taxiCapPct, IRCapPct: irCapPct, RookieScale: req.RookieScale,
 		DraftRounds: req.DraftRounds, RegularSeasonWeeks: req.RegularSeasonWeeks,
 	})
 }

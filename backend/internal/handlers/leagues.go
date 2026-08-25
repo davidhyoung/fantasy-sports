@@ -58,6 +58,9 @@ type createSettingsReq struct {
 	// time settings are saved.
 	TaxiCapPct *float64 `json:"taxi_cap_pct"`
 	IRCapPct   *float64 `json:"ir_cap_pct"`
+	// RookieScale is optional on create too — its zero value already means
+	// "use the defaults" (see models.RookieScale), so no pointer needed.
+	RookieScale models.RookieScale `json:"rookie_scale"`
 }
 
 // Cap discounting defaults for stashed players — see league_settings'
@@ -183,6 +186,11 @@ func (h *Handler) CreateLeague(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid scoring")
 		return
 	}
+	rookieScaleJSON, err := json.Marshal(req.Settings.RookieScale)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid rookie_scale")
+		return
+	}
 
 	tx, err := h.db.Begin(r.Context())
 	if err != nil {
@@ -215,11 +223,12 @@ func (h *Handler) CreateLeague(w http.ResponseWriter, r *http.Request) {
 		RegularSeasonWeeks: req.Settings.RegularSeasonWeeks,
 		TaxiCapPct:         taxiCapPct,
 		IRCapPct:           irCapPct,
+		RookieScale:        req.Settings.RookieScale,
 	}
 	if _, err := tx.Exec(r.Context(), `
-		INSERT INTO league_settings (league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds, regular_season_weeks, taxi_cap_pct, ir_cap_pct)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-	`, l.ID, settings.NumTeams, settings.Budget, slotsJSON, scoringJSON, settings.TaxiSlots, settings.IRSlots, settings.DraftRounds, settings.RegularSeasonWeeks, settings.TaxiCapPct, settings.IRCapPct,
+		INSERT INTO league_settings (league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds, regular_season_weeks, taxi_cap_pct, ir_cap_pct, rookie_scale)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	`, l.ID, settings.NumTeams, settings.Budget, slotsJSON, scoringJSON, settings.TaxiSlots, settings.IRSlots, settings.DraftRounds, settings.RegularSeasonWeeks, settings.TaxiCapPct, settings.IRCapPct, rookieScaleJSON,
 	); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

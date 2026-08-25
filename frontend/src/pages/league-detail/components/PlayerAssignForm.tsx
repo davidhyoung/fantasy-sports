@@ -60,12 +60,12 @@ export function PlayerAssignForm(props: Props | PickProps) {
 
   const mutation = useMutation({
     mutationFn: () => {
-      const years = yearToYear ? null : yearsTotal
       if (props.mode === 'pick') {
-        return useLeagueDraftPick(leagueId, props.pickId, {
-          gsis_id: selected!.gsis_id, slot, salary, years_total: years,
-        })
+        // Salary and contract length are derived server-side from the
+        // pick's own draft slot (the rookie scale) — see useLeagueDraftPick.
+        return useLeagueDraftPick(leagueId, props.pickId, { gsis_id: selected!.gsis_id, slot })
       }
+      const years = yearToYear ? null : yearsTotal
       return assignLeagueRoster(leagueId, {
         gsis_id: selected!.gsis_id, team_id: teamId, slot, acquired_via: acquiredVia, salary, years_total: years,
       })
@@ -156,41 +156,51 @@ export function PlayerAssignForm(props: Props | PickProps) {
               ))}
             </SelectControl>
             {props.mode === 'assign' && (
-              <SelectControl label="Acquired via" value={acquiredVia} onChange={(e) => setAcquiredVia(e.target.value)}>
-                {ACQUIRED_VIA.map((a) => <option key={a} value={a}>{a}</option>)}
-              </SelectControl>
+              <>
+                <SelectControl label="Acquired via" value={acquiredVia} onChange={(e) => setAcquiredVia(e.target.value)}>
+                  {ACQUIRED_VIA.map((a) => <option key={a} value={a}>{a}</option>)}
+                </SelectControl>
+                <label className="flex flex-col gap-1">
+                  <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Salary $</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={salary}
+                    onChange={(e) => setSalary(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    className="h-8 w-full rounded-md border border-input bg-background px-2 font-mono text-sm tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </label>
+              </>
             )}
-            <label className="flex flex-col gap-1">
-              <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Salary $</span>
-              <input
-                type="number"
-                min={0}
-                value={salary}
-                onChange={(e) => setSalary(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                className="h-8 w-full rounded-md border border-input bg-background px-2 font-mono text-sm tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </label>
           </div>
 
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <input type="checkbox" checked={yearToYear} onChange={(e) => setYearToYear(e.target.checked)} />
-              Year-to-year
-            </label>
-            {!yearToYear && (
-              <label className="flex items-center gap-1.5">
-                <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Years</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={yearsTotal}
-                  onChange={(e) => setYearsTotal(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                  className="h-8 w-16 rounded-md border border-input bg-background px-2 font-mono text-sm tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
+          {props.mode === 'assign' && (
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <input type="checkbox" checked={yearToYear} onChange={(e) => setYearToYear(e.target.checked)} />
+                Year-to-year
               </label>
-            )}
-          </div>
+              {!yearToYear && (
+                <label className="flex items-center gap-1.5">
+                  <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Years</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={yearsTotal}
+                    onChange={(e) => setYearsTotal(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="h-8 w-16 rounded-md border border-input bg-background px-2 font-mono text-sm tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </label>
+              )}
+            </div>
+          )}
+
+          {props.mode === 'pick' && (
+            <p className="text-xs text-muted-foreground">
+              Salary and contract length are set by this pick's draft slot, not chosen here.
+            </p>
+          )}
 
           {mutation.error && <p className="text-sm text-destructive">{(mutation.error as Error).message}</p>}
 

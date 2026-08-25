@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -320,59 +321,42 @@ func (h *Handler) nativeScoreboard(w http.ResponseWriter, r *http.Request, leagu
 // nativeStandings serves GetLeagueStandings for a native league by
 // aggregating scored league_matchups rows — there's no separate standings
 // table, wins/losses/points are a pure read over matchup history.
-func (h *Handler) nativeStandings(w http.ResponseWriter, r *http.Request, leagueID int64) {
-	season := h.leagueSeasonInt(r, leagueID)
-	if s := r.URL.Query().Get("season"); s != "" {
-		if v, err := strconv.Atoi(s); err == nil {
-			season = v
-		}
+// teamRecord is one team's regular-season win-loss record for a season,
+// computed from scored league_matchups rows. Shared by nativeStandings (the
+// public endpoint) and reverseStandingsOrder (draft-order seeding) so the
+// two can never disagree about what a team's record is. Every id passed in
+// gets an entry even with zero games played — a team with no scored weeks
+// yet still has a (0-0-0) record, not a missing one.
+type teamRecord struct {
+	teamID              int64
+	wins, losses, ties  int
+	pointsFor, pointsAg float64
+	last5               []string
+}
+
+func computeTeamRecords(ctx context.Context, db dbtx, leagueID int64, season int, teamIDs []int64) (map[int64]*teamRecord, error) {
+	records := make(map[int64]*teamRecord, len(teamIDs))
+	for _, id := range teamIDs {
+		records[id] = &teamRecord{teamID: id}
 	}
 
-	type record struct {
-		teamID              int64
-		name                string
-		wins, losses, ties  int
-		pointsFor, pointsAg float64
-		last5               []string
-	}
-	records := map[int64]*record{}
-
-	trows, err := h.db.Query(r.Context(), "SELECT id, name FROM teams WHERE league_id = $1", leagueID)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	for trows.Next() {
-		var id int64
-		var name string
-		if err := trows.Scan(&id, &name); err != nil {
-			trows.Close()
-			respondError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		records[id] = &record{teamID: id, name: name}
-	}
-	trows.Close()
-
-	// Ordered by week so last5 (below) reflects actual chronological order,
-	// not insertion/scan order.
-	mrows, err := h.db.Query(r.Context(), `
+	// Ordered by week so last5 reflects actual chronological order, not
+	// insertion/scan order.
+	rows, err := db.Query(ctx, `
 		SELECT team1_id, team2_id, team1_points, team2_points
 		FROM league_matchups
 		WHERE league_id = $1 AND season = $2 AND computed_at IS NOT NULL
 		ORDER BY week ASC
 	`, leagueID, season)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, err
 	}
-	for mrows.Next() {
+	defer rows.Close()
+	for rows.Next() {
 		var t1, t2 int64
 		var p1, p2 float64
-		if err := mrows.Scan(&t1, &t2, &p1, &p2); err != nil {
-			mrows.Close()
-			respondError(w, http.StatusInternalServerError, err.Error())
-			return
+		if err := rows.Scan(&t1, &t2, &p1, &p2); err != nil {
+			return nil, err
 		}
 		r1, ok1 := records[t1]
 		r2, ok2 := records[t2]
@@ -401,9 +385,44 @@ func (h *Handler) nativeStandings(w http.ResponseWriter, r *http.Request, league
 			r2.last5 = append(r2.last5, "T")
 		}
 	}
-	mrows.Close()
+	return records, rows.Err()
+}
 
-	list := make([]*record, 0, len(records))
+func (h *Handler) nativeStandings(w http.ResponseWriter, r *http.Request, leagueID int64) {
+	season := h.leagueSeasonInt(r, leagueID)
+	if s := r.URL.Query().Get("season"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			season = v
+		}
+	}
+
+	names := map[int64]string{}
+	var teamIDs []int64
+	trows, err := h.db.Query(r.Context(), "SELECT id, name FROM teams WHERE league_id = $1", leagueID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for trows.Next() {
+		var id int64
+		var name string
+		if err := trows.Scan(&id, &name); err != nil {
+			trows.Close()
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		names[id] = name
+		teamIDs = append(teamIDs, id)
+	}
+	trows.Close()
+
+	records, err := computeTeamRecords(r.Context(), h.db, leagueID, season, teamIDs)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	list := make([]*teamRecord, 0, len(records))
 	for _, rec := range records {
 		list = append(list, rec)
 	}
@@ -428,7 +447,7 @@ func (h *Handler) nativeStandings(w http.ResponseWriter, r *http.Request, league
 		}
 		resp = append(resp, standingResp{
 			TeamID:        rec.teamID,
-			Name:          rec.name,
+			Name:          names[rec.teamID],
 			Rank:          i + 1,
 			Wins:          rec.wins,
 			Losses:        rec.losses,
@@ -441,4 +460,33 @@ func (h *Handler) nativeStandings(w http.ResponseWriter, r *http.Request, league
 		})
 	}
 	respondJSON(w, http.StatusOK, resp)
+}
+
+// reverseStandingsOrder returns team IDs ordered worst-record-first — "who
+// picks 1.01" — for a completed season. The exact reverse of nativeStandings'
+// wins-desc/points-for-desc sort, over the same computeTeamRecords, so draft
+// order and the Standings page can never disagree about a team's record.
+// Ties (including the common case of a season with no scored weeks at all —
+// draft classes are routinely pre-generated before any scoring exists) fall
+// back to leagueTeamIDs' deterministic id-ascending order, the same
+// convention every native league used for draft order before real standings
+// existed.
+func (h *Handler) reverseStandingsOrder(ctx context.Context, db dbtx, leagueID int64, season int) ([]int64, error) {
+	teamIDs, err := h.leagueTeamIDs(ctx, db, leagueID)
+	if err != nil {
+		return nil, err
+	}
+	records, err := computeTeamRecords(ctx, db, leagueID, season, teamIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	sort.SliceStable(teamIDs, func(i, j int) bool {
+		ri, rj := records[teamIDs[i]], records[teamIDs[j]]
+		if ri.wins != rj.wins {
+			return ri.wins < rj.wins
+		}
+		return ri.pointsFor < rj.pointsFor
+	})
+	return teamIDs, nil
 }

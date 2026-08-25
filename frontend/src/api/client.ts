@@ -36,6 +36,18 @@ export interface LeagueSettings {
   // their salary is discounted rather than exempted.
   taxi_cap_pct: number
   ir_cap_pct: number
+  rookie_scale: RookieScale
+}
+
+// Prices a rookie contract off the league's own real auction-value board:
+// pick 1.01 prices at top_pct, the draft class's last pick at bottom_pct,
+// interpolated between them by draft slot. A zero/missing field means "use
+// the backend default," not "explicitly zero." years_by_round is keyed by
+// round number as a string, matching slots/scoring's convention.
+export interface RookieScale {
+  top_pct: number
+  bottom_pct: number
+  years_by_round: Record<string, number>
 }
 
 // One team's full cap position for one season — see GET .../teams/{id}/cap.
@@ -164,7 +176,7 @@ export const updateLeagueSettings = (
   settings: {
     num_teams: number; budget: number; slots: Record<string, number>; scoring: Record<string, number>
     taxi_slots: number; ir_slots: number; draft_rounds: number
-    taxi_cap_pct?: number; ir_cap_pct?: number
+    taxi_cap_pct?: number; ir_cap_pct?: number; rookie_scale?: RookieScale
   }
 ) =>
   request<LeagueSettings>(`/leagues/${leagueId}/settings`, { method: 'PUT', body: JSON.stringify(settings) })
@@ -415,10 +427,14 @@ export const generateLeagueDraftPicks = (leagueId: number, season?: number, roun
     body: JSON.stringify({ season, rounds }),
   })
 
+// Salary and contract length are derived server-side from the pick's own
+// draft slot (the rookie scale) — not sent here. A fixed, knowable-in-advance
+// price is the point of trading a pick before it's known who gets drafted
+// with it; see backend rookie_scale.go.
 export const useLeagueDraftPick = (
   leagueId: number,
   pickId: number,
-  data: { gsis_id: string; slot?: string; salary: number; signed_season?: number; years_total?: number | null }
+  data: { gsis_id: string; slot?: string }
 ) =>
   request<{ status: string }>(`/leagues/${leagueId}/picks/${pickId}/use`, { method: 'POST', body: JSON.stringify(data) })
 

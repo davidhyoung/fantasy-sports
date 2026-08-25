@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"log"
 	"math"
 	"net/http"
@@ -212,38 +213,6 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		effectiveSlots = leaguesettings.SlotsFromPositions(fetchedPositions)
 	}
 
-	// 4. Load projections from DB (per-game rates + season totals for fallback display)
-	rows, err := h.db.Query(r.Context(), `
-		SELECT
-			p.gsis_id, p.name,
-			COALESCE(p.position, '') AS position,
-			COALESCE(p.position_group, '') AS position_group,
-			COALESCE(p.team, '') AS team,
-			COALESCE(p.headshot_url, '') AS headshot_url,
-			COALESCE(prof.age, 0) AS age,
-			pr.proj_fpts, pr.proj_fpts_ppr, pr.proj_fpts_half, pr.proj_fpts_ppr_pg,
-			pr.proj_pass_yds_pg, pr.proj_pass_td_pg,
-			pr.proj_rush_yds_pg, pr.proj_rush_td_pg,
-			pr.proj_rec_pg, pr.proj_rec_yds_pg, pr.proj_rec_td_pg,
-			pr.proj_fg_made_pg, pr.proj_pat_made_pg,
-			pr.proj_games,
-			pr.confidence, pr.comp_count, pr.uniqueness,
-			g.overall AS player_grade
-		FROM nfl_projections pr
-		JOIN nfl_players p ON p.gsis_id = pr.gsis_id
-		LEFT JOIN nfl_player_season_profiles prof
-		       ON prof.gsis_id = pr.gsis_id AND prof.season = pr.base_season
-		LEFT JOIN nfl_player_grades g
-		       ON g.gsis_id = pr.gsis_id AND g.season = pr.base_season
-		WHERE pr.target_season = $1
-		ORDER BY pr.proj_fpts_ppr DESC
-	`, season)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	defer rows.Close()
-
 	// Determine the effective scoring format from the league's reception modifier.
 	// The generic format totals (proj_fpts_ppr/half/fpts) are reliable; per-stat
 	// rate columns can be inconsistent with them, so we use the generic total that
@@ -327,245 +296,21 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var players []draftPlayer
-	for rows.Next() {
-		var dp draftPlayer
-		var (
-			passYdsPG, passTdPG      float64
-			rushYdsPG, rushTdPG      float64
-			recPG, recYdsPG, recTdPG float64
-			fgMadePG, patMadePG      float64
-			games                    int
-		)
-		if err := rows.Scan(
-			&dp.GsisID, &dp.Name, &dp.Position, &dp.PositionGroup, &dp.Team, &dp.HeadshotURL,
-			&dp.Age,
-			&dp.ProjFpts, &dp.ProjFptsPPR, &dp.ProjFptsHalf, &dp.ProjFptsPPRPG,
-			&passYdsPG, &passTdPG,
-			&rushYdsPG, &rushTdPG,
-			&recPG, &recYdsPG, &recTdPG,
-			&fgMadePG, &patMadePG,
-			&games,
-			&dp.Confidence, &dp.CompCount, &dp.Uniqueness,
-			&dp.PlayerGrade,
-		); err != nil {
-			respondError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		switch {
-		case hasScoringOverride:
-			// A custom pointing system prices every position — not just kickers —
-			// from the same rate-based math kickers always used, just with
-			// user-supplied weights instead of the league's Yahoo modifiers.
-			totals := scoring.ProjectionToCanonicalTotals(scoring.ProjectionRates{
-				PassYdsPG: passYdsPG, PassTdPG: passTdPG,
-				RushYdsPG: rushYdsPG, RushTdPG: rushTdPG,
-				RecPG: recPG, RecYdsPG: recYdsPG, RecTdPG: recTdPG,
-				FgMadePG: fgMadePG, PatMadePG: patMadePG,
-			}, float64(games))
-			dp.ProjLeagueFpts = scoring.ScoreWithModifiers(totals, activeScoring)
-		case dp.PositionGroup == "K":
-			// Kickers have no reliable generic projection total; compute from
-			// per-game rates × league modifiers. Cap unrealistic values (bad data).
-			if hasLeagueScoring {
-				totals := scoring.ProjectionToCanonicalTotals(scoring.ProjectionRates{
-					PassYdsPG: passYdsPG, PassTdPG: passTdPG,
-					RushYdsPG: rushYdsPG, RushTdPG: rushTdPG,
-					RecPG: recPG, RecYdsPG: recYdsPG, RecTdPG: recTdPG,
-					FgMadePG: fgMadePG, PatMadePG: patMadePG,
-				}, float64(games))
-				dp.ProjLeagueFpts = scoring.ScoreWithModifiers(totals, canonicalMods)
-				// Sanity cap: top kickers score ~150–175 pts in a normal season.
-				// If the computed value exceeds this, the per-game rate data is bad.
-				if dp.ProjLeagueFpts > 180 {
-					dp.ProjLeagueFpts = 0
-				}
-			}
-		default:
-			// Skill positions: use the reliable generic format total that best
-			// matches the league's reception scoring. Per-stat rate columns are
-			// often inconsistent with the stored totals and cannot be trusted.
-			switch effectiveFormat {
-			case "ppr":
-				dp.ProjLeagueFpts = dp.ProjFptsPPR
-			case "half":
-				dp.ProjLeagueFpts = dp.ProjFptsHalf
-			default:
-				dp.ProjLeagueFpts = dp.ProjFpts
-			}
-		}
-		if games > 0 {
-			dp.ProjLeaguePPG = dp.ProjLeagueFpts / float64(games)
-		}
-
-		players = append(players, dp)
-	}
-	if err := rows.Err(); err != nil {
+	players, _, replResp, err := h.computeDraftBoard(r.Context(), draftBoardInputs{
+		Season:             season,
+		Budget:             budget,
+		NumTeams:           numTeams,
+		RankingPositions:   rankingPositions,
+		EffectiveSlots:     effectiveSlots,
+		EffectiveFormat:    effectiveFormat,
+		HasScoringOverride: hasScoringOverride,
+		ActiveScoring:      activeScoring,
+		CanonicalMods:      canonicalMods,
+		HasLeagueScoring:   hasLeagueScoring,
+	})
+	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
-	}
-
-	// 5. Compute replacement levels per position (using league-specific points).
-	//    Flex/superflex slots pool their eligible candidates by value rather than
-	//    splitting evenly — an even split undercounts QB demand badly in
-	//    superflex leagues, since QB dwarfs WR/RB/TE per game in points formats.
-	posGroupsForRepl := make(map[string][]ranking.PlayerData)
-	for i := range players {
-		pos := primaryPosition(players[i].PositionGroup)
-		posGroupsForRepl[pos] = append(posGroupsForRepl[pos], ranking.PlayerData{
-			PrimaryPos:  pos,
-			TotalPoints: players[i].ProjLeagueFpts,
-		})
-	}
-	for pos := range posGroupsForRepl {
-		sort.Slice(posGroupsForRepl[pos], func(i, j int) bool {
-			return posGroupsForRepl[pos][i].TotalPoints > posGroupsForRepl[pos][j].TotalPoints
-		})
-	}
-
-	rankLevels := ranking.ComputeReplacementLevels(rankingPositions, posGroupsForRepl, numTeams)
-
-	replLevels := make(map[string]float64)
-	var replResp []replacementLevel
-	for pos, rl := range rankLevels {
-		replLevels[pos] = rl.Points
-		replResp = append(replResp, replacementLevel{
-			Position:     pos,
-			StarterSlots: float64(rl.Threshold) / float64(numTeams),
-			Threshold:    rl.Threshold,
-			Points:       rl.Points,
-		})
-	}
-	sort.Slice(replResp, func(i, j int) bool {
-		return replResp[i].Position < replResp[j].Position
-	})
-
-	// 6. Compute VOR for each player (with age-based draft value adjustment)
-	draftMult := aging.DefaultDraftMultipliers
-	var totalVOR float64
-	for i := range players {
-		pos := primaryPosition(players[i].PositionGroup)
-		vor := players[i].ProjLeagueFpts - replLevels[pos]
-		if vor < 0 {
-			vor = 0
-		}
-		vor *= draftMult.Multiplier(players[i].PositionGroup, players[i].Age)
-		players[i].VOR = vor
-		totalVOR += vor
-	}
-
-	// 7. Compute auction values: $1 reserved for every roster spot in the league
-	//    (every drafted player costs at least a dollar, VOR-positive or not — the
-	//    standard VBD convention this is meant to follow, docs/stats/auction-values.md),
-	//    then the surplus above that split proportionally by VOR. Skipping the
-	//    reservation and instead splitting the *full* nominal budget across only
-	//    the VOR-positive players — the previous behavior — systematically
-	//    overpriced the top of the board: every $1-floor bench spot was extra
-	//    money the formula never set aside, so the league's true spendable total
-	//    was smaller than what got divided among the players who actually earned
-	//    a share.
-	totalRosterSpots := 0
-	for _, count := range effectiveSlots {
-		totalRosterSpots += count
-	}
-	totalRosterSpots *= numTeams
-	totalBudget := float64(budget * numTeams)
-	surplus := totalBudget - float64(totalRosterSpots)
-	if surplus < 0 {
-		surplus = 0
-	}
-
-	// Raw VOR share is linear, which real auction rooms aren't: nobody actually
-	// bids 40-50% of a $200 budget on one player even when the points say they
-	// "should", and shallow single-QB rosters (few flex-eligible starter slots,
-	// e.g. Yahoo's RB2/WR2/FLEX1 default) concentrate VOR onto so few players
-	// that linear sharing pushes the very top of the board past $100 — well
-	// above what real bidders pay (observed ceiling: roughly $70-80 for the
-	// consensus #1 overall in a 12-team/$200 league). Raising VOR to a <1
-	// exponent before sharing compresses that spread — the top of the curve
-	// gives up relatively more than the middle, both in dollars and in the
-	// share of the pool it can command — while leaving the ranking (and the
-	// zero/non-zero VOR boundary) untouched, since x^p is monotonic for x>0.
-	// 0.75 was picked empirically against this league's board to land the top
-	// price in that observed real-world range; it isn't tuned per-league.
-	const auctionVORCompressionExponent = 0.75
-
-	// Kickers are excluded from the shared VOR pool and priced separately,
-	// capped to a $1-3 band. Real auction rooms don't bid up a kicker for
-	// projected points the way they do skill positions — kicker output is
-	// famously the least predictable in fantasy football, so a real bidder
-	// discounts kicker VOR far more aggressively than the shared x^0.75
-	// compression does. Sharing the same pool also meant kicker VOR — once
-	// scored correctly — quietly took dollars away from every other position's
-	// share of the surplus. $1-3 mirrors what kickers actually go for in a
-	// live 12-team draft regardless of the point spread underneath.
-	var maxKickerVOR float64
-	for i := range players {
-		if primaryPosition(players[i].PositionGroup) == "K" && players[i].VOR > maxKickerVOR {
-			maxKickerVOR = players[i].VOR
-		}
-	}
-
-	var totalCompressedVOR float64
-	for i := range players {
-		if primaryPosition(players[i].PositionGroup) == "K" {
-			continue
-		}
-		if players[i].VOR > 0 {
-			totalCompressedVOR += math.Pow(players[i].VOR, auctionVORCompressionExponent)
-		}
-	}
-	for i := range players {
-		if primaryPosition(players[i].PositionGroup) == "K" {
-			if maxKickerVOR > 0 && players[i].VOR > 0 {
-				players[i].AuctionValue = 1 + int(math.Round(2*players[i].VOR/maxKickerVOR))
-			} else {
-				players[i].AuctionValue = 1
-			}
-			continue
-		}
-		if totalCompressedVOR > 0 && players[i].VOR > 0 {
-			compressed := math.Pow(players[i].VOR, auctionVORCompressionExponent)
-			dollarVal := 1 + (compressed/totalCompressedVOR)*surplus
-			players[i].AuctionValue = int(math.Max(1, math.Round(dollarVal)))
-		} else {
-			players[i].AuctionValue = 1
-		}
-	}
-
-	// 8. Sort by VOR descending, assign ranks
-	sort.Slice(players, func(i, j int) bool {
-		return players[i].VOR > players[j].VOR
-	})
-	posRanks := make(map[string]int)
-	for i := range players {
-		players[i].OverallRank = i + 1
-		pos := primaryPosition(players[i].PositionGroup)
-		posRanks[pos]++
-		players[i].PositionRank = posRanks[pos]
-	}
-
-	// 9. Tier players within position: a tier answers "if I wait, do I still get
-	//    someone like this?", which only means anything among players who compete
-	//    for the same roster spot. The draftable range is the starter pool plus a
-	//    half, so the replacement-level tail can't flatten the top of the board.
-	byPositionForTiers := map[string][]tiers.Player{}
-	for _, p := range players {
-		pos := primaryPosition(p.PositionGroup)
-		byPositionForTiers[pos] = append(byPositionForTiers[pos], tiers.Player{
-			ID: p.GsisID, Value: p.ProjLeagueFpts,
-		})
-	}
-	tierByPlayer := map[string]int{}
-	for pos, group := range byPositionForTiers {
-		draftable := int(math.Ceil(float64(rankLevels[pos].Threshold) * 1.5))
-		for id, tier := range tiers.Assign(group, tiers.Options{Draftable: draftable}) {
-			tierByPlayer[id] = tier
-		}
-	}
-	for i := range players {
-		players[i].Tier = tierByPlayer[players[i].GsisID]
 	}
 
 	// 10. Attach consensus values — what the market pays for the same players, on
@@ -631,6 +376,286 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 		ReplacementLevels: replResp,
 		Players:           players,
 	})
+}
+
+// draftBoardInputs is every already-resolved setting computeDraftBoard needs
+// to price a board — the query-override resolution GetDraftValues does stays
+// there; this only ever sees the resolved result, so a second caller with no
+// overrides at all (rookie-scale contract pricing) can build one directly
+// from a league's real settings.
+type draftBoardInputs struct {
+	Season             int
+	Budget             int
+	NumTeams           int
+	RankingPositions   []ranking.RosterPosition
+	EffectiveSlots     map[string]int
+	EffectiveFormat    string
+	HasScoringOverride bool
+	ActiveScoring      map[scoring.CanonicalStat]float64
+	CanonicalMods      map[scoring.CanonicalStat]float64
+	HasLeagueScoring   bool
+}
+
+// computeDraftBoard runs the core league-specific auction pricing pipeline —
+// projections → league scoring → replacement levels → VOR → dollar values →
+// ranks and tiers — and returns the priced board. Shared by GetDraftValues
+// (which reaches this via query overrides or the league's real settings) and
+// rookie-scale contract pricing (`rookieScale.go`, always the league's real
+// settings) — one board, one set of prices, however it's reached. Consensus/
+// trajectory/notes enrichment stays in GetDraftValues — display-only, not
+// needed to price a contract.
+func (h *Handler) computeDraftBoard(ctx context.Context, in draftBoardInputs) ([]draftPlayer, map[string]ranking.ReplacementLevel, []replacementLevel, error) {
+	rows, err := h.db.Query(ctx, `
+		SELECT
+			p.gsis_id, p.name,
+			COALESCE(p.position, '') AS position,
+			COALESCE(p.position_group, '') AS position_group,
+			COALESCE(p.team, '') AS team,
+			COALESCE(p.headshot_url, '') AS headshot_url,
+			COALESCE(prof.age, 0) AS age,
+			pr.proj_fpts, pr.proj_fpts_ppr, pr.proj_fpts_half, pr.proj_fpts_ppr_pg,
+			pr.proj_pass_yds_pg, pr.proj_pass_td_pg,
+			pr.proj_rush_yds_pg, pr.proj_rush_td_pg,
+			pr.proj_rec_pg, pr.proj_rec_yds_pg, pr.proj_rec_td_pg,
+			pr.proj_fg_made_pg, pr.proj_pat_made_pg,
+			pr.proj_games,
+			pr.confidence, pr.comp_count, pr.uniqueness,
+			g.overall AS player_grade
+		FROM nfl_projections pr
+		JOIN nfl_players p ON p.gsis_id = pr.gsis_id
+		LEFT JOIN nfl_player_season_profiles prof
+		       ON prof.gsis_id = pr.gsis_id AND prof.season = pr.base_season
+		LEFT JOIN nfl_player_grades g
+		       ON g.gsis_id = pr.gsis_id AND g.season = pr.base_season
+		WHERE pr.target_season = $1
+		ORDER BY pr.proj_fpts_ppr DESC
+	`, in.Season)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	defer rows.Close()
+
+	var players []draftPlayer
+	for rows.Next() {
+		var dp draftPlayer
+		var (
+			passYdsPG, passTdPG      float64
+			rushYdsPG, rushTdPG      float64
+			recPG, recYdsPG, recTdPG float64
+			fgMadePG, patMadePG      float64
+			games                    int
+		)
+		if err := rows.Scan(
+			&dp.GsisID, &dp.Name, &dp.Position, &dp.PositionGroup, &dp.Team, &dp.HeadshotURL,
+			&dp.Age,
+			&dp.ProjFpts, &dp.ProjFptsPPR, &dp.ProjFptsHalf, &dp.ProjFptsPPRPG,
+			&passYdsPG, &passTdPG,
+			&rushYdsPG, &rushTdPG,
+			&recPG, &recYdsPG, &recTdPG,
+			&fgMadePG, &patMadePG,
+			&games,
+			&dp.Confidence, &dp.CompCount, &dp.Uniqueness,
+			&dp.PlayerGrade,
+		); err != nil {
+			return nil, nil, nil, err
+		}
+
+		switch {
+		case in.HasScoringOverride:
+			// A custom pointing system prices every position — not just kickers —
+			// from the same rate-based math kickers always used, just with
+			// user-supplied weights instead of the league's Yahoo modifiers.
+			totals := scoring.ProjectionToCanonicalTotals(scoring.ProjectionRates{
+				PassYdsPG: passYdsPG, PassTdPG: passTdPG,
+				RushYdsPG: rushYdsPG, RushTdPG: rushTdPG,
+				RecPG: recPG, RecYdsPG: recYdsPG, RecTdPG: recTdPG,
+				FgMadePG: fgMadePG, PatMadePG: patMadePG,
+			}, float64(games))
+			dp.ProjLeagueFpts = scoring.ScoreWithModifiers(totals, in.ActiveScoring)
+		case dp.PositionGroup == "K":
+			// Kickers have no reliable generic projection total; compute from
+			// per-game rates × league modifiers. Cap unrealistic values (bad data).
+			if in.HasLeagueScoring {
+				totals := scoring.ProjectionToCanonicalTotals(scoring.ProjectionRates{
+					PassYdsPG: passYdsPG, PassTdPG: passTdPG,
+					RushYdsPG: rushYdsPG, RushTdPG: rushTdPG,
+					RecPG: recPG, RecYdsPG: recYdsPG, RecTdPG: recTdPG,
+					FgMadePG: fgMadePG, PatMadePG: patMadePG,
+				}, float64(games))
+				dp.ProjLeagueFpts = scoring.ScoreWithModifiers(totals, in.CanonicalMods)
+				// Sanity cap: top kickers score ~150–175 pts in a normal season.
+				// If the computed value exceeds this, the per-game rate data is bad.
+				if dp.ProjLeagueFpts > 180 {
+					dp.ProjLeagueFpts = 0
+				}
+			}
+		default:
+			// Skill positions: use the reliable generic format total that best
+			// matches the league's reception scoring. Per-stat rate columns are
+			// often inconsistent with the stored totals and cannot be trusted.
+			switch in.EffectiveFormat {
+			case "ppr":
+				dp.ProjLeagueFpts = dp.ProjFptsPPR
+			case "half":
+				dp.ProjLeagueFpts = dp.ProjFptsHalf
+			default:
+				dp.ProjLeagueFpts = dp.ProjFpts
+			}
+		}
+		if games > 0 {
+			dp.ProjLeaguePPG = dp.ProjLeagueFpts / float64(games)
+		}
+
+		players = append(players, dp)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, nil, err
+	}
+
+	// Compute replacement levels per position (using league-specific points).
+	// Flex/superflex slots pool their eligible candidates by value rather than
+	// splitting evenly — an even split undercounts QB demand badly in
+	// superflex leagues, since QB dwarfs WR/RB/TE per game in points formats.
+	posGroupsForRepl := make(map[string][]ranking.PlayerData)
+	for i := range players {
+		pos := primaryPosition(players[i].PositionGroup)
+		posGroupsForRepl[pos] = append(posGroupsForRepl[pos], ranking.PlayerData{
+			PrimaryPos:  pos,
+			TotalPoints: players[i].ProjLeagueFpts,
+		})
+	}
+	for pos := range posGroupsForRepl {
+		sort.Slice(posGroupsForRepl[pos], func(i, j int) bool {
+			return posGroupsForRepl[pos][i].TotalPoints > posGroupsForRepl[pos][j].TotalPoints
+		})
+	}
+
+	rankLevels := ranking.ComputeReplacementLevels(in.RankingPositions, posGroupsForRepl, in.NumTeams)
+
+	replLevels := make(map[string]float64)
+	var replResp []replacementLevel
+	for pos, rl := range rankLevels {
+		replLevels[pos] = rl.Points
+		replResp = append(replResp, replacementLevel{
+			Position:     pos,
+			StarterSlots: float64(rl.Threshold) / float64(in.NumTeams),
+			Threshold:    rl.Threshold,
+			Points:       rl.Points,
+		})
+	}
+	sort.Slice(replResp, func(i, j int) bool {
+		return replResp[i].Position < replResp[j].Position
+	})
+
+	// Compute VOR for each player (with age-based draft value adjustment)
+	draftMult := aging.DefaultDraftMultipliers
+	for i := range players {
+		pos := primaryPosition(players[i].PositionGroup)
+		vor := players[i].ProjLeagueFpts - replLevels[pos]
+		if vor < 0 {
+			vor = 0
+		}
+		vor *= draftMult.Multiplier(players[i].PositionGroup, players[i].Age)
+		players[i].VOR = vor
+	}
+
+	// Compute auction values: $1 reserved for every roster spot in the league
+	// (every drafted player costs at least a dollar, VOR-positive or not — the
+	// standard VBD convention this is meant to follow, docs/stats/auction-values.md),
+	// then the surplus above that split proportionally by VOR. Skipping the
+	// reservation and instead splitting the *full* nominal budget across only
+	// the VOR-positive players — the previous behavior — systematically
+	// overpriced the top of the board: every $1-floor bench spot was extra
+	// money the formula never set aside, so the league's true spendable total
+	// was smaller than what got divided among the players who actually earned
+	// a share.
+	totalRosterSpots := 0
+	for _, count := range in.EffectiveSlots {
+		totalRosterSpots += count
+	}
+	totalRosterSpots *= in.NumTeams
+	totalBudget := float64(in.Budget * in.NumTeams)
+	surplus := totalBudget - float64(totalRosterSpots)
+	if surplus < 0 {
+		surplus = 0
+	}
+
+	// Raw VOR share is linear, which real auction rooms aren't — see
+	// GetDraftValues' doc comment / docs/stats/auction-values.md for the full
+	// reasoning. 0.75 was picked empirically against this league's board.
+	const auctionVORCompressionExponent = 0.75
+
+	// Kickers are excluded from the shared VOR pool and priced separately,
+	// capped to a $1-3 band — see GetDraftValues' doc comment for why.
+	var maxKickerVOR float64
+	for i := range players {
+		if primaryPosition(players[i].PositionGroup) == "K" && players[i].VOR > maxKickerVOR {
+			maxKickerVOR = players[i].VOR
+		}
+	}
+
+	var totalCompressedVOR float64
+	for i := range players {
+		if primaryPosition(players[i].PositionGroup) == "K" {
+			continue
+		}
+		if players[i].VOR > 0 {
+			totalCompressedVOR += math.Pow(players[i].VOR, auctionVORCompressionExponent)
+		}
+	}
+	for i := range players {
+		if primaryPosition(players[i].PositionGroup) == "K" {
+			if maxKickerVOR > 0 && players[i].VOR > 0 {
+				players[i].AuctionValue = 1 + int(math.Round(2*players[i].VOR/maxKickerVOR))
+			} else {
+				players[i].AuctionValue = 1
+			}
+			continue
+		}
+		if totalCompressedVOR > 0 && players[i].VOR > 0 {
+			compressed := math.Pow(players[i].VOR, auctionVORCompressionExponent)
+			dollarVal := 1 + (compressed/totalCompressedVOR)*surplus
+			players[i].AuctionValue = int(math.Max(1, math.Round(dollarVal)))
+		} else {
+			players[i].AuctionValue = 1
+		}
+	}
+
+	// Sort by VOR descending, assign ranks
+	sort.Slice(players, func(i, j int) bool {
+		return players[i].VOR > players[j].VOR
+	})
+	posRanks := make(map[string]int)
+	for i := range players {
+		players[i].OverallRank = i + 1
+		pos := primaryPosition(players[i].PositionGroup)
+		posRanks[pos]++
+		players[i].PositionRank = posRanks[pos]
+	}
+
+	// Tier players within position: a tier answers "if I wait, do I still get
+	// someone like this?", which only means anything among players who compete
+	// for the same roster spot. The draftable range is the starter pool plus a
+	// half, so the replacement-level tail can't flatten the top of the board.
+	byPositionForTiers := map[string][]tiers.Player{}
+	for _, p := range players {
+		pos := primaryPosition(p.PositionGroup)
+		byPositionForTiers[pos] = append(byPositionForTiers[pos], tiers.Player{
+			ID: p.GsisID, Value: p.ProjLeagueFpts,
+		})
+	}
+	tierByPlayer := map[string]int{}
+	for pos, group := range byPositionForTiers {
+		draftable := int(math.Ceil(float64(rankLevels[pos].Threshold) * 1.5))
+		for id, tier := range tiers.Assign(group, tiers.Options{Draftable: draftable}) {
+			tierByPlayer[id] = tier
+		}
+	}
+	for i := range players {
+		players[i].Tier = tierByPlayer[players[i].GsisID]
+	}
+
+	return players, rankLevels, replResp, nil
 }
 
 // primaryPosition extracts the first/primary position from a position group string.

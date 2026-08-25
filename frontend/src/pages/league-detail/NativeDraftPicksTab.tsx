@@ -56,7 +56,11 @@ export function NativeDraftPicksTab({ leagueId, active, teams, season }: Props) 
     <>
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-muted-foreground">
-          Future draft picks, tradable like players. Draft order is unset until standings exist — picks are unordered within a round.
+          Future draft picks, tradable like players. Draft order is set from
+          reverse standings of the season before — worst record picks first —
+          falling back to a fixed team order until real standings exist.
+          Salary and contract length for a used pick come from its own draft
+          slot, not a typed-in number.
         </p>
         {!hasUpcomingClass && (
           <Button size="sm" onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending}>
@@ -81,7 +85,7 @@ export function NativeDraftPicksTab({ leagueId, active, teams, season }: Props) 
                 <Table>
                   <TableHeader style={{ top: 0 }}>
                     <HeaderRow>
-                      <TableHead>Round</TableHead>
+                      <TableHead>Pick</TableHead>
                       <TableHead>Owned by</TableHead>
                       <TableHead>Original owner</TableHead>
                       <TableHead>Used on</TableHead>
@@ -90,10 +94,17 @@ export function NativeDraftPicksTab({ leagueId, active, teams, season }: Props) 
                   </TableHeader>
                   <TableBody>
                     {rows
-                      .sort((a, b) => a.round - b.round || a.current_team_name.localeCompare(b.current_team_name))
+                      .sort((a, b) =>
+                        (a.overall_pick ?? Number.MAX_SAFE_INTEGER) - (b.overall_pick ?? Number.MAX_SAFE_INTEGER)
+                        || a.round - b.round || a.current_team_name.localeCompare(b.current_team_name)
+                      )
                       .map((p) => (
                         <TableRow key={p.id}>
-                          <TableCell className="font-mono tabular-nums">{p.round}</TableCell>
+                          <TableCell className="font-mono tabular-nums">
+                            {p.overall_pick != null
+                              ? `${p.round}.${String(((p.overall_pick - 1) % teams.length) + 1).padStart(2, '0')}`
+                              : p.round}
+                          </TableCell>
                           <TableCell className="text-muted-foreground">
                             <RouterLink to={`/leagues/${leagueId}?tab=roster&team=${p.current_team_id}`} className="hover:text-primary">{p.current_team_name}</RouterLink>
                           </TableCell>

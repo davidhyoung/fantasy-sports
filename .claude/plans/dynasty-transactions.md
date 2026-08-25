@@ -21,6 +21,31 @@ Max roster size (sum of configured slots) is enforced as part of this phase,
 not deferred as originally sketched — the FA-offer gate in Phase 7 needs it
 to exist regardless, and it was a two-line addition once `teamCap` existed.
 
+**Phase 6 — done.** Migration 000027 (`league_settings.rookie_scale` JSONB —
+`top_pct`/`bottom_pct`/`years_by_round`). Draft order: `reverseStandingsOrder`
+(`scoring.go`) reverse-sorts `computeTeamRecords` (extracted out of
+`nativeStandings`, so draft order and Standings read the identical
+computation) — wired into `GenerateLeagueDraftPicks` and both rollover
+strategies, which now seed `league_draft_picks.overall_pick` sequentially
+(repeating team order every round, not snaked). Pricing:
+`internal/handlers/rookie_scale.go`'s `rookieScaleSalary` reads the league's
+own real auction board — `computeDraftBoard`/`draftBoardInputs`, extracted
+out of `draft_values.go`'s `GetDraftValues` (verified behavior-preserving by
+diffing live output against a pre-refactor binary) — at a rank interpolated
+between `top_pct`/`bottom_pct` by the pick's position in its class, mirroring
+`draft_consensus.go`'s "read our own curve at a derived rank" pattern.
+`UseLeagueDraftPick` no longer accepts `salary`/`years_total` from the
+caller. Two real bugs found by live testing, both fixed before merge: pricing
+off a pick's own (often future) season found zero projections and floored
+everyone at $1 (fixed: clamp to `MAX(target_season)` from the DB, not a
+hardcoded year); nothing stopped *using* a future pick early, which would
+misalign a contract's `signed_season` against the cap/dead-money machinery's
+assumptions (fixed: reject unless the pick's season is the league's current
+one). See `project_dynasty_transactions.md` memory entry for the full test
+trail. Rookie-scale pricing is native-league-only by construction — it reads
+`leaguesettings.NewNativeSource` directly rather than dispatching through
+`leagueSettingsSource`, since rookie drafts don't exist for Yahoo leagues.
+
 This document is the agreed model plus the phased plan; `native-leagues.md`
 remains the parent initiative and its Phases 0–4 (settings, rosters,
 contracts, picks, trades, rollover, weekly play) are the foundation
@@ -222,7 +247,7 @@ stop using `acquired_via = 'waiver'` rather than adding it.
 | Phase | Scope |
 |---|---|
 | **5** | ✅ done. **Cap becomes real.** `league_team_seasons`, `league_dead_money`, one server-side cap function, hard enforcement on every mutation (assign, slot change, trade, pick use), max roster size enforcement, drops write dead money, taxi/IR discounting, multi-season cap panel replacing the frontend-only strip. |
-| **6** | **Rookie scale.** Reverse-standings draft order into `overall_pick`, `rookie_scale` config, `UseLeagueDraftPick` derives terms. |
+| **6** | ✅ done. **Rookie scale.** Reverse-standings draft order into `overall_pick`, `rookie_scale` config, `UseLeagueDraftPick` derives terms. |
 | **7** | **Free agency offers.** `league_fa_offers` + windows, valuation service (`L*`, reservation off draft-values), resolution algorithm, offer-sheet UI with drag-priority, player card showing preference and floor. |
 | **8** | **Rollover integration.** Dead-money decrement, banking freeze, window open. |
 
@@ -233,9 +258,9 @@ it lands, and 8 is small but can't be tested until 5 exists.
 
 - **Salary retention in trades** — deferred, but it's the pressure valve that
   makes the dead-cap rule survivable, so expect to want it.
-- **Max roster size** is not enforced anywhere today. Phase 5 has to add it,
-  since "a roster spot" is now a scarce resource the FA resolver checks
-  against. Natural definition: sum of configured slots including BN/TAXI/IR.
+- ~~**Max roster size** is not enforced anywhere today.~~ Done in Phase 5 —
+  `teamCap`'s `RosterMax`/`RosterCount`, sum of configured slots including
+  BN/TAXI/IR.
 - **Does `banked` floor at zero?** A team that ends a season over the cap
   should presumably carry the deficit forward rather than resetting free.
   Leaning yes, carry it — but unsettled.
@@ -244,3 +269,16 @@ it lands, and 8 is small but can't be tested until 5 exists.
   with real opponents, since it's a sealed-bid auction against other managers.
   `league_transactions.created_by` and the team-claiming flow already
   anticipate this.
+- **Rookie scale applies to redraft leagues too**, not just dynasty —
+  `UseLeagueDraftPick` doesn't gate on `leagues.format`. Left that way
+  deliberately: a redraft league's picks aren't "rookies" specifically, but
+  pricing a pick's slot off the market curve is just as sensible there as a
+  snake-draft alternative would be. Not discussed explicitly when the model
+  was designed, flagging in case that's wrong.
+- **The Draft Picks tab's `1.03`-style label** derives the pick-within-round
+  number from the league's *current* team count (`teams.length` in
+  `NativeDraftPicksTab.tsx`), not the team count the class was actually
+  generated with. Cosmetic only — `overall_pick` itself is correct — but
+  would mislabel an old class's picks if the league's team count ever
+  changed. Not worth plumbing per-season team counts through for a display
+  label alone unless it comes up.

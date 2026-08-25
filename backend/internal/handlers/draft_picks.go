@@ -3,10 +3,13 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/davidyoung/fantasy-sports/backend/internal/models"
 )
 
 // draftPickResp is one tradable future draft pick, enriched with team names
@@ -143,7 +146,12 @@ func (h *Handler) GenerateLeagueDraftPicks(w http.ResponseWriter, r *http.Reques
 	}
 	defer tx.Rollback(r.Context())
 
-	teamIDs, err := h.leagueTeamIDs(r.Context(), tx, leagueID)
+	// Draft order comes from how teams finished the season before the one
+	// being drafted for — the standard "next year's order is set by this
+	// year's standings" rule. A season with no scored weeks yet (including a
+	// league's first-ever season) falls back to leagueTeamIDs' deterministic
+	// id-ascending order inside reverseStandingsOrder itself.
+	teamIDs, err := h.reverseStandingsOrder(r.Context(), tx, leagueID, req.Season-1)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -176,17 +184,19 @@ func (h *Handler) GenerateLeagueDraftPicks(w http.ResponseWriter, r *http.Reques
 }
 
 type usePickReq struct {
-	GsisID       string `json:"gsis_id"`
-	Slot         string `json:"slot"`
-	Salary       int    `json:"salary"`
-	SignedSeason int    `json:"signed_season"`
-	YearsTotal   *int   `json:"years_total"`
+	GsisID string `json:"gsis_id"`
+	Slot   string `json:"slot"`
 }
 
 // UseLeagueDraftPick spends a pick on a player: assigns the roster+contract
 // row (via assignRosterTx, the same insert AssignLeagueRoster uses) to the
 // pick's current owner and stamps the pick used. acquired_via is always
 // "draft" — that's this endpoint's entire purpose, so it isn't client-set.
+// Salary and contract length are derived entirely from the pick's own slot
+// (overall_pick + round) via the rookie scale — not accepted from the
+// caller — since a fixed, knowable-in-advance price is the whole point of
+// trading picks before it's known who gets drafted with them. See
+// rookie_scale.go / .claude/plans/dynasty-transactions.md.
 //
 // POST /api/leagues/{id}/picks/{pickId}/use
 func (h *Handler) UseLeagueDraftPick(w http.ResponseWriter, r *http.Request) {
@@ -222,10 +232,6 @@ func (h *Handler) UseLeagueDraftPick(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid slot")
 		return
 	}
-	if req.Salary < 0 {
-		respondError(w, http.StatusBadRequest, "salary cannot be negative")
-		return
-	}
 
 	tx, err := h.db.Begin(r.Context())
 	if err != nil {
@@ -235,12 +241,13 @@ func (h *Handler) UseLeagueDraftPick(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback(r.Context())
 
 	var currentTeamID int64
-	var season int
+	var season, round int
+	var overallPick *int
 	var used *string
 	err = tx.QueryRow(r.Context(), `
-		SELECT current_team_id, used_on_gsis_id, season
+		SELECT current_team_id, used_on_gsis_id, season, round, overall_pick
 		FROM league_draft_picks WHERE id = $1 AND league_id = $2 FOR UPDATE
-	`, pickID, leagueID).Scan(&currentTeamID, &used, &season)
+	`, pickID, leagueID).Scan(&currentTeamID, &used, &season, &round, &overallPick)
 	if errors.Is(err, pgx.ErrNoRows) {
 		respondError(w, http.StatusNotFound, "pick not found in this league")
 		return
@@ -253,13 +260,50 @@ func (h *Handler) UseLeagueDraftPick(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusConflict, "pick has already been used")
 		return
 	}
-
-	signedSeason := req.SignedSeason
-	if signedSeason == 0 {
-		signedSeason = season
+	if overallPick == nil {
+		respondError(w, http.StatusUnprocessableEntity, "this pick has no draft position assigned — regenerate the draft class")
+		return
+	}
+	// A future pick is tradable in advance (the entire point of pre-generating
+	// a class ahead of rollover), but spending it early would sign a contract
+	// for a season the league hasn't reached yet — every other assumption in
+	// this system (cap-year alignment, dead-money scheduling) depends on a
+	// contract's signed_season being the season actually being played.
+	if currentSeason := h.leagueSeasonInt(r, leagueID); season != currentSeason {
+		respondError(w, http.StatusUnprocessableEntity,
+			fmt.Sprintf("this pick is for season %d, not the league's current season %d — it can't be used until then", season, currentSeason))
+		return
 	}
 
-	if msg, err := capCheckAdd(r.Context(), tx, leagueID, currentTeamID, signedSeason, req.Slot, req.Salary); err != nil {
+	var totalPicks int
+	if err := tx.QueryRow(r.Context(),
+		"SELECT COUNT(*) FROM league_draft_picks WHERE league_id = $1 AND season = $2", leagueID, season,
+	).Scan(&totalPicks); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	var rookieScaleRaw []byte
+	if err := tx.QueryRow(r.Context(),
+		"SELECT rookie_scale FROM league_settings WHERE league_id = $1", leagueID,
+	).Scan(&rookieScaleRaw); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var rookieScale models.RookieScale
+	if err := json.Unmarshal(rookieScaleRaw, &rookieScale); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	salary, err := h.rookieScaleSalary(r.Context(), leagueID, season, *overallPick, totalPicks, rookieScale)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	yearsTotal := rookieScaleYears(rookieScale, round)
+
+	if msg, err := capCheckAdd(r.Context(), tx, leagueID, currentTeamID, season, req.Slot, salary); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	} else if msg != "" {
@@ -267,7 +311,7 @@ func (h *Handler) UseLeagueDraftPick(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := assignRosterTx(r.Context(), tx, leagueID, currentTeamID, req.GsisID, req.Slot, "draft", req.Salary, signedSeason, req.YearsTotal); err != nil {
+	if err := assignRosterTx(r.Context(), tx, leagueID, currentTeamID, req.GsisID, req.Slot, "draft", salary, season, &yearsTotal); err != nil {
 		respondError(w, http.StatusConflict, "player is already rostered in this league (or not a known player)")
 		return
 	}
@@ -276,7 +320,10 @@ func (h *Handler) UseLeagueDraftPick(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload, _ := json.Marshal(map[string]any{"pick_id": pickID, "team_id": currentTeamID, "gsis_id": req.GsisID, "salary": req.Salary})
+	payload, _ := json.Marshal(map[string]any{
+		"pick_id": pickID, "team_id": currentTeamID, "gsis_id": req.GsisID,
+		"overall_pick": *overallPick, "salary": salary, "years_total": yearsTotal,
+	})
 	if _, err := tx.Exec(r.Context(),
 		`INSERT INTO league_transactions (league_id, season, kind, payload, created_by) VALUES ($1,$2,'draft',$3,$4)`,
 		leagueID, season, payload, user.ID,

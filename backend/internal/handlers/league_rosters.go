@@ -312,10 +312,13 @@ func assignRosterTx(ctx context.Context, tx pgx.Tx, leagueID, teamID int64, gsis
 }
 
 // leagueTeamIDs returns every team in a league, ordered by id — the
-// deterministic "draft order" a native league falls back to since it tracks
-// no standings yet (no weekly scoring exists for native leagues at all).
-func (h *Handler) leagueTeamIDs(ctx context.Context, tx pgx.Tx, leagueID int64) ([]int64, error) {
-	rows, err := tx.Query(ctx, "SELECT id FROM teams WHERE league_id = $1 ORDER BY id", leagueID)
+// deterministic fallback draft order used when there's no real standings to
+// seed one from yet (a season with no scored weeks) and the tiebreak within
+// reverseStandingsOrder for teams tied on record. Takes dbtx rather than
+// pgx.Tx specifically so it can run either inside an open transaction
+// (rollover, pick generation) or as a plain read (reverseStandingsOrder).
+func (h *Handler) leagueTeamIDs(ctx context.Context, db dbtx, leagueID int64) ([]int64, error) {
+	rows, err := db.Query(ctx, "SELECT id FROM teams WHERE league_id = $1 ORDER BY id", leagueID)
 	if err != nil {
 		return nil, err
 	}
@@ -331,25 +334,35 @@ func (h *Handler) leagueTeamIDs(ctx context.Context, tx pgx.Tx, leagueID int64) 
 	return ids, rows.Err()
 }
 
-// generateDraftClassTx inserts one full round-robin draft class (rounds ×
-// teams) for a season inside an already-open transaction. Shared by
+// generateDraftClassTx inserts one full draft class (rounds × teams) for a
+// season inside an already-open transaction. Shared by
 // GenerateLeagueDraftPicks and dynasty/redraft rollover, both of which need
 // "make next season's picks" as one step inside a larger atomic operation.
+// teamIDs is the draft order (worst-record-first once real standings exist —
+// see reverseStandingsOrder), and that order repeats every round rather than
+// snaking: a real dynasty rookie draft is compensatory every round, so the
+// team that finished last should pick first in round 2 as well as round 1,
+// not last. overall_pick is assigned sequentially across the whole class in
+// that same order — it's what rookie-scale contract pricing reads to place a
+// pick on the auction-value curve (internal/handlers/rookie_scale.go).
 // ON CONFLICT DO NOTHING: a commissioner may have already generated (and
 // possibly started trading) next season's picks ahead of the actual
 // rollover — that's the entire point of picks being tradable in advance —
 // so rollover must not fail or duplicate on rows that already exist; it
-// just carries on with whatever's there.
+// just carries on with whatever's there (any such pre-existing pick simply
+// keeps whatever overall_pick, or lack of one, it already had).
 func generateDraftClassTx(ctx context.Context, tx pgx.Tx, leagueID int64, season, rounds int, teamIDs []int64) error {
+	overall := 1
 	for round := 1; round <= rounds; round++ {
 		for _, tid := range teamIDs {
 			if _, err := tx.Exec(ctx, `
-				INSERT INTO league_draft_picks (league_id, season, round, original_team_id, current_team_id)
-				VALUES ($1, $2, $3, $4, $4)
+				INSERT INTO league_draft_picks (league_id, season, round, original_team_id, current_team_id, overall_pick)
+				VALUES ($1, $2, $3, $4, $4, $5)
 				ON CONFLICT (league_id, season, round, original_team_id) DO NOTHING
-			`, leagueID, season, round, tid); err != nil {
+			`, leagueID, season, round, tid, overall); err != nil {
 				return err
 			}
+			overall++
 		}
 	}
 	return nil
