@@ -87,6 +87,23 @@ func (h *Handler) RolloverLeague(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// A free-agency window's season is frozen at open time (see OpenFAWindow)
+	// and never revisited — resolving one after rollover had already moved
+	// leagues.season forward would sign contracts stamped with a season the
+	// league has already left behind, the same signed_season/currently-played
+	// mismatch UseLeagueDraftPick already guards against for a future pick.
+	var faWindowOpen bool
+	if err := h.db.QueryRow(r.Context(),
+		"SELECT EXISTS(SELECT 1 FROM league_fa_windows WHERE league_id = $1 AND resolved_at IS NULL)", leagueID,
+	).Scan(&faWindowOpen); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if faWindowOpen {
+		respondError(w, http.StatusUnprocessableEntity, "resolve the open free agency window before rolling over the season")
+		return
+	}
+
 	switch format {
 	case "dynasty":
 		err = h.rolloverDynasty(r.Context(), user, leagueID, fromSeason, toSeason, rounds)
@@ -114,7 +131,9 @@ func (h *Handler) RolloverLeague(w http.ResponseWriter, r *http.Request) {
 // have reached years_total release their player to FA (league_rosters
 // delete cascades the contract row via FK); everyone else carries forward
 // as-is; a fresh rookie draft class is generated for the new season;
-// leagues.season advances. All in one transaction, logged as kind='rollover'.
+// leagues.season advances; each team's unused cap space from the season
+// just ended banks into the new one; a fresh offseason free-agency window
+// opens. All in one transaction, logged as kind='rollover'.
 func (h *Handler) rolloverDynasty(ctx context.Context, user *models.User, leagueID int64, fromSeason, toSeason, rounds int) error {
 	tx, err := h.db.Begin(ctx)
 	if err != nil {
@@ -124,6 +143,39 @@ func (h *Handler) rolloverDynasty(ctx context.Context, user *models.User, league
 
 	if err := lockLeagueAtSeason(ctx, tx, leagueID, fromSeason); err != nil {
 		return err
+	}
+
+	// Bank each team's leftover cap space *before* anything below changes
+	// the roster — banked(T, toSeason) has to reflect what a team actually
+	// spent across the season that just ended (including contracts about to
+	// expire, which were live all season, and any dead money charged to it),
+	// not the roster as it'll look the instant after this transaction commits.
+	var budget int
+	if err := tx.QueryRow(ctx, "SELECT budget FROM league_settings WHERE league_id = $1", leagueID).Scan(&budget); err != nil {
+		return err
+	}
+	teamIDsForBanking, err := h.leagueTeamIDs(ctx, tx, leagueID)
+	if err != nil {
+		return err
+	}
+	for _, teamID := range teamIDsForBanking {
+		cb, err := teamCap(ctx, tx, leagueID, teamID, fromSeason)
+		if err != nil {
+			return err
+		}
+		// Deliberately no floor at zero: a team that finished the season
+		// over cap carries that deficit forward as negative banked space,
+		// same "being over the cap is its own punishment" posture as
+		// everywhere else in this model — there's no amnesty for a team
+		// that mismanaged its cap, rollover included.
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO league_team_seasons (league_id, team_id, season, base_budget, banked)
+			VALUES ($1, $2, $3, $4, $5)
+			ON CONFLICT (league_id, team_id, season) DO UPDATE
+			SET base_budget = excluded.base_budget, banked = excluded.banked
+		`, leagueID, teamID, toSeason, budget, cb.Available); err != nil {
+			return err
+		}
 	}
 
 	rows, err := tx.Query(ctx, `
@@ -169,6 +221,14 @@ func (h *Handler) rolloverDynasty(ctx context.Context, user *models.User, league
 		return err
 	}
 
+	// A fresh offseason window opens automatically — same posture as the
+	// draft class: rollover sets up next season's *state*, it doesn't act
+	// on it. Signing still requires the explicit ResolveFAWindow click,
+	// same as spending a pick still requires UseLeagueDraftPick.
+	if _, err := tx.Exec(ctx, `INSERT INTO league_fa_windows (league_id, season, kind) VALUES ($1, $2, 'offseason')`, leagueID, toSeason); err != nil {
+		return err
+	}
+
 	payload, _ := json.Marshal(map[string]any{"from_season": fromSeason, "to_season": toSeason, "released": expiring, "draft_rounds": rounds})
 	if _, err := tx.Exec(ctx, `INSERT INTO league_transactions (league_id, season, kind, payload, created_by) VALUES ($1,$2,'rollover',$3,$4)`, leagueID, toSeason, payload, user.ID); err != nil {
 		return err
@@ -177,8 +237,12 @@ func (h *Handler) rolloverDynasty(ctx context.Context, user *models.User, league
 }
 
 // rolloverRedraft: every rostered player releases (contracts cascade), a
-// fresh full draft class is generated, leagues.season advances. No
-// expiring-vs-carrying distinction — redraft leagues re-draft everyone.
+// fresh full draft class is generated, leagues.season advances, a fresh
+// offseason free-agency window opens. No expiring-vs-carrying distinction —
+// redraft leagues re-draft everyone. No cap banking either: a redraft
+// roster resets to nothing every season, so there's no persistent roster
+// for saved cap space to mean anything for — banking is a dynasty-specific
+// strategy element.
 func (h *Handler) rolloverRedraft(ctx context.Context, user *models.User, leagueID int64, fromSeason, toSeason, rounds int) error {
 	tx, err := h.db.Begin(ctx)
 	if err != nil {
@@ -204,6 +268,10 @@ func (h *Handler) rolloverRedraft(ctx context.Context, user *models.User, league
 	}
 
 	if _, err := tx.Exec(ctx, `UPDATE leagues SET season = $1 WHERE id = $2`, strconv.Itoa(toSeason), leagueID); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `INSERT INTO league_fa_windows (league_id, season, kind) VALUES ($1, $2, 'offseason')`, leagueID, toSeason); err != nil {
 		return err
 	}
 

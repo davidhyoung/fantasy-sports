@@ -65,6 +65,28 @@ func rookieScaleYears(cfg models.RookieScale, round int) int {
 	return yearsAtMax
 }
 
+// priceableSeason clamps a requested season down to the latest season
+// nfl_projections actually has rows for. nfl_projections only ever carries
+// one "current" target season (the frontend's PROJECTION_SEASON constant —
+// draft-prep, the league Draft tab, and keepers all clamp their own target
+// season the same way, Math.min(natural, PROJECTION_SEASON)). A rookie
+// pick's own season, or a free-agency window's, is routinely further out
+// than that (a 2028 pick generated today), and computeDraftBoard would then
+// find zero projections and silently price everyone at the $1 floor —
+// clamping to whatever season actually has data avoids hardcoding a year
+// that would need updating every season. Shared by rookie-scale pricing and
+// free-agency valuation, which both price off computeDraftBoard the same way.
+func (h *Handler) priceableSeason(ctx context.Context, season int) (int, error) {
+	var maxProjSeason int
+	if err := h.db.QueryRow(ctx, "SELECT COALESCE(MAX(target_season), 0) FROM nfl_projections").Scan(&maxProjSeason); err != nil {
+		return 0, err
+	}
+	if maxProjSeason > 0 && season > maxProjSeason {
+		return maxProjSeason, nil
+	}
+	return season, nil
+}
+
 // resolveNativeDraftBoardInputs builds computeDraftBoard's inputs from a
 // native league's own real settings — no query overrides, unlike
 // GetDraftValues, since a rookie's actual contract has to be priced off the
@@ -153,21 +175,9 @@ func (h *Handler) resolveNativeDraftBoardInputs(ctx context.Context, leagueID in
 // rank derived from where this pick falls in its class, between the
 // league's configured top/bottom percentiles.
 func (h *Handler) rookieScaleSalary(ctx context.Context, leagueID int64, season, overallPick, totalPicks int, cfg models.RookieScale) (int, error) {
-	// nfl_projections only ever carries one "current" target season (the
-	// frontend's PROJECTION_SEASON constant — draft-prep, the league Draft
-	// tab, and keepers all clamp their own target season the same way,
-	// Math.min(natural, PROJECTION_SEASON)). A rookie pick's own season is
-	// routinely further out than that (a 2028 pick generated today), and
-	// computeDraftBoard would then find zero projections and silently price
-	// everyone at the $1 floor — clamp to whatever season actually has data
-	// instead of hardcoding a year that will need updating every season.
-	priceSeason := season
-	var maxProjSeason int
-	if err := h.db.QueryRow(ctx, "SELECT COALESCE(MAX(target_season), 0) FROM nfl_projections").Scan(&maxProjSeason); err != nil {
+	priceSeason, err := h.priceableSeason(ctx, season)
+	if err != nil {
 		return 0, err
-	}
-	if maxProjSeason > 0 && priceSeason > maxProjSeason {
-		priceSeason = maxProjSeason
 	}
 
 	in, err := h.resolveNativeDraftBoardInputs(ctx, leagueID, priceSeason)

@@ -58,6 +58,9 @@ type createSettingsReq struct {
 	// time settings are saved.
 	TaxiCapPct *float64 `json:"taxi_cap_pct"`
 	IRCapPct   *float64 `json:"ir_cap_pct"`
+	// Same pointer reasoning as TaxiCapPct/IRCapPct — a league genuinely
+	// might want a 0% reservation floor (sign anyone for any offer).
+	FAReservationPct *float64 `json:"fa_reservation_pct"`
 	// RookieScale is optional on create too — its zero value already means
 	// "use the defaults" (see models.RookieScale), so no pointer needed.
 	RookieScale models.RookieScale `json:"rookie_scale"`
@@ -66,11 +69,12 @@ type createSettingsReq struct {
 // Cap discounting defaults for stashed players — see league_settings'
 // taxi_cap_pct/ir_cap_pct.
 const (
-	defaultTaxiCapPct = 0.25
-	defaultIRCapPct   = 0.50
+	defaultTaxiCapPct       = 0.25
+	defaultIRCapPct         = 0.50
+	defaultFAReservationPct = 0.50
 )
 
-func capPctOrDefault(v *float64, def float64) (float64, error) {
+func pctOrDefault(v *float64, def float64) (float64, error) {
 	if v == nil {
 		return def, nil
 	}
@@ -166,12 +170,17 @@ func (h *Handler) CreateLeague(w http.ResponseWriter, r *http.Request) {
 	if req.Settings.RegularSeasonWeeks <= 0 {
 		req.Settings.RegularSeasonWeeks = 14
 	}
-	taxiCapPct, err := capPctOrDefault(req.Settings.TaxiCapPct, defaultTaxiCapPct)
+	taxiCapPct, err := pctOrDefault(req.Settings.TaxiCapPct, defaultTaxiCapPct)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	irCapPct, err := capPctOrDefault(req.Settings.IRCapPct, defaultIRCapPct)
+	irCapPct, err := pctOrDefault(req.Settings.IRCapPct, defaultIRCapPct)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	faReservationPct, err := pctOrDefault(req.Settings.FAReservationPct, defaultFAReservationPct)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
@@ -224,11 +233,12 @@ func (h *Handler) CreateLeague(w http.ResponseWriter, r *http.Request) {
 		TaxiCapPct:         taxiCapPct,
 		IRCapPct:           irCapPct,
 		RookieScale:        req.Settings.RookieScale,
+		FAReservationPct:   faReservationPct,
 	}
 	if _, err := tx.Exec(r.Context(), `
-		INSERT INTO league_settings (league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds, regular_season_weeks, taxi_cap_pct, ir_cap_pct, rookie_scale)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-	`, l.ID, settings.NumTeams, settings.Budget, slotsJSON, scoringJSON, settings.TaxiSlots, settings.IRSlots, settings.DraftRounds, settings.RegularSeasonWeeks, settings.TaxiCapPct, settings.IRCapPct, rookieScaleJSON,
+		INSERT INTO league_settings (league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds, regular_season_weeks, taxi_cap_pct, ir_cap_pct, rookie_scale, fa_reservation_pct)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+	`, l.ID, settings.NumTeams, settings.Budget, slotsJSON, scoringJSON, settings.TaxiSlots, settings.IRSlots, settings.DraftRounds, settings.RegularSeasonWeeks, settings.TaxiCapPct, settings.IRCapPct, rookieScaleJSON, settings.FAReservationPct,
 	); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

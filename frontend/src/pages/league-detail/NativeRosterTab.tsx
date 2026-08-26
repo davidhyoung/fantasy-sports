@@ -113,6 +113,12 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
       return to ? `Season rolled over to ${to}` : 'Season rollover'
     }
     if (t.kind === 'draft') return 'Draft pick used'
+    if (t.kind === 'sign') {
+      const salary = t.payload.salary as number | undefined
+      const years = t.payload.years as number | undefined
+      const teamID = t.payload.team_id as number | undefined
+      return `Free agent signed${teamID ? ` by ${teamName(teamID)}` : ''}${salary != null ? ` — $${salary}${years ? ` · ${years}yr` : ''}` : ''}`
+    }
     return t.kind
   }
 

@@ -21,9 +21,9 @@ func (h *Handler) GetLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	var s models.LeagueSettings
 	var slotsRaw, scoringRaw, rookieScaleRaw []byte
 	err = h.db.QueryRow(r.Context(), `
-		SELECT league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds, regular_season_weeks, taxi_cap_pct, ir_cap_pct, rookie_scale
+		SELECT league_id, num_teams, budget, slots, scoring, taxi_slots, ir_slots, draft_rounds, regular_season_weeks, taxi_cap_pct, ir_cap_pct, rookie_scale, fa_reservation_pct
 		FROM league_settings WHERE league_id = $1
-	`, leagueID).Scan(&s.LeagueID, &s.NumTeams, &s.Budget, &slotsRaw, &scoringRaw, &s.TaxiSlots, &s.IRSlots, &s.DraftRounds, &s.RegularSeasonWeeks, &s.TaxiCapPct, &s.IRCapPct, &rookieScaleRaw)
+	`, leagueID).Scan(&s.LeagueID, &s.NumTeams, &s.Budget, &slotsRaw, &scoringRaw, &s.TaxiSlots, &s.IRSlots, &s.DraftRounds, &s.RegularSeasonWeeks, &s.TaxiCapPct, &s.IRCapPct, &rookieScaleRaw, &s.FAReservationPct)
 	if err != nil {
 		respondError(w, http.StatusNotFound, "no settings for this league")
 		return
@@ -96,20 +96,25 @@ func (h *Handler) UpdateLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	// from a client that doesn't yet send these fields would silently reset a
 	// deliberate customization (a 0% cap discount, a tuned rookie scale) back
 	// to the default.
-	var currentTaxiCapPct, currentIRCapPct float64
+	var currentTaxiCapPct, currentIRCapPct, currentFAReservationPct float64
 	var currentRookieScaleRaw []byte
 	if err := h.db.QueryRow(r.Context(),
-		"SELECT taxi_cap_pct, ir_cap_pct, rookie_scale FROM league_settings WHERE league_id = $1", leagueID,
-	).Scan(&currentTaxiCapPct, &currentIRCapPct, &currentRookieScaleRaw); err != nil {
+		"SELECT taxi_cap_pct, ir_cap_pct, rookie_scale, fa_reservation_pct FROM league_settings WHERE league_id = $1", leagueID,
+	).Scan(&currentTaxiCapPct, &currentIRCapPct, &currentRookieScaleRaw, &currentFAReservationPct); err != nil {
 		respondError(w, http.StatusNotFound, "no settings for this league")
 		return
 	}
-	taxiCapPct, err := capPctOrDefault(req.TaxiCapPct, currentTaxiCapPct)
+	taxiCapPct, err := pctOrDefault(req.TaxiCapPct, currentTaxiCapPct)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	irCapPct, err := capPctOrDefault(req.IRCapPct, currentIRCapPct)
+	irCapPct, err := pctOrDefault(req.IRCapPct, currentIRCapPct)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	faReservationPct, err := pctOrDefault(req.FAReservationPct, currentFAReservationPct)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
@@ -152,9 +157,9 @@ func (h *Handler) UpdateLeagueSettings(w http.ResponseWriter, r *http.Request) {
 		UPDATE league_settings
 		SET num_teams = $2, budget = $3, slots = $4, scoring = $5,
 		    taxi_slots = $6, ir_slots = $7, draft_rounds = $8, regular_season_weeks = $9,
-		    taxi_cap_pct = $10, ir_cap_pct = $11, rookie_scale = $12, updated_at = NOW()
+		    taxi_cap_pct = $10, ir_cap_pct = $11, rookie_scale = $12, fa_reservation_pct = $13, updated_at = NOW()
 		WHERE league_id = $1
-	`, leagueID, req.NumTeams, req.Budget, slotsJSON, scoringJSON, req.TaxiSlots, req.IRSlots, req.DraftRounds, req.RegularSeasonWeeks, taxiCapPct, irCapPct, rookieScaleJSON)
+	`, leagueID, req.NumTeams, req.Budget, slotsJSON, scoringJSON, req.TaxiSlots, req.IRSlots, req.DraftRounds, req.RegularSeasonWeeks, taxiCapPct, irCapPct, rookieScaleJSON, faReservationPct)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -167,7 +172,7 @@ func (h *Handler) UpdateLeagueSettings(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, models.LeagueSettings{
 		LeagueID: leagueID, NumTeams: req.NumTeams, Budget: req.Budget,
 		Slots: req.Slots, Scoring: req.Scoring, TaxiSlots: req.TaxiSlots, IRSlots: req.IRSlots,
-		TaxiCapPct: taxiCapPct, IRCapPct: irCapPct, RookieScale: req.RookieScale,
+		TaxiCapPct: taxiCapPct, IRCapPct: irCapPct, RookieScale: req.RookieScale, FAReservationPct: faReservationPct,
 		DraftRounds: req.DraftRounds, RegularSeasonWeeks: req.RegularSeasonWeeks,
 	})
 }

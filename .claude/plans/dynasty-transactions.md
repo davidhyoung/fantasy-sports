@@ -1,6 +1,12 @@
 # Dynasty Transactions — hard cap, full dead money, competitive free agency
 
-## Status (2026-08-25)
+## Status (2026-08-26)
+
+**All eight phases are done.** See `project_dynasty_transactions.md` memory
+entry and CLAUDE.md's "Dynasty transactions Phase N" sections for the
+detailed build/verification trail of each phase. Remaining open item: salary
+retention in trades (see Open/deferred below) — everything else in the
+original model shipped.
 
 **Phase 5 — done.** Migration 000026 (`league_settings.taxi_cap_pct`/`ir_cap_pct`,
 `league_team_seasons`, `league_dead_money`). `internal/handlers/cap.go`:
@@ -45,6 +51,47 @@ one). See `project_dynasty_transactions.md` memory entry for the full test
 trail. Rookie-scale pricing is native-league-only by construction — it reads
 `leaguesettings.NewNativeSource` directly rather than dispatching through
 `leagueSettingsSource`, since rookie drafts don't exist for Yahoo leagues.
+
+**Phase 7 — done.** Migration 000028 (`league_settings.fa_reservation_pct`,
+`league_fa_windows` — one open per league via partial unique index,
+`league_fa_offers` — `UNIQUE(window_id, gsis_id, team_id)` so re-offering
+upserts). `league_transactions.kind` gains `'sign'`. `internal/handlers/free_agency.go`:
+`ResolveFAWindow` resolves best-market-value-first (reusing `computeDraftBoard`);
+each offer is checked against `teamCap`'s live `Available` minus that team's
+other still-pending, better-priority offers — reserving cap for what a team
+wants more before spending on what it wants less, verified to correctly
+protect a team's stated preference even against the market's own resolution
+order. Below-reservation offers never sign. Winner picked by
+`salary × years × fit(years, L*)`, `L*` from a new `preferredYears`
+(`aging.DefaultPhases` + board quality percentile), tie broken by earliest
+submission. `GetFAValuations` serves market value/reservation/L* standalone
+so the offer form shows them before an offer exists — same "visible formula"
+posture as the rest of the app. Frontend: new Free Agency tab, offer form
+with the valuation panel, priority-orderable per-team offer list, and an
+all-offers board. Two real bugs caught by live testing: the team selector
+used a `useState` default computed from async `teams`/`myTeam` (fixed by
+deriving each render instead); the resolve dialog closed itself before its
+own results summary could render (fixed by only closing on an explicit
+Close, which also resets the mutation).
+
+**Phase 8 — done.** Resolves the "does banked floor at zero" question from
+Phase 5: no — a team over cap at season's end carries the deficit forward as
+negative banked space, consistent with "no amnesty." `rolloverDynasty` now
+computes `banked(T, toSeason) = teamCap(T, fromSeason).Available` for every
+team *before* releasing expiring contracts (an expiring deal was still live,
+and still charged, for the whole season just ending). `rolloverRedraft`
+doesn't bank — a wiped-every-season roster has no persistent state for saved
+cap space to mean anything for. Both strategies now auto-open a fresh
+offseason FA window at rollover, same posture as auto-generating the draft
+class: rollover sets up next season's state, it doesn't act on it. A real
+gap caught before merge: a window's `season` is frozen at open time, so
+resolving one after rollover had already advanced `leagues.season` would
+misalign a signing's `signed_season` — `RolloverLeague` now 422s if a window
+is still open, mirroring the future-pick-use guard from Phase 6. Verified
+end-to-end: a team that spent $50 of $200 banked exactly $150 (confirmed via
+both the DB row and a live `GetTeamCap` call showing the resulting $350
+cap), untouched teams banked their full budget, and rollover was correctly
+refused until the open window was resolved.
 
 This document is the agreed model plus the phased plan; `native-leagues.md`
 remains the parent initiative and its Phases 0–4 (settings, rosters,
@@ -248,8 +295,8 @@ stop using `acquired_via = 'waiver'` rather than adding it.
 |---|---|
 | **5** | ✅ done. **Cap becomes real.** `league_team_seasons`, `league_dead_money`, one server-side cap function, hard enforcement on every mutation (assign, slot change, trade, pick use), max roster size enforcement, drops write dead money, taxi/IR discounting, multi-season cap panel replacing the frontend-only strip. |
 | **6** | ✅ done. **Rookie scale.** Reverse-standings draft order into `overall_pick`, `rookie_scale` config, `UseLeagueDraftPick` derives terms. |
-| **7** | **Free agency offers.** `league_fa_offers` + windows, valuation service (`L*`, reservation off draft-values), resolution algorithm, offer-sheet UI with drag-priority, player card showing preference and floor. |
-| **8** | **Rollover integration.** Dead-money decrement, banking freeze, window open. |
+| **7** | ✅ done. **Free agency offers.** `league_fa_offers` + windows, valuation service (`L*`, reservation off draft-values), resolution algorithm, offer-sheet UI with priority reordering, player card showing preference and floor. (Priority reordering shipped as ▲▼ buttons, not drag — matches the design system's "direction is typographic, not an icon" rule and draft-prep's existing reorder convention.) |
+| **8** | ✅ done. **Rollover integration.** Banking freeze, window auto-open. (Dead-money "decrement" turned out to need no rollover-time logic — Phase 5's `writeDeadMoney` already pre-computes every remaining season's charge at cut time, so there's nothing left to decrement later.) |
 
 Phase 5 is the hard prerequisite — 6 and 7 are independent of each other once
 it lands, and 8 is small but can't be tested until 5 exists.
@@ -261,9 +308,9 @@ it lands, and 8 is small but can't be tested until 5 exists.
 - ~~**Max roster size** is not enforced anywhere today.~~ Done in Phase 5 —
   `teamCap`'s `RosterMax`/`RosterCount`, sum of configured slots including
   BN/TAXI/IR.
-- **Does `banked` floor at zero?** A team that ends a season over the cap
-  should presumably carry the deficit forward rather than resetting free.
-  Leaning yes, carry it — but unsettled.
+- ~~**Does `banked` floor at zero?**~~ Resolved in Phase 8: no floor — a team
+  that ends a season over cap carries the deficit forward as negative
+  banked space, consistent with "no amnesty."
 - **Multi-user.** Everything here still assumes the single-commissioner model.
   The offer system is the first mechanic that's genuinely more interesting
   with real opponents, since it's a sealed-bid auction against other managers.

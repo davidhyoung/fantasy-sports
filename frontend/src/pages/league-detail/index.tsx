@@ -10,6 +10,7 @@ import { ScoreboardTab } from './ScoreboardTab'
 import { PlayersTab } from './PlayersTab'
 import { NativePlayersTab } from './NativePlayersTab'
 import { NativeRosterTab } from './NativeRosterTab'
+import { NativeFreeAgencyTab } from './NativeFreeAgencyTab'
 import { NativeStandingsTab } from './NativeStandingsTab'
 import { NativeScoreboardTab } from './NativeScoreboardTab'
 import { DraftSection } from './DraftSection'
@@ -102,6 +103,7 @@ export default function LeagueDetail() {
           {isNative && <TabsTrigger value="roster">Roster</TabsTrigger>}
           <TabsTrigger value="scoreboard">Scoreboard</TabsTrigger>
           <TabsTrigger value="players">Players</TabsTrigger>
+          {isNative && <TabsTrigger value="free-agency">Free Agency</TabsTrigger>}
           {/* Draft covers draft values (NFL) + keepers (or picks, for native). */}
           <TabsTrigger value="draft">Draft</TabsTrigger>
           {isNative && (
@@ -157,6 +159,12 @@ export default function LeagueDetail() {
             <PlayersTab leagueId={leagueId} active={visibleTab === 'players'} sport={league.sport} />
           )}
         </TabsContent>
+
+        {isNative && (
+          <TabsContent value="free-agency">
+            <NativeFreeAgencyTab leagueId={leagueId} active={visibleTab === 'free-agency'} teams={teams} myTeam={myTeam} />
+          </TabsContent>
+        )}
 
         <TabsContent value="draft">
           <DraftSection

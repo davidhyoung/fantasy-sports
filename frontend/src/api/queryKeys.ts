@@ -50,4 +50,8 @@ export const keys = {
   leagueFeed: (id: number) => ['league', id, 'feed'] as const,
   leagueThreads: (id: number, filter: string) => ['league', id, 'threads', filter] as const,
   leagueThread: (id: number, threadId: number) => ['league', id, 'thread', threadId] as const,
+  faWindows: (id: number) => ['league', id, 'fa-windows'] as const,
+  faOffers: (id: number, windowId?: number) =>
+    windowId != null ? ['league', id, 'fa-offers', windowId] as const : ['league', id, 'fa-offers'] as const,
+  faValuations: (id: number, gsisIds: string[]) => ['league', id, 'fa-valuations', ...gsisIds] as const,
 }

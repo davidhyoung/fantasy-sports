@@ -396,6 +396,82 @@ export const getLeagueFreeAgents = (leagueId: number, position = '', limit = 100
   return request<FreeAgent[]>(`/leagues/${leagueId}/free-agents?${params.toString()}`)
 }
 
+// --- Free agency (native leagues only) ---
+// Teams offer contracts, the player signs the best one — no FAAB, the
+// salary cap is the only currency. See free_agency.go.
+
+export interface FAWindow {
+  id: number
+  season: number
+  kind: 'offseason' | 'weekly'
+  week: number | null
+  opened_at: string
+  resolved_at: string | null
+}
+
+export interface FAOffer {
+  id: number
+  window_id: number
+  gsis_id: string
+  player_name: string
+  team_id: number
+  team_name: string
+  salary: number
+  years: number
+  priority: number
+  status: 'pending' | 'won' | 'lost'
+  created_at: string
+}
+
+// A free agent's real market value (this league's own auction board), the
+// reservation floor derived from it, and his own preferred contract length
+// (L*) — the exact numbers an offer is scored against.
+export interface FAValuation {
+  gsis_id: string
+  position: string
+  age: number
+  auction_value: number
+  reservation_value: number
+  preferred_years: number
+}
+
+export const listFAWindows = (leagueId: number) =>
+  request<FAWindow[]>(`/leagues/${leagueId}/fa/windows`)
+
+export const openFAWindow = (leagueId: number, data: { kind?: 'offseason' | 'weekly'; week?: number }) =>
+  request<FAWindow>(`/leagues/${leagueId}/fa/windows`, { method: 'POST', body: JSON.stringify(data) })
+
+export const resolveFAWindow = (leagueId: number, windowId: number) =>
+  request<{ status: string; signed: { gsis_id: string; name: string; team_id: number; salary: number; years: number }[] }>(
+    `/leagues/${leagueId}/fa/windows/${windowId}/resolve`, { method: 'POST' }
+  )
+
+export const listFAOffers = (leagueId: number, windowId?: number, teamId?: number) => {
+  const params = new URLSearchParams()
+  if (windowId) params.set('window_id', String(windowId))
+  if (teamId) params.set('team_id', String(teamId))
+  const qs = params.toString()
+  return request<FAOffer[]>(`/leagues/${leagueId}/fa/offers${qs ? `?${qs}` : ''}`)
+}
+
+export const createFAOffer = (
+  leagueId: number,
+  data: { gsis_id: string; team_id: number; salary: number; years: number; priority?: number }
+) =>
+  request<FAOffer>(`/leagues/${leagueId}/fa/offers`, { method: 'POST', body: JSON.stringify(data) })
+
+export const withdrawFAOffer = (leagueId: number, offerId: number) =>
+  request<{ status: string }>(`/leagues/${leagueId}/fa/offers/${offerId}`, { method: 'DELETE' })
+
+export const reorderFAOffers = (leagueId: number, teamId: number, offerIds: number[]) =>
+  request<{ status: string }>(`/leagues/${leagueId}/fa/offers/priority`, {
+    method: 'PUT',
+    body: JSON.stringify({ team_id: teamId, offer_ids: offerIds }),
+  })
+
+export const getFAValuations = (leagueId: number, gsisIds: string[]) =>
+  request<FAValuation[]>(`/leagues/${leagueId}/fa/valuations?gsis_ids=${gsisIds.map(encodeURIComponent).join(',')}`)
+
 // --- Draft picks & trades (native leagues only) ---
 
 // Named LeagueDraftPick, not DraftPick — that name is already taken below by
@@ -452,7 +528,7 @@ export const createLeagueTrade = (leagueId: number, assets: TradeAsset[]) =>
   })
 
 export interface LeagueTransaction {
-  kind: 'draft' | 'auction' | 'trade' | 'add' | 'drop' | 'keeper' | 'rollover'
+  kind: 'draft' | 'auction' | 'trade' | 'add' | 'drop' | 'keeper' | 'rollover' | 'sign'
   payload: Record<string, unknown>
   created_at: string
 }

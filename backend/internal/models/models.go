@@ -58,6 +58,10 @@ type LeagueSettings struct {
 	// RookieScale configures how a drafted player's contract is derived from
 	// his draft slot — see internal/handlers/rookie_scale.go.
 	RookieScale RookieScale `json:"rookie_scale"`
+	// FAReservationPct is the fraction of a free agent's real auction value
+	// (GetDraftValues' board) below which no offer signs him — see
+	// internal/handlers/free_agency.go.
+	FAReservationPct float64 `json:"fa_reservation_pct"`
 }
 
 // RookieScale prices a rookie contract off the league's own real
