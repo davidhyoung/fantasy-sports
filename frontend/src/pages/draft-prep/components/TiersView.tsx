@@ -99,61 +99,59 @@ export function TiersView({ players, prep }: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {groups.map(({ position, tiers }) => (
-        <div key={position}>
-          <h3 className="mb-2 font-display text-sm font-semibold uppercase tracking-wide text-foreground">
+        <div key={position} className="rounded-lg bg-card">
+          <h3 className="border-b border-border px-3 py-1.5 font-display text-[11px] font-semibold uppercase tracking-wide text-foreground">
             {position}{' '}
-            <span className="font-mono text-xs font-normal text-muted-foreground">
+            <span className="font-mono text-muted-foreground">
               {tiers.reduce((n, t) => n + t.members.length, 0)}
             </span>
           </h3>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {tiers.map(({ tier, members }) => {
-              const top = members[0].proj_league_fpts
-              const bottom = members[members.length - 1].proj_league_fpts
-              return (
-                <div key={tier} className="rounded-lg border border-border bg-card">
-                  <div className="flex items-baseline justify-between gap-2 border-b border-border px-3 py-1.5">
-                    <span className={`inline-block rounded px-1.5 py-0.5 font-display text-[11px] font-semibold uppercase tracking-wide ${tierWeightClass(tier)}`}>
-                      {tier > 0 ? `Tier ${tier}` : 'Untiered'}
-                    </span>
-                    <span className="font-mono text-[10px] text-muted-foreground/60">
-                      {members.length} · {top === bottom ? top.toFixed(0) : `${bottom.toFixed(0)}–${top.toFixed(0)}`} pts
-                    </span>
-                  </div>
-                  <ul className="px-3 py-1.5">
-                    {members.map((p) => (
-                      <li key={p.gsis_id} className="flex items-center gap-2 py-0.5">
-                        <PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />
-                        <RouterLink
-                          to={`/players/${p.gsis_id}`}
-                          className="min-w-0 flex-1 truncate font-display text-xs font-semibold text-foreground hover:underline"
-                          title={`${p.name} · ${p.team} · ${p.proj_league_fpts.toFixed(0)} proj`}
-                        >
-                          {p.name}
-                        </RouterLink>
-                        <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{p.team}</span>
-                        <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
-                          ${p.auction_value}
-                        </span>
-                        {prep && (
-                          <button
-                            onClick={() => setPicking(p)}
-                            title="Move to a different tier"
-                            aria-label={`Set tier for ${p.name}`}
-                            className="shrink-0 font-mono text-[10px] text-muted-foreground hover:text-foreground"
-                          >
-                            ⋯
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
+          {tiers.map(({ tier, members }) => {
+            const top = members[0].proj_league_fpts
+            const bottom = members[members.length - 1].proj_league_fpts
+            return (
+              <div key={tier} className="border-b border-border last:border-0">
+                <div className="flex items-baseline justify-between gap-2 px-3 pt-1.5">
+                  <span className={`inline-block rounded px-1.5 py-0.5 font-display text-[10px] font-semibold uppercase tracking-wide ${tierWeightClass(tier)}`}>
+                    {tier > 0 ? `Tier ${tier}` : 'Untiered'}
+                  </span>
+                  <span className="font-mono text-[10px] text-muted-foreground/60">
+                    {members.length} · {top === bottom ? top.toFixed(0) : `${bottom.toFixed(0)}–${top.toFixed(0)}`} pts
+                  </span>
                 </div>
-              )
-            })}
-          </div>
+                <ul className="px-3 pb-1.5">
+                  {members.map((p) => (
+                    <li key={p.gsis_id} className="flex items-center gap-2 py-0.5">
+                      <PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />
+                      <RouterLink
+                        to={`/players/${p.gsis_id}`}
+                        className="min-w-0 flex-1 truncate font-display text-xs font-semibold text-foreground hover:underline"
+                        title={`${p.name} · ${p.team} · ${p.proj_league_fpts.toFixed(0)} proj`}
+                      >
+                        {p.name}
+                      </RouterLink>
+                      <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{p.team}</span>
+                      <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                        ${p.auction_value}
+                      </span>
+                      {prep && (
+                        <button
+                          onClick={() => setPicking(p)}
+                          title="Move to a different tier"
+                          aria-label={`Set tier for ${p.name}`}
+                          className="shrink-0 font-mono text-[10px] text-muted-foreground hover:text-foreground"
+                        >
+                          ⋯
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })}
         </div>
       ))}
 
