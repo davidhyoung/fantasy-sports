@@ -10,6 +10,7 @@ import {
   useDraftSettings, serverSettings, draftQuery, type DraftSettings,
 } from '@/pages/league-detail/hooks/useDraftSettings'
 import { DraftBoardTable, boardOrder } from './components/DraftBoardTable'
+import { TiersView } from './components/TiersView'
 import { TeamPanel } from './components/TeamPanel'
 import { useDraftPrep } from './hooks/useDraftPrep'
 
@@ -20,6 +21,12 @@ const VIEWS = [
   { value: 'negative', label: 'Avoids' },
 ] as const
 type View = (typeof VIEWS)[number]['value']
+
+const BOARD_MODES = [
+  { value: 'board', label: 'Board' },
+  { value: 'tiers', label: 'Tiers' },
+] as const
+type BoardMode = (typeof BOARD_MODES)[number]['value']
 
 const NO_PLAYERS: DraftPlayer[] = []
 const NO_LEVELS: DraftReplacementLevel[] = []
@@ -69,6 +76,7 @@ export default function DraftPrep() {
   } = useDraftSettings(leagueId ?? 0, leagueDefaults)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [view, setView] = useState<View>('all')
+  const [boardMode, setBoardMode] = useState<BoardMode>('board')
 
   // Whether the team panel is docked open is a preference that should survive a
   // reload, not a place you navigate to — so it lives in localStorage, not the URL.
@@ -137,6 +145,17 @@ export default function DraftPrep() {
     if (at < 0) return
     order.splice(place === 'before' ? at : at + 1, 0, movingId)
     prep.reorder.mutate(order)
+  }
+
+  // Shared by both board layouts (table, tiers) so they never disagree about
+  // your ranks/targets/tier overrides.
+  const prepControls = {
+    entry: prep.entry,
+    setInterest: prep.setInterest,
+    setPlannedCost: prep.setPlannedCost,
+    setNote: prep.setNote,
+    setCustomTier: prep.setCustomTier,
+    onMove: handleMove,
   }
 
   if (leaguesLoading) return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -215,6 +234,25 @@ export default function DraftPrep() {
             </FilterChip>
           ))}
         </div>
+        {/* A tray, not chips — this switches which layout you're looking at
+            (a sortable table vs. position/tier buckets), not which players are
+            in it, same "tray = dataset/view switch" rule the rest of the app
+            uses (e.g. Free Agents/Rostered on the native Players tab). */}
+        <div className="flex w-fit rounded-lg bg-muted overflow-hidden">
+          {BOARD_MODES.map((m) => (
+            <button
+              key={m.value}
+              onClick={() => setBoardMode(m.value)}
+              className={`px-3 py-1.5 font-display text-xs font-semibold ${
+                boardMode === m.value
+                  ? 'bg-foreground text-background'
+                  : 'bg-card text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {isLoading ? (
@@ -242,19 +280,11 @@ export default function DraftPrep() {
             {isCustomized && ' · custom settings'}
             {prep.counts.ranked > 0 && ` · ${prep.counts.ranked} ranked on your board`}
           </p>
-          <DraftBoardTable
-            players={filtered}
-            gradeRankMap={gradeRankMap}
-            showConsensus
-            prep={{
-              entry: prep.entry,
-              setInterest: prep.setInterest,
-              setPlannedCost: prep.setPlannedCost,
-              setNote: prep.setNote,
-              setCustomTier: prep.setCustomTier,
-              onMove: handleMove,
-            }}
-          />
+          {boardMode === 'tiers' ? (
+            <TiersView players={filtered} prep={prepControls} />
+          ) : (
+            <DraftBoardTable players={filtered} gradeRankMap={gradeRankMap} showConsensus prep={prepControls} />
+          )}
         </>
       )}
       </div>

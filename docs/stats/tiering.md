@@ -78,11 +78,18 @@ its own.
 - `backend/internal/services/tiers/tiers.go` — `Assign`, the whole algorithm.
 - `backend/internal/handlers/draft_values.go` — step 9 tiers each position group
   and sets `draftPlayer.Tier`.
-- `frontend/src/pages/draft-prep/components/DraftBoardTable.tsx` — the Tier
-  column (sortable; sorting by tier deliberately interleaves positions, which
-  answers "who's at the top of their own position?").
-- `frontend/src/pages/draft-prep/components/Shortlist.tsx` — tier beside position
-  on each rated player.
+- `frontend/src/pages/draft-prep/components/TiersView.tsx` — a dedicated "Tiers"
+  layout (toggled alongside the main sortable board, on both Draft Prep and the
+  league Draft tab): players bucketed by position, then by tier within it, each
+  bucket shown as its own card so a tier number is never seen without the
+  position it belongs to. Editable (drag was replaced with a click-to-pick
+  dialog, reusing the same pattern the mobile board already used for touch)
+  when reached from Draft Prep; read-only on the league Draft tab. The main
+  board (`DraftBoardTable.tsx`) carries no tier column or sort at all — mixing
+  a position-scoped number into an overall-sorted list read as a single
+  comparable scale, which it isn't (see "Assumptions" above).
+- `frontend/src/pages/draft-prep/components/TargetList.tsx` — tier beside position
+  on each rated player, inside the docked team panel's Targets mode.
 
 ## Worked example
 

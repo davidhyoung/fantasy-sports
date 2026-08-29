@@ -5,9 +5,15 @@ import { getDraftValues, DraftPlayer, DraftReplacementLevel } from '@/api/client
 import { keys } from '@/api/queryKeys'
 import { PROJECTION_SEASON } from '@/lib/constants'
 import { DraftBoardTable } from '@/pages/draft-prep/components/DraftBoardTable'
+import { TiersView } from '@/pages/draft-prep/components/TiersView'
 import { draftQuery, readSettings } from './hooks/useDraftSettings'
 
 const POSITIONS = ['All', 'QB', 'RB', 'WR', 'TE', 'K']
+const BOARD_MODES = [
+  { value: 'board', label: 'Board' },
+  { value: 'tiers', label: 'Tiers' },
+] as const
+type BoardMode = (typeof BOARD_MODES)[number]['value']
 const NO_PLAYERS: DraftPlayer[] = []
 
 interface DraftTabProps {
@@ -23,6 +29,7 @@ interface DraftTabProps {
  */
 export function DraftTab({ leagueId, active, season }: DraftTabProps) {
   const [position, setPosition] = useState('')
+  const [boardMode, setBoardMode] = useState<BoardMode>('board')
 
   // Draft prep is for the season AFTER the completed league year — e.g. a 2025
   // Yahoo league → draft for the 2026 NFL season. Clamped to PROJECTION_SEASON,
@@ -90,21 +97,38 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
         )}
       </div>
 
-      {/* Position filter */}
-      <div className="flex gap-1 flex-wrap">
-        {POSITIONS.map((pos) => (
-          <button
-            key={pos}
-            onClick={() => setPosition(pos === 'All' ? '' : pos)}
-            className={`px-3 py-1 rounded text-sm font-medium border ${
-              (pos === 'All' && position === '') || pos === position
-                ? 'bg-primary/20 text-primary border-primary/50'
-                : 'text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground'
-            }`}
-          >
-            {pos}
-          </button>
-        ))}
+      {/* Position filter + board/tiers layout switch */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex gap-1 flex-wrap">
+          {POSITIONS.map((pos) => (
+            <button
+              key={pos}
+              onClick={() => setPosition(pos === 'All' ? '' : pos)}
+              className={`px-3 py-1 rounded text-sm font-medium border ${
+                (pos === 'All' && position === '') || pos === position
+                  ? 'bg-primary/20 text-primary border-primary/50'
+                  : 'text-muted-foreground border-border hover:text-foreground hover:border-muted-foreground'
+              }`}
+            >
+              {pos}
+            </button>
+          ))}
+        </div>
+        <div className="flex w-fit rounded-lg bg-muted overflow-hidden">
+          {BOARD_MODES.map((m) => (
+            <button
+              key={m.value}
+              onClick={() => setBoardMode(m.value)}
+              className={`px-3 py-1.5 font-display text-xs font-semibold ${
+                boardMode === m.value
+                  ? 'bg-foreground text-background'
+                  : 'bg-card text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Table */}
@@ -129,7 +153,11 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
                 : `${data.scoring_format.toUpperCase()} scoring`}
             {data.settings?.overridden && ' · your Draft Prep settings'}
           </p>
-          <DraftBoardTable players={filtered} gradeRankMap={gradeRankMap} />
+          {boardMode === 'tiers' ? (
+            <TiersView players={filtered} />
+          ) : (
+            <DraftBoardTable players={filtered} gradeRankMap={gradeRankMap} />
+          )}
         </>
       ) : null}
     </div>

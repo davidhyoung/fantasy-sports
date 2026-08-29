@@ -10,7 +10,7 @@ import ConfidenceBadge from '@/pages/projections/components/ConfidenceBadge'
 import UniquenessBadge from '@/pages/projections/components/UniquenessBadge'
 import { TrendSparkline } from '@/pages/league-detail/components/TrendSparkline'
 import { INTEREST_LEVELS, interestIconClass, interestRowClass } from '../lib/interest'
-import { primaryPos, effectiveTier, tierWeightClass, edgeOf, type PrepControls } from './DraftBoardTable'
+import { edgeOf, type PrepControls } from './DraftBoardTable'
 
 const SORT_OPTIONS: MobileSortOption[] = [
   { col: 'board', label: 'Board' },
@@ -18,7 +18,6 @@ const SORT_OPTIONS: MobileSortOption[] = [
   { col: 'name', label: 'Player' },
   { col: 'interest', label: 'Interest' },
   { col: 'pos', label: 'Pos' },
-  { col: 'tier', label: 'Tier' },
   { col: 'age', label: 'Age' },
   { col: 'grade', label: 'Grade' },
   { col: 'vor', label: 'VOR' },
@@ -39,21 +38,19 @@ interface Props {
   sortCol: string
   sortDir: SortDir
   onSort: (col: string) => void
-  tierBoundaries: Map<string, { aboveTier: number; displayTier: number }>
   /** Reordering (and its touch equivalent) only makes sense while board order is showing. */
   canMove: boolean
 }
 
 /**
  * Card-list replacement for `DraftBoardTable`'s `<Table>` below `md`. Native
- * HTML5 drag-and-drop (the desktop reorder/tier mechanism) never fires on
- * touch, so this isn't a shrunk copy of the desktop board — reordering and
- * tier reassignment get their own tap-driven equivalents (a "move to
- * position" sheet and a "set tier" sheet) that call the exact same
- * `prep.onMove`/`prep.setCustomTier` handlers the drag interactions use.
+ * HTML5 drag-and-drop (the desktop reorder mechanism) never fires on touch,
+ * so this isn't a shrunk copy of the desktop board — reordering gets its own
+ * tap-driven equivalent (a "move to position" sheet) that calls the exact
+ * same `prep.onMove` handler the drag interaction uses.
  */
 export function MobileDraftBoard({
-  players: sorted, gradeRankMap, prep, showConsensus, sortCol, sortDir, onSort, tierBoundaries, canMove,
+  players: sorted, gradeRankMap, prep, showConsensus, sortCol, sortDir, onSort, canMove,
 }: Props) {
   const options = SORT_OPTIONS.filter((o) => {
     if (o.col === 'board' && !prep) return false
@@ -67,14 +64,8 @@ export function MobileDraftBoard({
         <MobileSortSheet options={options} current={sortCol} dir={sortDir} onSort={onSort} />
       </div>
       {sorted.map((p, i) => {
-        const divider = tierBoundaries.get(p.gsis_id)
         return (
           <div key={p.gsis_id}>
-            {divider && (
-              <div className="mb-2 mt-4 px-1 font-display text-[10px] font-semibold uppercase tracking-wide text-muted-foreground first:mt-0">
-                Tier {divider.displayTier}
-              </div>
-            )}
             <PlayerCard
               player={p}
               index={i}
@@ -111,13 +102,11 @@ function PlayerCard({
   canMove: boolean
 }) {
   const [moveOpen, setMoveOpen] = useState(false)
-  const [tierOpen, setTierOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [costOpen, setCostOpen] = useState(false)
 
   const mine = prep?.entry(p.gsis_id)
   const rankDisplay = mine?.custom_rank ?? i + 1
-  const tier = effectiveTier(p, prep?.entry)
   const edge = edgeOf(p)
 
   const face = (
@@ -133,19 +122,6 @@ function PlayerCard({
         </button>
       ) : (
         <span className="font-mono text-xs tabular-nums text-muted-foreground">{p.overall_rank}</span>
-      )}
-      {prep ? (
-        <button
-          onClick={() => setTierOpen(true)}
-          title="Set tier"
-          className={`flex h-11 min-w-9 items-center justify-center rounded px-1.5 font-mono text-[11px] tabular-nums hover:opacity-80 ${tierWeightClass(tier)}`}
-        >
-          {tier || '—'}
-        </button>
-      ) : (
-        <span className={`inline-block rounded px-1.5 py-0.5 font-mono text-[11px] tabular-nums ${tierWeightClass(p.tier)}`}>
-          {p.tier || '—'}
-        </span>
       )}
     </>
   )
@@ -263,9 +239,6 @@ function PlayerCard({
         />
       )}
       {prep && (
-        <TierSheet open={tierOpen} onClose={() => setTierOpen(false)} player={p} players={sorted} prep={prep} />
-      )}
-      {prep && (
         <MobileSheet open={noteOpen} onClose={() => setNoteOpen(false)} title={`Note — ${p.name}`}>
           <NoteSheetBody
             value={mine?.note ?? ''}
@@ -371,71 +344,6 @@ function MoveToPositionSheet({
       >
         Move here
       </button>
-    </MobileSheet>
-  )
-}
-
-function maxTierForPosition(players: DraftPlayer[], pos: string): number {
-  let max = 0
-  for (const p of players) {
-    if (primaryPos(p) === pos) max = Math.max(max, p.tier || 0)
-  }
-  return max
-}
-
-/**
- * Touch replacement for dropping a player onto a tier divider. Lists every
- * tier the algorithm has actually produced for this position (plus one, to
- * open a new bottom tier) rather than the full 1–20 schema range — the same
- * set of destinations dragging onto a divider could ever reach.
- */
-function TierSheet({
-  open, onClose, player, players, prep,
-}: {
-  open: boolean
-  onClose: () => void
-  player: DraftPlayer
-  players: DraftPlayer[]
-  prep: PrepControls
-}) {
-  const pos = primaryPos(player)
-  const max = Math.min(20, Math.max(maxTierForPosition(players, pos), player.tier || 1) + 1)
-  const mine = prep.entry(player.gsis_id)
-  const current = effectiveTier(player, prep.entry)
-
-  return (
-    <MobileSheet open={open} onClose={onClose} title={`Set tier — ${player.name}`}>
-      <ul>
-        <li className="border-b border-border">
-          <button
-            onClick={() => {
-              prep.setCustomTier(player.gsis_id, null)
-              onClose()
-            }}
-            className={`flex min-h-[var(--tap-target-min)] w-full items-center justify-between py-2 font-display text-sm ${
-              mine.custom_tier == null ? 'font-semibold text-primary' : 'text-foreground'
-            }`}
-          >
-            Match algorithm
-            <span className="font-mono text-xs text-muted-foreground">({player.tier || '—'})</span>
-          </button>
-        </li>
-        {Array.from({ length: max }, (_, idx) => idx + 1).map((t) => (
-          <li key={t} className="border-b border-border last:border-0">
-            <button
-              onClick={() => {
-                prep.setCustomTier(player.gsis_id, t === player.tier ? null : t)
-                onClose()
-              }}
-              className={`flex min-h-[var(--tap-target-min)] w-full items-center py-2 font-display text-sm ${
-                current === t ? 'font-semibold text-primary' : 'text-foreground'
-              }`}
-            >
-              Tier {t}
-            </button>
-          </li>
-        ))}
-      </ul>
     </MobileSheet>
   )
 }
