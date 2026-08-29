@@ -79,9 +79,12 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
     return map
   }, [allPlayers])
 
-  const filtered = allPlayers.filter(
-    (p) => !position || p.position_group === position || p.position === position,
-  )
+  // Position filtering only means something on the sortable Board — Tiers
+  // already organizes by position, so a position filter there would just
+  // collapse it to one panel instead of the point of the view.
+  const filtered = boardMode === 'board'
+    ? allPlayers.filter((p) => !position || p.position_group === position || p.position === position)
+    : allPlayers
 
   return (
     <div className="space-y-4">
@@ -102,7 +105,7 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
             {/* From the response, not any local state — this describes the board on screen. */}
             <span className="text-muted-foreground">({data?.num_teams} teams, ${data?.budget_per_team}/team)</span>
             {replacementLevels
-              .filter((rl: DraftReplacementLevel) => !position || rl.position === position)
+              .filter((rl: DraftReplacementLevel) => boardMode === 'board' && position ? rl.position === position : true)
               .map((rl: DraftReplacementLevel) => (
                 <span key={rl.position}>
                   <span className="font-medium text-foreground">{rl.position}</span>{' '}
@@ -113,8 +116,26 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
         )}
       </div>
 
-      {/* Position filter + board/tiers layout switch */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Board and Tiers are different sub-pages of the same data, so this
+          comes before the position filter rather than sitting beside it. */}
+      <div className="flex w-fit rounded-lg bg-muted overflow-hidden">
+        {BOARD_MODES.map((m) => (
+          <button
+            key={m.value}
+            onClick={() => setBoardMode(m.value)}
+            className={`px-4 py-2 font-display text-sm font-semibold ${
+              boardMode === m.value
+                ? 'bg-foreground text-background'
+                : 'bg-card text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Position filter — Board only. */}
+      {boardMode === 'board' && (
         <div className="flex gap-1 flex-wrap">
           {POSITIONS.map((pos) => (
             <button
@@ -130,22 +151,7 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
             </button>
           ))}
         </div>
-        <div className="flex w-fit rounded-lg bg-muted overflow-hidden">
-          {BOARD_MODES.map((m) => (
-            <button
-              key={m.value}
-              onClick={() => setBoardMode(m.value)}
-              className={`px-3 py-1.5 font-display text-xs font-semibold ${
-                boardMode === m.value
-                  ? 'bg-foreground text-background'
-                  : 'bg-card text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* Table */}
       {isLoading ? (
@@ -161,7 +167,7 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
         <>
           <p className="text-xs text-muted-foreground">
             {filtered.length} player{filtered.length !== 1 ? 's' : ''}
-            {position ? ` (${position})` : ''} ·{' '}
+            {boardMode === 'board' && position ? ` (${position})` : ''} ·{' '}
             {data.scoring_format === 'league'
               ? 'league scoring'
               : data.scoring_format === 'custom'

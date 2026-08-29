@@ -2,7 +2,10 @@ import { useMemo, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import type { DraftPlayer, DraftReplacementLevel } from '@/api/client'
 import { MobileSheet } from '@/components/ui/mobile-sheet'
-import { SLOT_LABELS, type DraftSettings } from '@/pages/league-detail/hooks/useDraftSettings'
+import {
+  SLOT_LABELS, type DraftSettings, type SlotPosition, type ScoringStat,
+} from '@/pages/league-detail/hooks/useDraftSettings'
+import { DraftSettingsPanel } from '@/pages/league-detail/components/DraftSettingsPanel'
 import { buildRoster, type PlannedPlayer } from '../lib/roster'
 import { TargetList } from './TargetList'
 import type { useDraftPrep } from '../hooks/useDraftPrep'
@@ -16,13 +19,38 @@ type PanelMode = (typeof MODES)[number]['value']
 
 const MODE_KEY = 'fs.draft-prep.panel-mode'
 
+/** The panel's two top-level compartments — which league you're modelling vs.
+ *  what you're doing with that model. */
+const BUCKETS = [
+  { value: 'settings', label: 'Settings' },
+  { value: 'plan', label: 'Plan' },
+] as const
+type Bucket = (typeof BUCKETS)[number]['value']
+
+const BUCKET_KEY = 'fs.draft-prep.panel-bucket'
+
+interface SettingsControls {
+  isCustomized: boolean
+  isDirty: boolean
+  onChange: (patch: Partial<DraftSettings>) => void
+  onSlotChange: (pos: SlotPosition, count: number) => void
+  onScoringChange: (stat: ScoringStat, value: number) => void
+  onSave: () => void
+  onDiscard: () => void
+  onReset: () => void
+}
+
 interface Props {
   open: boolean
   onToggle: () => void
   plannedCount: number
   players: DraftPlayer[]
   replacementLevels: DraftReplacementLevel[]
+  /** Applied settings — what the roster/budget math below is built from. */
   settings: DraftSettings
+  /** Unsaved draft — what the Settings bucket's form displays and edits. */
+  editingSettings: DraftSettings
+  settingsControls: SettingsControls
   prep: ReturnType<typeof useDraftPrep>
 }
 
@@ -72,25 +100,38 @@ function Stat({ label, value, tone = '' }: { label: string; value: string; tone?
 }
 
 /**
- * The draft plan, docked beside the board, in two modes:
+ * The docked side panel, in two buckets:
  *
- *   Team    — the roster your planned prices add up to, with the budget maths.
- *   Targets — just the players you're chasing, grouped by position and tier.
+ *   Settings — the league settings that drive draft values (teams, budget,
+ *              scoring, roster slots). Modelling the league, not the board.
+ *   Plan     — your draft plan, in two modes:
+ *                Team    — the roster your planned prices add up to, with the budget maths.
+ *                Targets — just the players you're chasing, grouped by position and tier.
  *
- * Both read the same board from different ends: one asks "what have I built?",
- * the other "what's left to get?". The mode persists, because which question you
- * care about depends on whether you're planning or drafting.
+ * Settings and Plan answer different questions ("what league am I drafting
+ * into?" vs. "what am I doing about it?") so they're separate buckets rather
+ * than one long scroll; within Plan, Team and Targets read the same board
+ * from different ends. Both the bucket and the Plan mode persist, since which
+ * one you care about depends on whether you're modelling or drafting.
  *
- * It sits next to the board rather than replacing it because it's a running
- * total of decisions made over there — you add a player on the left and watch
- * the budget move on the right. On wide screens it's pinned to the window edge
- * and scrolls independently, so a long roster never drags the board with it;
- * collapsed it shrinks to a tab. Below `lg` there's nowhere to dock, so it
- * stacks under the board as an ordinary block.
+ * It sits next to the board rather than replacing it because whichever bucket
+ * is open is a running readout of decisions made over there — edit a setting
+ * or add a player on the left and watch this side react. On wide screens it's
+ * pinned to the window edge and scrolls independently, so neither bucket's
+ * content ever drags the board with it; collapsed it shrinks to a tab. Below
+ * `lg` there's nowhere to dock, so it stacks under the board as an ordinary
+ * block.
  */
 export function TeamPanel({
-  open, onToggle, plannedCount, players, replacementLevels, settings, prep,
+  open, onToggle, plannedCount, players, replacementLevels, settings, editingSettings, settingsControls, prep,
 }: Props) {
+  const [bucket, setBucketState] = useState<Bucket>(
+    () => (localStorage.getItem(BUCKET_KEY) === 'settings' ? 'settings' : 'plan'),
+  )
+  const setBucket = (next: Bucket) => {
+    localStorage.setItem(BUCKET_KEY, next)
+    setBucketState(next)
+  }
   const [mode, setModeState] = useState<PanelMode>(
     () => (localStorage.getItem(MODE_KEY) === 'targets' ? 'targets' : 'team'),
   )
@@ -121,6 +162,26 @@ export function TeamPanel({
   )
 
   const overBudget = roster.spent > roster.budget
+
+  const bucketToggle = (
+    <div className="flex rounded-lg bg-muted overflow-hidden">
+      {BUCKETS.map((b) => (
+        <button
+          key={b.value}
+          onClick={() => setBucket(b.value)}
+          aria-pressed={bucket === b.value}
+          className={`px-2.5 py-1 font-display text-[11px] font-semibold ${
+            bucket === b.value
+              ? 'bg-foreground text-background'
+              : 'bg-card text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          {b.label}
+          {b.value === 'settings' && (settingsControls.isDirty || settingsControls.isCustomized) && ' •'}
+        </button>
+      ))}
+    </div>
+  )
 
   const modeToggle = (
     <div className="flex rounded-lg bg-muted overflow-hidden">
@@ -269,16 +330,25 @@ export function TeamPanel({
     </>
   )
 
+  const settingsBody = <DraftSettingsPanel settings={editingSettings} {...settingsControls} />
+  const panelBody = bucket === 'settings' ? settingsBody : body
+
+  // The collapsed tab always names whichever bucket is currently selected,
+  // independent of open/closed — same state either way.
+  const collapsedLabel = bucket === 'settings'
+    ? `Settings${settingsControls.isDirty || settingsControls.isCustomized ? ' •' : ''}`
+    : `Plan${plannedCount > 0 ? ` ${plannedCount}` : ''}`
+
   return (
     <>
       {/* Desktop: docked to the window edge, or a collapsed vertical tab. */}
       {open ? (
         <aside
           className="hidden lg:block lg:fixed lg:bottom-0 lg:right-0 lg:top-[var(--nav-height)] lg:z-30 lg:w-[320px] lg:overflow-y-auto lg:border-l lg:border-border lg:bg-background lg:p-3"
-          aria-label="Your draft plan"
+          aria-label="Draft prep panel"
         >
           <div className="mb-3 flex items-center justify-between gap-2">
-            {modeToggle}
+            {bucketToggle}
             <button
               onClick={onToggle}
               aria-expanded
@@ -288,18 +358,19 @@ export function TeamPanel({
               ▸
             </button>
           </div>
-          {body}
+          {bucket === 'plan' && <div className="mb-3">{modeToggle}</div>}
+          {panelBody}
         </aside>
       ) : (
         <button
           onClick={onToggle}
           aria-expanded={false}
-          title="Show your draft plan"
+          title="Show the draft prep panel"
           className="hidden lg:fixed lg:right-0 lg:top-[calc(var(--nav-height)+1.5rem)] lg:z-30 lg:flex lg:w-auto lg:flex-col lg:items-center lg:gap-2 lg:rounded-l-lg lg:border-y lg:border-l lg:border-border lg:bg-card lg:px-2 lg:py-4 lg:hover:bg-muted"
         >
           <span className="font-mono text-xs text-muted-foreground">◂</span>
           <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground lg:[writing-mode:vertical-rl]">
-            Plan {plannedCount > 0 ? plannedCount : ''}
+            {collapsedLabel}
           </span>
         </button>
       )}
@@ -309,18 +380,17 @@ export function TeamPanel({
       <button
         onClick={onToggle}
         aria-expanded={open}
-        title={open ? 'Hide your draft plan' : 'Show your draft plan'}
+        title={open ? 'Hide the draft prep panel' : 'Show the draft prep panel'}
         className="fixed bottom-4 right-4 z-30 flex h-11 items-center gap-1.5 rounded-pill border border-border bg-card px-4 shadow-none lg:hidden"
       >
-        <span className="font-display text-xs font-semibold text-foreground">
-          Plan {plannedCount > 0 ? plannedCount : ''}
-        </span>
+        <span className="font-display text-xs font-semibold text-foreground">{collapsedLabel}</span>
         <span className="font-mono text-xs text-muted-foreground">▸</span>
       </button>
       <div className="lg:hidden">
-        <MobileSheet open={open} onClose={onToggle} title="Your draft plan">
-          <div className="mb-3">{modeToggle}</div>
-          {body}
+        <MobileSheet open={open} onClose={onToggle} title="Draft prep panel">
+          <div className="mb-3">{bucketToggle}</div>
+          {bucket === 'plan' && <div className="mb-3">{modeToggle}</div>}
+          {panelBody}
         </MobileSheet>
       </div>
     </>

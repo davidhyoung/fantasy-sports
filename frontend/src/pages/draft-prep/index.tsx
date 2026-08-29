@@ -6,7 +6,6 @@ import { getDraftValues, listLeagues, type DraftPlayer, type DraftReplacementLev
 import { keys } from '@/api/queryKeys'
 import { FilterChip, SelectControl } from '@/components/ui/filter-chip'
 import { PROJECTION_SEASON } from '@/lib/constants'
-import { DraftSettingsPanel } from '@/pages/league-detail/components/DraftSettingsPanel'
 import {
   useDraftSettings, serverSettings, draftQuery, type DraftSettings,
 } from '@/pages/league-detail/hooks/useDraftSettings'
@@ -81,7 +80,6 @@ export default function DraftPrep() {
     settings, editing, update, setSlot, setScoring, save, discard, reset,
     isDirty, isCustomized, position, setPosition,
   } = useDraftSettings(leagueId ?? 0, leagueDefaults)
-  const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Which players are shown (filter) and how the board is laid out (layout)
   // live in the URL, not local state, so a refresh or a shared link lands you
@@ -139,7 +137,11 @@ export default function DraftPrep() {
     return map
   }, [allPlayers])
 
-  const filtered = useMemo(
+  // Position and target/avoid filtering only apply to the sortable Board — the
+  // Tiers layout already organizes by position (a position filter would just
+  // collapse it to one panel) and shows every player's standing regardless of
+  // how you've flagged them, so it always reads the full, unfiltered list.
+  const boardFiltered = useMemo(
     () =>
       allPlayers.filter((p) => {
         if (position && p.position_group !== position && p.position !== position) return false
@@ -180,6 +182,12 @@ export default function DraftPrep() {
     onMove: handleMove,
   }
 
+  // Fed to the docked panel's Settings bucket.
+  const settingsControls = {
+    isCustomized, isDirty, onChange: update, onSlotChange: setSlot, onScoringChange: setScoring,
+    onSave: save, onDiscard: discard, onReset: reset,
+  }
+
   if (leaguesLoading) return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
 
   if (!nflLeagues.length) {
@@ -218,64 +226,58 @@ export default function DraftPrep() {
         </SelectControl>
       </div>
 
-      <DraftSettingsPanel
-        settings={editing}
-        isCustomized={isCustomized}
-        isDirty={isDirty}
-        open={settingsOpen}
-        onToggle={() => setSettingsOpen((o) => !o)}
-        onChange={update}
-        onSlotChange={setSlot}
-        onScoringChange={setScoring}
-        onSave={save}
-        onDiscard={discard}
-        onReset={reset}
-      />
+      {/* Board and Tiers are genuinely different sub-pages of the same data —
+          not a filter on it — so this sits above the filter row, not among
+          the chips below. League Settings used to live here too; it's now the
+          docked panel's Settings bucket (→) so this reads as page navigation,
+          not one option in a stack of accordions. */}
+      <div className="flex w-fit rounded-lg bg-muted overflow-hidden">
+        {BOARD_MODES.map((m) => (
+          <button
+            key={m.value}
+            onClick={() => setBoardMode(m.value)}
+            className={`px-4 py-2 font-display text-sm font-semibold ${
+              boardMode === m.value
+                ? 'bg-foreground text-background'
+                : 'bg-card text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
 
       {/* The team panel is fixed to the window edge on wide screens, so it's out
           of flow — the page reserves the width instead of laying it out. */}
       <div className="min-w-0 space-y-4">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex flex-wrap gap-1.5">
-            {POSITIONS.map((pos) => (
-              <FilterChip
-                key={pos}
-                active={(pos === 'All' && position === '') || pos === position}
-                onClick={() => setPosition(pos === 'All' ? '' : pos)}
-              >
-                {pos}
-              </FilterChip>
-            ))}
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {VIEWS.map((v) => (
-            <FilterChip key={v.value} active={view === v.value} onClick={() => setView(v.value)}>
-              {v.label}
-              {v.value === 'positive' && prep.counts.targets > 0 && ` ${prep.counts.targets}`}
-              {v.value === 'negative' && prep.counts.avoids > 0 && ` ${prep.counts.avoids}`}
-            </FilterChip>
-          ))}
-        </div>
-        {/* A tray, not chips — this switches which layout you're looking at
-            (a sortable table vs. position/tier buckets), not which players are
-            in it, same "tray = dataset/view switch" rule the rest of the app
-            uses (e.g. Free Agents/Rostered on the native Players tab). */}
-        <div className="flex w-fit rounded-lg bg-muted overflow-hidden">
-          {BOARD_MODES.map((m) => (
-            <button
-              key={m.value}
-              onClick={() => setBoardMode(m.value)}
-              className={`px-3 py-1.5 font-display text-xs font-semibold ${
-                boardMode === m.value
-                  ? 'bg-foreground text-background'
-                  : 'bg-card text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-      </div>
+        {/* Position and target/avoid filters only mean something on the sortable
+            Board — Tiers already organizes by position and shows everyone
+            regardless of how you've flagged them, so these hide there instead
+            of quietly doing nothing. */}
+        {boardMode === 'board' && (
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-wrap gap-1.5">
+              {POSITIONS.map((pos) => (
+                <FilterChip
+                  key={pos}
+                  active={(pos === 'All' && position === '') || pos === position}
+                  onClick={() => setPosition(pos === 'All' ? '' : pos)}
+                >
+                  {pos}
+                </FilterChip>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {VIEWS.map((v) => (
+                <FilterChip key={v.value} active={view === v.value} onClick={() => setView(v.value)}>
+                  {v.label}
+                  {v.value === 'positive' && prep.counts.targets > 0 && ` ${prep.counts.targets}`}
+                  {v.value === 'negative' && prep.counts.avoids > 0 && ` ${prep.counts.avoids}`}
+                </FilterChip>
+              ))}
+            </div>
+          </div>
+        )}
 
       {isLoading ? (
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -289,10 +291,23 @@ export default function DraftPrep() {
           <code className="font-mono text-xs">make project-nfl ARGS="-project -season {seasonNum}"</code>{' '}
           to generate them.
         </p>
+      ) : boardMode === 'tiers' ? (
+        <>
+          <p className="text-xs text-muted-foreground">
+            {allPlayers.length} players ·{' '}
+            {settings.scoringCustomized
+              ? 'custom scoring'
+              : settings.scoringFormat === 'league'
+                ? 'league scoring'
+                : `${settings.scoringFormat.toUpperCase()} scoring`}
+            {isCustomized && ' · custom settings'}
+          </p>
+          <TiersView players={allPlayers} prep={prepControls} />
+        </>
       ) : (
         <>
           <p className="text-xs text-muted-foreground">
-            {filtered.length} player{filtered.length !== 1 ? 's' : ''}
+            {boardFiltered.length} player{boardFiltered.length !== 1 ? 's' : ''}
             {position ? ` (${position})` : ''} ·{' '}
             {settings.scoringCustomized
               ? 'custom scoring'
@@ -302,11 +317,7 @@ export default function DraftPrep() {
             {isCustomized && ' · custom settings'}
             {prep.counts.ranked > 0 && ` · ${prep.counts.ranked} ranked on your board`}
           </p>
-          {boardMode === 'tiers' ? (
-            <TiersView players={filtered} prep={prepControls} />
-          ) : (
-            <DraftBoardTable players={filtered} gradeRankMap={gradeRankMap} showConsensus prep={prepControls} />
-          )}
+          <DraftBoardTable players={boardFiltered} gradeRankMap={gradeRankMap} showConsensus prep={prepControls} />
         </>
       )}
       </div>
@@ -318,6 +329,8 @@ export default function DraftPrep() {
         players={allPlayers}
         replacementLevels={replacementLevels}
         settings={settings}
+        editingSettings={editing}
+        settingsControls={settingsControls}
         prep={prep}
       />
     </div>

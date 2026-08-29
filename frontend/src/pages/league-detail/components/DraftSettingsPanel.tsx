@@ -88,8 +88,6 @@ interface Props {
   settings: DraftSettings
   isCustomized: boolean
   isDirty: boolean
-  open: boolean
-  onToggle: () => void
   onChange: (patch: Partial<DraftSettings>) => void
   onSlotChange: (pos: SlotPosition, count: number) => void
   onScoringChange: (stat: ScoringStat, value: number) => void
@@ -101,30 +99,25 @@ interface Props {
 /**
  * Editable copy of the league settings that drive draft values. Edits stay
  * unsaved until Save, which rescores the board and stores them per league on
- * this device.
+ * this device. Lives in the docked side panel's Settings bucket (`TeamPanel.tsx`)
+ * rather than owning its own show/hide — the bucket switcher there is what
+ * gates whether this renders at all, so there's no separate expand/collapse
+ * chevron here.
  */
 export function DraftSettingsPanel({
-  settings, isCustomized, isDirty, open, onToggle, onChange, onSlotChange, onScoringChange,
+  settings, isCustomized, isDirty, onChange, onSlotChange, onScoringChange,
   onSave, onDiscard, onReset,
 }: Props) {
   const starters = SLOT_POSITIONS.reduce((sum, pos) => sum + settings.slots[pos], 0)
 
   return (
     <div className="rounded-lg bg-card">
-      <div className="flex items-center justify-between gap-3 px-4 py-3">
-        <button
-          onClick={onToggle}
-          aria-expanded={open}
-          className="flex items-center gap-2 font-display text-sm font-semibold text-foreground"
-        >
-          <span className="font-mono text-xs text-muted-foreground">{open ? '▼' : '▶'}</span>
-          League Settings
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+        <span className="font-mono text-xs text-muted-foreground tabular-nums">
+          {settings.numTeams} teams · ${settings.budget} · {starters} starters
+          {settings.slots.SFLEX > 0 && ' · superflex'}
+        </span>
         <div className="flex items-center gap-3">
-          <span className="font-mono text-xs text-muted-foreground tabular-nums">
-            {settings.numTeams} teams · ${settings.budget} · {starters} starters
-            {settings.slots.SFLEX > 0 && ' · superflex'}
-          </span>
           {isDirty && <Badge variant="pink">Unsaved</Badge>}
           {!isDirty && isCustomized && <Badge variant="pink">Customized</Badge>}
           {isCustomized && !isDirty && (
@@ -135,8 +128,7 @@ export function DraftSettingsPanel({
         </div>
       </div>
 
-      {open && (
-        <div className="flex flex-col gap-4 border-t border-border px-4 py-4">
+      <div className="flex flex-col gap-4 border-t border-border px-4 py-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
             <NumberField
               label="Teams"
@@ -239,7 +231,6 @@ export function DraftSettingsPanel({
             </p>
           </div>
         </div>
-      )}
     </div>
   )
 }
