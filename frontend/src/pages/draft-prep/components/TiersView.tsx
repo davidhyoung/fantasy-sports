@@ -55,10 +55,17 @@ function neighborValuesForTierMove(
 
   // Excluded from every tier, not just the target one — otherwise a tier the
   // player is the sole occupant of would reference the player's own pre-move
-  // value as its own boundary neighbour once it's (about to be) vacated.
+  // value as its own boundary neighbour once it's (about to be) vacated. Every
+  // tier is re-sorted by points here, regardless of how the caller's tiers are
+  // ordered for display (which is by value, not points) — points are what
+  // place the mover among tier-mates for this purpose, both within the target
+  // tier and at a tier boundary, independent of the passed-in array's own sort.
   const tiers = group.tiers.map((t) => ({
     tier: t.tier,
-    members: t.members.filter((m) => m.gsis_id !== player.gsis_id),
+    members: t.members
+      .filter((m) => m.gsis_id !== player.gsis_id)
+      .slice()
+      .sort((x, y) => y.proj_league_fpts - x.proj_league_fpts),
   }))
 
   const siblings = tiers.find((t) => t.tier === targetTier)?.members ?? []
@@ -135,7 +142,13 @@ export function TiersView({ players, prep }: Props) {
           .sort(([a], [b]) => (a <= 0 ? 1 : 0) - (b <= 0 ? 1 : 0) || a - b)
           .map(([tier, members]) => ({
             tier,
-            members: members.sort((x, y) => y.proj_league_fpts - x.proj_league_fpts),
+            // Highest value first — your own value where you've set one,
+            // falling back to the system's; points break ties, which is most
+            // of them until values start getting set; read-only (no prep) has
+            // no "my value" concept at all, so it's just the system's price.
+            members: members.sort((x, y) => (
+              valueOf(y, prep?.entry) - valueOf(x, prep?.entry) || y.proj_league_fpts - x.proj_league_fpts
+            )),
           })),
       }))
   }, [players, prep])
@@ -195,8 +208,12 @@ export function TiersView({ players, prep }: Props) {
             </span>
           </h3>
           {tiers.map(({ tier, members }) => {
-            const top = members[0].proj_league_fpts
-            const bottom = members[members.length - 1].proj_league_fpts
+            // Computed by scanning, not by array position — members are
+            // ordered by value for display now, not points, so the first/last
+            // entries no longer line up with the points max/min.
+            const pts = members.map((m) => m.proj_league_fpts)
+            const top = Math.max(...pts)
+            const bottom = Math.min(...pts)
             const key = `${position}-${tier}`
             // Only a same-position drag can land here — tiers aren't comparable
             // across positions, so cross-position drops are refused outright by
