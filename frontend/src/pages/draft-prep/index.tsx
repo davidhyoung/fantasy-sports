@@ -155,6 +155,14 @@ export default function DraftPrep() {
     [allPlayers, position, view, prep],
   )
 
+  /** A neighbour's own value, falling back to the algorithm's price when they
+   *  have no personal valuation of their own yet. */
+  const valueOf = (gsisId: string): number | null => {
+    const mine = prep.entry(gsisId).my_value
+    if (mine != null) return mine
+    return allPlayers.find((p) => p.gsis_id === gsisId)?.auction_value ?? null
+  }
+
   /**
    * Reordering rewrites the whole board, not just the rows on screen — a rank is
    * only meaningful relative to every other player, and a filtered view would
@@ -167,8 +175,26 @@ export default function DraftPrep() {
     order.splice(from, 1)
     const at = order.indexOf(neighbourId)
     if (at < 0) return
-    order.splice(place === 'before' ? at : at + 1, 0, movingId)
+    const newIndex = place === 'before' ? at : at + 1
+    order.splice(newIndex, 0, movingId)
     prep.reorder.mutate(order)
+
+    // "My value" auto-fills to sit between whichever players now flank this
+    // one on the board, so a manually-built board reads as a real price
+    // curve without having to type every number by hand.
+    const above = order[newIndex - 1] != null ? valueOf(order[newIndex - 1]) : null
+    const below = order[newIndex + 1] != null ? valueOf(order[newIndex + 1]) : null
+    const interpolated = above != null && below != null
+      ? Math.round((above + below) / 2)
+      : above ?? below ?? null
+    if (interpolated == null) return
+    // setFields, not setMyValue: the reorder above is a separate bulk request
+    // that hasn't landed in the cache yet (nothing has re-rendered between the
+    // two calls), so a plain setMyValue here would build its payload from the
+    // pre-reorder rank and could revert it once both requests resolve. Passing
+    // the rank we already know this player ends up at sidesteps that read
+    // entirely instead of racing it.
+    prep.setFields(movingId, { customRank: newIndex + 1, myValue: interpolated })
   }
 
   // Shared by both board layouts (table, tiers) so they never disagree about
@@ -179,6 +205,8 @@ export default function DraftPrep() {
     setPlannedCost: prep.setPlannedCost,
     setNote: prep.setNote,
     setCustomTier: prep.setCustomTier,
+    setMyValue: prep.setMyValue,
+    setFields: prep.setFields,
     onMove: handleMove,
   }
 

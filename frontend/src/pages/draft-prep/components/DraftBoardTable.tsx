@@ -26,6 +26,11 @@ export interface PrepControls {
   setNote: (gsisId: string, note: string) => void
   /** Overrides the algorithm's tier for this player; null reverts to it. */
   setCustomTier: (gsisId: string, tier: number | null) => void
+  /** Your own valuation for this player, distinct from the algorithm's auction_value. */
+  setMyValue: (gsisId: string, value: number | null) => void
+  /** Sets several fields in one write — see useDraftPrep's setFields for why
+   *  this exists instead of two independent single-field calls. */
+  setFields: (gsisId: string, changes: Partial<{ customRank: number | null; customTier: number | null; myValue: number | null }>) => void
   /**
    * Moves a player next to the row above/below it. The neighbour is passed
    * explicitly rather than a direction alone: with a position filter on, the

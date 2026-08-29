@@ -987,6 +987,13 @@ export interface DraftPrepEntry {
   note: string
   /** What you plan to pay. null = not in the team plan ($0 is a real bid). */
   planned_cost: number | null
+  /**
+   * Your own valuation, distinct from the algorithm's `auction_value`. null =
+   * no opinion yet. Set directly, or filled in automatically when the player
+   * is moved on the board or in the tiers view (interpolated between the
+   * players that now flank it).
+   */
+  my_value: number | null
 }
 
 export interface DraftPrepResponse {
@@ -1001,7 +1008,7 @@ export const setDraftPrepPlayer = (
   leagueId: number,
   season: number,
   gsisId: string,
-  body: { interest: InterestLevel | null; custom_rank: number | null; custom_tier: number | null; note: string; planned_cost: number | null },
+  body: { interest: InterestLevel | null; custom_rank: number | null; custom_tier: number | null; note: string; planned_cost: number | null; my_value: number | null },
 ) =>
   request<DraftPrepEntry>(`/leagues/${leagueId}/draft-prep/${gsisId}?season=${season}`, {
     method: 'PUT',

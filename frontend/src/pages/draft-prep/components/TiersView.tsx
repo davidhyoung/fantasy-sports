@@ -25,11 +25,58 @@ function effectiveTier(p: DraftPlayer, entry?: (gsisId: string) => DraftPrepEntr
   return custom ?? p.tier
 }
 
-/** A target matching the algorithm's own tier carries no information of its
- *  own, so it clears the override instead of storing a redundant one — same
- *  convention the rest of the board uses for "no opinion." */
-function commitTier(prep: PrepControls, player: DraftPlayer, target: number) {
-  prep.setCustomTier(player.gsis_id, target === player.tier ? null : target)
+/** A player's own valuation, falling back to the algorithm's price when they
+ *  have no personal valuation of their own yet. */
+function valueOf(p: DraftPlayer, entry?: (gsisId: string) => DraftPrepEntry): number {
+  return entry?.(p.gsis_id).my_value ?? p.auction_value
+}
+
+function interpolate(above: number | null, below: number | null): number | null {
+  if (above != null && below != null) return Math.round((above + below) / 2)
+  return above ?? below ?? null
+}
+
+/**
+ * Where "the players above and below" land for a tier move: the mover's own
+ * projected points slot it among the target tier's other members (already
+ * sorted by points), and its immediate neighbours there are the answer. At
+ * the very top/bottom of the tier — including a brand-new tier with no
+ * members yet — this falls through to the boundary player of the nearest
+ * real tier on that side.
+ */
+function neighborValuesForTierMove(
+  player: DraftPlayer,
+  targetTier: number,
+  groups: PositionGroup[],
+  entry?: (gsisId: string) => DraftPrepEntry,
+): { above: number | null; below: number | null } {
+  const group = groups.find((g) => g.position === primaryPos(player))
+  if (!group) return { above: null, below: null }
+
+  // Excluded from every tier, not just the target one — otherwise a tier the
+  // player is the sole occupant of would reference the player's own pre-move
+  // value as its own boundary neighbour once it's (about to be) vacated.
+  const tiers = group.tiers.map((t) => ({
+    tier: t.tier,
+    members: t.members.filter((m) => m.gsis_id !== player.gsis_id),
+  }))
+
+  const siblings = tiers.find((t) => t.tier === targetTier)?.members ?? []
+  let insertAt = siblings.findIndex((m) => m.proj_league_fpts < player.proj_league_fpts)
+  if (insertAt < 0) insertAt = siblings.length
+  const aboveInTier = insertAt > 0 ? siblings[insertAt - 1] : undefined
+  const belowInTier = insertAt < siblings.length ? siblings[insertAt] : undefined
+
+  const priorTier = [...tiers].reverse().find((t) => t.tier > 0 && t.tier < targetTier && t.members.length > 0)
+  const nextTier = tiers.find((t) => t.tier > targetTier && t.members.length > 0)
+
+  const above = aboveInTier ?? priorTier?.members[priorTier.members.length - 1]
+  const below = belowInTier ?? nextTier?.members[0]
+
+  return {
+    above: above ? valueOf(above, entry) : null,
+    below: below ? valueOf(below, entry) : null,
+  }
 }
 
 /**
@@ -107,6 +154,31 @@ export function TiersView({ players, prep }: Props) {
   const [dragging, setDragging] = useState<DraftPlayer | null>(null)
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
 
+  /**
+   * Sets the tier, and — only when the tier actually changes — auto-fills
+   * "my value" to sit between whichever players now flank it, so building a
+   * tiers view by hand still produces a real price curve without typing every
+   * number in yourself. Both go out in one `setFields` write: two independent
+   * patches here would each read the same pre-mutation snapshot (nothing has
+   * re-rendered between them yet), so the second one's stale copy of the tier
+   * would silently revert the first the moment both requests land.
+   */
+  const moveToTier = (player: DraftPlayer, target: number) => {
+    if (!prep) return
+    const previousTier = effectiveTier(player, prep.entry)
+    const newCustomTier = target === player.tier ? null : target
+    if (target === previousTier) {
+      prep.setCustomTier(player.gsis_id, newCustomTier)
+      return
+    }
+    const { above, below } = neighborValuesForTierMove(player, target, groups, prep.entry)
+    const interpolated = interpolate(above, below)
+    prep.setFields(player.gsis_id, {
+      customTier: newCustomTier,
+      ...(interpolated != null ? { myValue: interpolated } : {}),
+    })
+  }
+
   if (!groups.length) {
     return <p className="text-sm text-muted-foreground">No players to tier yet.</p>
   }
@@ -157,7 +229,7 @@ export function TiersView({ players, prep }: Props) {
                     ? (e) => {
                         e.preventDefault()
                         setDragOverKey(null)
-                        if (dragging) commitTier(prep!, dragging, tier)
+                        if (dragging) moveToTier(dragging, tier)
                         setDragging(null)
                       }
                     : undefined
@@ -196,14 +268,23 @@ export function TiersView({ players, prep }: Props) {
                         {p.name}
                       </RouterLink>
                       <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{p.team}</span>
-                      <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                      <span
+                        className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground"
+                        title="System value"
+                      >
                         ${p.auction_value}
                       </span>
+                      {prep && (
+                        <MyValueField
+                          value={prep.entry(p.gsis_id).my_value}
+                          onCommit={(v) => prep.setMyValue(p.gsis_id, v)}
+                        />
+                      )}
                       {prep && (
                         <>
                           <span className="flex shrink-0 flex-col leading-none">
                             <button
-                              onClick={() => commitTier(prep, p, Math.max(1, cur - 1))}
+                              onClick={() => moveToTier(p, Math.max(1, cur - 1))}
                               disabled={cur <= 1}
                               aria-label={`Move ${p.name} up a tier`}
                               title="Move up a tier"
@@ -212,7 +293,7 @@ export function TiersView({ players, prep }: Props) {
                               ▲
                             </button>
                             <button
-                              onClick={() => commitTier(prep, p, Math.min(posMaxTier + 1, cur + 1))}
+                              onClick={() => moveToTier(p, Math.min(posMaxTier + 1, cur + 1))}
                               disabled={cur >= posMaxTier + 1}
                               aria-label={`Move ${p.name} down a tier`}
                               title="Move down a tier"
@@ -247,10 +328,58 @@ export function TiersView({ players, prep }: Props) {
           player={picking}
           max={pickingMax}
           prep={prep}
+          onCommit={(target) => picking && moveToTier(picking, target)}
           onClose={() => setPicking(null)}
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Editable "my value" figure. Blank means no opinion yet — distinct from a
+ * literal $0 — so clearing the field removes the override rather than
+ * storing a zero.
+ */
+function MyValueField({ value, onCommit }: { value: number | null; onCommit: (v: number | null) => void }) {
+  const [draft, setDraft] = useState(value != null ? String(value) : '')
+  // Adopt server/optimistic changes (e.g. the auto-fill from a move) that
+  // didn't come from this field.
+  const [seen, setSeen] = useState(value)
+  if (seen !== value) {
+    setSeen(value)
+    setDraft(value != null ? String(value) : '')
+  }
+
+  const commit = () => {
+    if (draft.trim() === '') {
+      if (value != null) onCommit(null)
+      return
+    }
+    const next = parseInt(draft, 10)
+    if (!Number.isFinite(next) || next < 0) {
+      setDraft(value != null ? String(value) : '')
+      return
+    }
+    if (next !== value) onCommit(Math.min(next, 10000))
+  }
+
+  return (
+    <span className="inline-flex shrink-0 items-baseline" title="My value">
+      <span className="font-mono text-[10px] text-primary/70">$</span>
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, '').slice(0, 5))}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          if (e.key === 'Escape') setDraft(value != null ? String(value) : '')
+        }}
+        placeholder="—"
+        aria-label="My value"
+        className="w-8 bg-transparent text-right font-mono text-[11px] tabular-nums text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary placeholder:text-muted-foreground/40"
+      />
+    </span>
   )
 }
 
@@ -261,11 +390,12 @@ export function TiersView({ players, prep }: Props) {
  * buckets could ever reach.
  */
 function TierPickerDialog({
-  player, max, prep, onClose,
+  player, max, prep, onCommit, onClose,
 }: {
   player: DraftPlayer | null
   max: number
   prep: PrepControls
+  onCommit: (target: number) => void
   onClose: () => void
 }) {
   if (!player) return <ResponsiveDialog open={false} onClose={onClose}>{null}</ResponsiveDialog>
@@ -279,7 +409,7 @@ function TierPickerDialog({
         <li className="border-b border-border">
           <button
             onClick={() => {
-              prep.setCustomTier(player.gsis_id, null)
+              onCommit(player.tier)
               onClose()
             }}
             className={`flex min-h-[2.5rem] w-full items-center justify-between py-2 font-display text-sm ${
@@ -294,7 +424,7 @@ function TierPickerDialog({
           <li key={t} className="border-b border-border last:border-0">
             <button
               onClick={() => {
-                commitTier(prep, player, t)
+                onCommit(t)
                 onClose()
               }}
               className={`flex min-h-[2.5rem] w-full items-center py-2 font-display text-sm ${

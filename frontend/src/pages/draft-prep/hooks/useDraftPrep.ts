@@ -6,7 +6,7 @@ import {
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 
-const EMPTY: DraftPrepEntry = { gsis_id: '', interest: null, custom_rank: null, custom_tier: null, note: '', planned_cost: null }
+const EMPTY: DraftPrepEntry = { gsis_id: '', interest: null, custom_rank: null, custom_tier: null, note: '', planned_cost: null, my_value: null }
 
 /**
  * Your personal board for one league and season: targets and avoids, a custom
@@ -47,20 +47,20 @@ export function useDraftPrep(leagueId: number | null, season: number) {
   }
 
   const setPlayer = useMutation({
-    mutationFn: (v: { gsisId: string; interest: InterestLevel | null; customRank: number | null; customTier: number | null; note: string; plannedCost: number | null }) =>
+    mutationFn: (v: { gsisId: string; interest: InterestLevel | null; customRank: number | null; customTier: number | null; note: string; plannedCost: number | null; myValue: number | null }) =>
       setDraftPrepPlayer(leagueId!, season, v.gsisId, {
-        interest: v.interest, custom_rank: v.customRank, custom_tier: v.customTier, note: v.note, planned_cost: v.plannedCost,
+        interest: v.interest, custom_rank: v.customRank, custom_tier: v.customTier, note: v.note, planned_cost: v.plannedCost, my_value: v.myValue,
       }),
     onMutate: async (v) => {
       await qc.cancelQueries({ queryKey })
       const previous = patchCache((players) => {
         const rest = players.filter((p) => p.gsis_id !== v.gsisId)
-        // A player with no interest, rank, tier override, note or planned cost
-        // carries nothing — drop the row, which is what the server does too.
-        if (v.interest === null && v.customRank === null && v.customTier === null && !v.note && v.plannedCost === null) return rest
+        // A player with no interest, rank, tier override, note, planned cost
+        // or personal value carries nothing — drop the row, same as the server.
+        if (v.interest === null && v.customRank === null && v.customTier === null && !v.note && v.plannedCost === null && v.myValue === null) return rest
         return [...rest, {
           gsis_id: v.gsisId, interest: v.interest, custom_rank: v.customRank, custom_tier: v.customTier,
-          note: v.note, planned_cost: v.plannedCost,
+          note: v.note, planned_cost: v.plannedCost, my_value: v.myValue,
         }]
       })
       return { previous }
@@ -81,7 +81,7 @@ export function useDraftPrep(leagueId: number | null, season: number) {
         // Players ranked for the first time have no row yet.
         for (const id of gsisIds) {
           if (!merged.some((p) => p.gsis_id === id)) {
-            merged.push({ gsis_id: id, interest: null, custom_rank: rank.get(id)!, custom_tier: null, note: '', planned_cost: null })
+            merged.push({ gsis_id: id, interest: null, custom_rank: rank.get(id)!, custom_tier: null, note: '', planned_cost: null, my_value: null })
           }
         }
         return merged
@@ -95,7 +95,7 @@ export function useDraftPrep(leagueId: number | null, season: number) {
   })
 
   /** Writes one field, carrying the rest of the row through unchanged. */
-  const patch = (gsisId: string, changes: Partial<{ interest: InterestLevel | null; customRank: number | null; customTier: number | null; note: string; plannedCost: number | null }>) => {
+  const patch = (gsisId: string, changes: Partial<{ interest: InterestLevel | null; customRank: number | null; customTier: number | null; note: string; plannedCost: number | null; myValue: number | null }>) => {
     const current = entry(gsisId)
     setPlayer.mutate({
       gsisId,
@@ -104,6 +104,7 @@ export function useDraftPrep(leagueId: number | null, season: number) {
       customTier: changes.customTier !== undefined ? changes.customTier : current.custom_tier,
       note: changes.note ?? current.note,
       plannedCost: changes.plannedCost !== undefined ? changes.plannedCost : current.planned_cost,
+      myValue: changes.myValue !== undefined ? changes.myValue : current.my_value,
     })
   }
 
@@ -119,6 +120,22 @@ export function useDraftPrep(leagueId: number | null, season: number) {
   /** null reverts to the algorithm's own tier for this player. */
   const setCustomTier = (gsisId: string, tier: number | null) => patch(gsisId, { customTier: tier })
 
+  /** Your own valuation, distinct from the algorithm's auction_value. */
+  const setMyValue = (gsisId: string, value: number | null) => patch(gsisId, { myValue: value })
+
+  /**
+   * Sets several fields in one write. Needed whenever a single action changes
+   * two fields at once (a move that reassigns rank/tier *and* auto-fills my
+   * value) — two independent `patch` calls back to back would each build
+   * their payload from the same pre-mutation snapshot (React hasn't
+   * re-rendered between them), so the second call's stale copy of the first
+   * field would silently overwrite it once both requests land.
+   */
+  const setFields = (
+    gsisId: string,
+    changes: Partial<{ customRank: number | null; customTier: number | null; myValue: number | null }>,
+  ) => patch(gsisId, changes)
+
   const counts = useMemo(() => {
     const c = { targets: 0, avoids: 0, ranked: 0, planned: 0 }
     for (const e of data?.players ?? []) {
@@ -130,5 +147,5 @@ export function useDraftPrep(leagueId: number | null, season: number) {
     return c
   }, [data])
 
-  return { entry, byPlayer, setInterest, setNote, setPlannedCost, setCustomTier, reorder, counts, isLoaded: !!data }
+  return { entry, byPlayer, setInterest, setNote, setPlannedCost, setCustomTier, setMyValue, setFields, reorder, counts, isLoaded: !!data }
 }
