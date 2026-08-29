@@ -186,10 +186,6 @@ export function TiersView({ players, prep }: Props) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {groups.map(({ position, tiers }) => {
-        // The "+1" destination past the last real tier — same "open a new
-        // bottom tier" slot the picker dialog and the down arrow both reach.
-        const posMaxTier = Math.max(0, ...tiers.map((t) => (t.tier > 0 ? t.tier : 0)))
-
         return (
         <div key={position} className="rounded-lg bg-card">
           <h3 className="border-b border-border px-3 py-1.5 font-display text-[11px] font-semibold uppercase tracking-wide text-foreground">
@@ -245,10 +241,11 @@ export function TiersView({ players, prep }: Props) {
                 </div>
                 <ul className="px-3 pb-1.5">
                   {members.map((p) => {
-                    // Untiered reads as sitting just past the last real tier for
-                    // arrow purposes, so ▲ from there promotes into the bottom
-                    // real tier instead of jumping straight to Tier 1.
-                    const cur = tier > 0 ? tier : posMaxTier + 1
+                    const mine = prep?.entry(p.gsis_id)
+                    // The base a nudge starts from — your own value if you've
+                    // set one, otherwise the system's, same fallback the
+                    // auto-fill interpolation uses.
+                    const base = mine?.my_value ?? p.auction_value
                     return (
                     <li
                       key={p.gsis_id}
@@ -276,27 +273,28 @@ export function TiersView({ players, prep }: Props) {
                       </span>
                       {prep && (
                         <MyValueField
-                          value={prep.entry(p.gsis_id).my_value}
+                          value={mine!.my_value}
                           onCommit={(v) => prep.setMyValue(p.gsis_id, v)}
                         />
                       )}
                       {prep && (
                         <>
+                          {/* Nudges your value by $1 — tier changes are drag or the
+                              picker below, not these; a spot is a dollar, not a tier. */}
                           <span className="flex shrink-0 flex-col leading-none">
                             <button
-                              onClick={() => moveToTier(p, Math.max(1, cur - 1))}
-                              disabled={cur <= 1}
-                              aria-label={`Move ${p.name} up a tier`}
-                              title="Move up a tier"
-                              className="font-mono text-[9px] text-muted-foreground hover:text-foreground disabled:opacity-30"
+                              onClick={() => prep.setMyValue(p.gsis_id, Math.min(10000, base + 1))}
+                              aria-label={`Increase ${p.name}'s value by $1`}
+                              title="+$1"
+                              className="font-mono text-[9px] text-muted-foreground hover:text-foreground"
                             >
                               ▲
                             </button>
                             <button
-                              onClick={() => moveToTier(p, Math.min(posMaxTier + 1, cur + 1))}
-                              disabled={cur >= posMaxTier + 1}
-                              aria-label={`Move ${p.name} down a tier`}
-                              title="Move down a tier"
+                              onClick={() => prep.setMyValue(p.gsis_id, Math.max(0, base - 1))}
+                              disabled={base <= 0}
+                              aria-label={`Decrease ${p.name}'s value by $1`}
+                              title="−$1"
                               className="font-mono text-[9px] text-muted-foreground hover:text-foreground disabled:opacity-30"
                             >
                               ▼
