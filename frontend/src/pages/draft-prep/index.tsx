@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { getDraftValues, listLeagues, type DraftPlayer, type DraftReplacementLevel } from '@/api/client'
 import { keys } from '@/api/queryKeys'
@@ -21,12 +22,18 @@ const VIEWS = [
   { value: 'negative', label: 'Avoids' },
 ] as const
 type View = (typeof VIEWS)[number]['value']
+function isView(v: string | null): v is View {
+  return VIEWS.some((option) => option.value === v)
+}
 
 const BOARD_MODES = [
   { value: 'board', label: 'Board' },
   { value: 'tiers', label: 'Tiers' },
 ] as const
 type BoardMode = (typeof BOARD_MODES)[number]['value']
+function isBoardMode(v: string | null): v is BoardMode {
+  return BOARD_MODES.some((option) => option.value === v)
+}
 
 const NO_PLAYERS: DraftPlayer[] = []
 const NO_LEVELS: DraftReplacementLevel[] = []
@@ -75,8 +82,23 @@ export default function DraftPrep() {
     isDirty, isCustomized, position, setPosition,
   } = useDraftSettings(leagueId ?? 0, leagueDefaults)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [view, setView] = useState<View>('all')
-  const [boardMode, setBoardMode] = useState<BoardMode>('board')
+
+  // Which players are shown (filter) and how the board is laid out (layout)
+  // live in the URL, not local state, so a refresh or a shared link lands you
+  // back where you were — same convention as the league page's `?tab=`/`?sub=`.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const viewParam = searchParams.get('filter')
+  const view: View = isView(viewParam) ? viewParam : 'all'
+  const setView = (v: View) => {
+    searchParams.set('filter', v)
+    setSearchParams(searchParams, { replace: true })
+  }
+  const boardModeParam = searchParams.get('layout')
+  const boardMode: BoardMode = isBoardMode(boardModeParam) ? boardModeParam : 'board'
+  const setBoardMode = (m: BoardMode) => {
+    searchParams.set('layout', m)
+    setSearchParams(searchParams, { replace: true })
+  }
 
   // Whether the team panel is docked open is a preference that should survive a
   // reload, not a place you navigate to — so it lives in localStorage, not the URL.

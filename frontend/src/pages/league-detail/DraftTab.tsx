@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link as RouterLink } from 'react-router-dom'
+import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { getDraftValues, DraftPlayer, DraftReplacementLevel } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 import { PROJECTION_SEASON } from '@/lib/constants'
@@ -14,6 +14,9 @@ const BOARD_MODES = [
   { value: 'tiers', label: 'Tiers' },
 ] as const
 type BoardMode = (typeof BOARD_MODES)[number]['value']
+function isBoardMode(v: string | null): v is BoardMode {
+  return BOARD_MODES.some((option) => option.value === v)
+}
 const NO_PLAYERS: DraftPlayer[] = []
 
 interface DraftTabProps {
@@ -28,8 +31,21 @@ interface DraftTabProps {
  * (and the personal board: ranks, targets, sleepers) belongs to the prep page.
  */
 export function DraftTab({ leagueId, active, season }: DraftTabProps) {
-  const [position, setPosition] = useState('')
-  const [boardMode, setBoardMode] = useState<BoardMode>('board')
+  // Position filter and board/tiers layout live in the URL, not local state,
+  // so a refresh (or a shared link) lands you back where you were — distinct
+  // param names from the league page's own `?tab=`/`?sub=`/`?team=`.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const position = searchParams.get('pos') ?? ''
+  const setPosition = (pos: string) => {
+    searchParams.set('pos', pos)
+    setSearchParams(searchParams, { replace: true })
+  }
+  const boardModeParam = searchParams.get('layout')
+  const boardMode: BoardMode = isBoardMode(boardModeParam) ? boardModeParam : 'board'
+  const setBoardMode = (m: BoardMode) => {
+    searchParams.set('layout', m)
+    setSearchParams(searchParams, { replace: true })
+  }
 
   // Draft prep is for the season AFTER the completed league year — e.g. a 2025
   // Yahoo league → draft for the 2026 NFL season. Clamped to PROJECTION_SEASON,
