@@ -25,6 +25,13 @@ function effectiveTier(p: DraftPlayer, entry?: (gsisId: string) => DraftPrepEntr
   return custom ?? p.tier
 }
 
+/** A target matching the algorithm's own tier carries no information of its
+ *  own, so it clears the override instead of storing a redundant one — same
+ *  convention the rest of the board uses for "no opinion." */
+function commitTier(prep: PrepControls, player: DraftPlayer, target: number) {
+  prep.setCustomTier(player.gsis_id, target === player.tier ? null : target)
+}
+
 /**
  * Weight steps down as the tier does, so the top of a position reads as
  * heavier than its replacement-level tail without needing a different colour
@@ -94,13 +101,24 @@ export function TiersView({ players, prep }: Props) {
       ) + 1
     : 0
 
+  // Tracked as state, not just a dataTransfer payload, because dragover needs
+  // to know who's being dragged (to grey out cross-position buckets) and
+  // DataTransfer.getData() isn't readable until the actual drop.
+  const [dragging, setDragging] = useState<DraftPlayer | null>(null)
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
+
   if (!groups.length) {
     return <p className="text-sm text-muted-foreground">No players to tier yet.</p>
   }
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {groups.map(({ position, tiers }) => (
+      {groups.map(({ position, tiers }) => {
+        // The "+1" destination past the last real tier — same "open a new
+        // bottom tier" slot the picker dialog and the down arrow both reach.
+        const posMaxTier = Math.max(0, ...tiers.map((t) => (t.tier > 0 ? t.tier : 0)))
+
+        return (
         <div key={position} className="rounded-lg bg-card">
           <h3 className="border-b border-border px-3 py-1.5 font-display text-[11px] font-semibold uppercase tracking-wide text-foreground">
             {position}{' '}
@@ -111,8 +129,40 @@ export function TiersView({ players, prep }: Props) {
           {tiers.map(({ tier, members }) => {
             const top = members[0].proj_league_fpts
             const bottom = members[members.length - 1].proj_league_fpts
+            const key = `${position}-${tier}`
+            // Only a same-position drag can land here — tiers aren't comparable
+            // across positions, so cross-position drops are refused outright by
+            // never calling preventDefault, same convention as roster-slot
+            // eligibility gating elsewhere in the app.
+            const canDrop = !!prep && !!dragging && primaryPos(dragging) === position
             return (
-              <div key={tier} className="border-b border-border last:border-0">
+              <div
+                key={tier}
+                className={`border-b border-border last:border-0 ${
+                  canDrop ? 'bg-positive-light/10' : ''
+                } ${canDrop && dragOverKey === key ? 'ring-1 ring-inset ring-primary' : ''}`}
+                onDragOver={
+                  canDrop
+                    ? (e) => {
+                        e.preventDefault()
+                        if (dragOverKey !== key) setDragOverKey(key)
+                      }
+                    : undefined
+                }
+                onDragLeave={
+                  canDrop ? () => setDragOverKey((cur) => (cur === key ? null : cur)) : undefined
+                }
+                onDrop={
+                  canDrop
+                    ? (e) => {
+                        e.preventDefault()
+                        setDragOverKey(null)
+                        if (dragging) commitTier(prep!, dragging, tier)
+                        setDragging(null)
+                      }
+                    : undefined
+                }
+              >
                 <div className="flex items-baseline justify-between gap-2 px-3 pt-1.5">
                   <span className={`inline-block rounded px-1.5 py-0.5 font-display text-[10px] font-semibold uppercase tracking-wide ${tierWeightClass(tier)}`}>
                     {tier > 0 ? `Tier ${tier}` : 'Untiered'}
@@ -122,8 +172,21 @@ export function TiersView({ players, prep }: Props) {
                   </span>
                 </div>
                 <ul className="px-3 pb-1.5">
-                  {members.map((p) => (
-                    <li key={p.gsis_id} className="flex items-center gap-2 py-0.5">
+                  {members.map((p) => {
+                    // Untiered reads as sitting just past the last real tier for
+                    // arrow purposes, so ▲ from there promotes into the bottom
+                    // real tier instead of jumping straight to Tier 1.
+                    const cur = tier > 0 ? tier : posMaxTier + 1
+                    return (
+                    <li
+                      key={p.gsis_id}
+                      draggable={!!prep}
+                      onDragStart={prep ? () => setDragging(p) : undefined}
+                      onDragEnd={prep ? () => { setDragging(null); setDragOverKey(null) } : undefined}
+                      className={`flex items-center gap-2 py-0.5 ${
+                        prep ? 'cursor-grab active:cursor-grabbing' : ''
+                      } ${dragging?.gsis_id === p.gsis_id ? 'opacity-40' : ''}`}
+                    >
                       <PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />
                       <RouterLink
                         to={`/players/${p.gsis_id}`}
@@ -137,23 +200,47 @@ export function TiersView({ players, prep }: Props) {
                         ${p.auction_value}
                       </span>
                       {prep && (
-                        <button
-                          onClick={() => setPicking(p)}
-                          title="Move to a different tier"
-                          aria-label={`Set tier for ${p.name}`}
-                          className="shrink-0 font-mono text-[10px] text-muted-foreground hover:text-foreground"
-                        >
-                          ⋯
-                        </button>
+                        <>
+                          <span className="flex shrink-0 flex-col leading-none">
+                            <button
+                              onClick={() => commitTier(prep, p, Math.max(1, cur - 1))}
+                              disabled={cur <= 1}
+                              aria-label={`Move ${p.name} up a tier`}
+                              title="Move up a tier"
+                              className="font-mono text-[9px] text-muted-foreground hover:text-foreground disabled:opacity-30"
+                            >
+                              ▲
+                            </button>
+                            <button
+                              onClick={() => commitTier(prep, p, Math.min(posMaxTier + 1, cur + 1))}
+                              disabled={cur >= posMaxTier + 1}
+                              aria-label={`Move ${p.name} down a tier`}
+                              title="Move down a tier"
+                              className="font-mono text-[9px] text-muted-foreground hover:text-foreground disabled:opacity-30"
+                            >
+                              ▼
+                            </button>
+                          </span>
+                          <button
+                            onClick={() => setPicking(p)}
+                            title="Move to a different tier"
+                            aria-label={`Set tier for ${p.name}`}
+                            className="shrink-0 font-mono text-[10px] text-muted-foreground hover:text-foreground"
+                          >
+                            ⋯
+                          </button>
+                        </>
                       )}
                     </li>
-                  ))}
+                    )
+                  })}
                 </ul>
               </div>
             )
           })}
         </div>
-      ))}
+        )
+      })}
 
       {prep && (
         <TierPickerDialog
@@ -207,7 +294,7 @@ function TierPickerDialog({
           <li key={t} className="border-b border-border last:border-0">
             <button
               onClick={() => {
-                prep.setCustomTier(player.gsis_id, t === player.tier ? null : t)
+                commitTier(prep, player, t)
                 onClose()
               }}
               className={`flex min-h-[2.5rem] w-full items-center py-2 font-display text-sm ${
