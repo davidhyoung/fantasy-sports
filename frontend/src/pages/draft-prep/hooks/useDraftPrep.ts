@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getDraftPrep, setDraftPrepPlayer, reorderDraftPrep,
@@ -34,7 +34,14 @@ export function useDraftPrep(leagueId: number | null, season: number) {
     return map
   }, [data])
 
-  const entry = (gsisId: string) => byPlayer.get(gsisId) ?? { ...EMPTY, gsis_id: gsisId }
+  // Stable across renders where the underlying data hasn't changed — every
+  // consumer downstream (TiersView's grouping, row-level React.memo) relies
+  // on that to avoid recomputing/re-rendering on renders unrelated to this
+  // data.
+  const entry = useCallback(
+    (gsisId: string) => byPlayer.get(gsisId) ?? { ...EMPTY, gsis_id: gsisId },
+    [byPlayer],
+  )
 
   /** Applies a change to the cached board and returns the previous copy for rollback. */
   const patchCache = (next: (prev: DraftPrepEntry[]) => DraftPrepEntry[]) => {
@@ -95,33 +102,39 @@ export function useDraftPrep(leagueId: number | null, season: number) {
   })
 
   /** Writes one field, carrying the rest of the row through unchanged. */
-  const patch = (gsisId: string, changes: Partial<{ interest: InterestLevel | null; customRank: number | null; customTier: number | null; note: string; plannedCost: number | null; myValue: number | null }>) => {
-    const current = entry(gsisId)
-    setPlayer.mutate({
-      gsisId,
-      interest: changes.interest !== undefined ? changes.interest : current.interest,
-      customRank: changes.customRank !== undefined ? changes.customRank : current.custom_rank,
-      customTier: changes.customTier !== undefined ? changes.customTier : current.custom_tier,
-      note: changes.note ?? current.note,
-      plannedCost: changes.plannedCost !== undefined ? changes.plannedCost : current.planned_cost,
-      myValue: changes.myValue !== undefined ? changes.myValue : current.my_value,
-    })
-  }
+  const patch = useCallback(
+    (gsisId: string, changes: Partial<{ interest: InterestLevel | null; customRank: number | null; customTier: number | null; note: string; plannedCost: number | null; myValue: number | null }>) => {
+      const current = entry(gsisId)
+      setPlayer.mutate({
+        gsisId,
+        interest: changes.interest !== undefined ? changes.interest : current.interest,
+        customRank: changes.customRank !== undefined ? changes.customRank : current.custom_rank,
+        customTier: changes.customTier !== undefined ? changes.customTier : current.custom_tier,
+        note: changes.note ?? current.note,
+        plannedCost: changes.plannedCost !== undefined ? changes.plannedCost : current.planned_cost,
+        myValue: changes.myValue !== undefined ? changes.myValue : current.my_value,
+      })
+    },
+    [entry, setPlayer.mutate],
+  )
 
   /** Re-picking the current level clears it, so one control both sets and clears. */
-  const setInterest = (gsisId: string, level: InterestLevel) =>
-    patch(gsisId, { interest: entry(gsisId).interest === level ? null : level })
+  const setInterest = useCallback(
+    (gsisId: string, level: InterestLevel) =>
+      patch(gsisId, { interest: entry(gsisId).interest === level ? null : level }),
+    [patch, entry],
+  )
 
-  const setNote = (gsisId: string, note: string) => patch(gsisId, { note })
+  const setNote = useCallback((gsisId: string, note: string) => patch(gsisId, { note }), [patch])
 
   /** null removes the player from the team plan; a number sets the price. */
-  const setPlannedCost = (gsisId: string, cost: number | null) => patch(gsisId, { plannedCost: cost })
+  const setPlannedCost = useCallback((gsisId: string, cost: number | null) => patch(gsisId, { plannedCost: cost }), [patch])
 
   /** null reverts to the algorithm's own tier for this player. */
-  const setCustomTier = (gsisId: string, tier: number | null) => patch(gsisId, { customTier: tier })
+  const setCustomTier = useCallback((gsisId: string, tier: number | null) => patch(gsisId, { customTier: tier }), [patch])
 
   /** Your own valuation, distinct from the algorithm's auction_value. */
-  const setMyValue = (gsisId: string, value: number | null) => patch(gsisId, { myValue: value })
+  const setMyValue = useCallback((gsisId: string, value: number | null) => patch(gsisId, { myValue: value }), [patch])
 
   /**
    * Sets several fields in one write. Needed whenever a single action changes
@@ -131,10 +144,13 @@ export function useDraftPrep(leagueId: number | null, season: number) {
    * re-rendered between them), so the second call's stale copy of the first
    * field would silently overwrite it once both requests land.
    */
-  const setFields = (
-    gsisId: string,
-    changes: Partial<{ customRank: number | null; customTier: number | null; myValue: number | null }>,
-  ) => patch(gsisId, changes)
+  const setFields = useCallback(
+    (
+      gsisId: string,
+      changes: Partial<{ customRank: number | null; customTier: number | null; myValue: number | null }>,
+    ) => patch(gsisId, changes),
+    [patch],
+  )
 
   const counts = useMemo(() => {
     const c = { targets: 0, avoids: 0, ranked: 0, planned: 0 }

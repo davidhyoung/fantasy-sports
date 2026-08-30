@@ -176,6 +176,8 @@ function PlayerAvatar({ src, alt, size = 28 }: PlayerAvatarProps) {
         alt={alt}
         width={size}
         height={size}
+        loading="lazy"
+        decoding="async"
         className={`${cls} rounded-full object-cover bg-muted shrink-0`}
       />
     )

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
@@ -157,18 +157,18 @@ export default function DraftPrep() {
 
   /** A neighbour's own value, falling back to the algorithm's price when they
    *  have no personal valuation of their own yet. */
-  const valueOf = (gsisId: string): number | null => {
+  const valueOf = useCallback((gsisId: string): number | null => {
     const mine = prep.entry(gsisId).my_value
     if (mine != null) return mine
     return allPlayers.find((p) => p.gsis_id === gsisId)?.auction_value ?? null
-  }
+  }, [prep.entry, allPlayers])
 
   /**
    * Reordering rewrites the whole board, not just the rows on screen — a rank is
    * only meaningful relative to every other player, and a filtered view would
    * otherwise renumber the board around whatever happened to be visible.
    */
-  const handleMove = (movingId: string, neighbourId: string, place: 'before' | 'after') => {
+  const handleMove = useCallback((movingId: string, neighbourId: string, place: 'before' | 'after') => {
     const order = boardOrder(allPlayers, prep.entry).map((p) => p.gsis_id)
     const from = order.indexOf(movingId)
     if (from < 0) return
@@ -195,11 +195,14 @@ export default function DraftPrep() {
     // the rank we already know this player ends up at sidesteps that read
     // entirely instead of racing it.
     prep.setFields(movingId, { customRank: newIndex + 1, myValue: interpolated })
-  }
+  }, [allPlayers, prep.entry, prep.reorder.mutate, prep.setFields, valueOf])
 
   // Shared by both board layouts (table, tiers) so they never disagree about
-  // your ranks/targets/tier overrides.
-  const prepControls = {
+  // your ranks/targets/tier overrides. Memoized so its identity only changes
+  // when the underlying draft-prep data actually does — TiersView depends on
+  // it to skip re-grouping/re-rendering ~300 players on renders that have
+  // nothing to do with this data.
+  const prepControls = useMemo(() => ({
     entry: prep.entry,
     setInterest: prep.setInterest,
     setPlannedCost: prep.setPlannedCost,
@@ -208,7 +211,7 @@ export default function DraftPrep() {
     setMyValue: prep.setMyValue,
     setFields: prep.setFields,
     onMove: handleMove,
-  }
+  }), [prep.entry, prep.setInterest, prep.setPlannedCost, prep.setNote, prep.setCustomTier, prep.setMyValue, prep.setFields, handleMove])
 
   // Fed to the docked panel's Settings bucket.
   const settingsControls = {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import type { DraftPlayer, DraftPrepEntry } from '@/api/client'
 import { PlayerAvatar } from '@/components/ui/table-helpers'
@@ -116,7 +116,7 @@ interface PositionGroup {
  * a tier number is never seen without the position it belongs to right there
  * next to it.
  */
-export function TiersView({ players, prep }: Props) {
+function TiersViewImpl({ players, prep }: Props) {
   const groups = useMemo<PositionGroup[]>(() => {
     const byPosition = new Map<string, Map<number, DraftPlayer[]>>()
     for (const p of players) {
@@ -166,6 +166,9 @@ export function TiersView({ players, prep }: Props) {
   // DataTransfer.getData() isn't readable until the actual drop.
   const [dragging, setDragging] = useState<DraftPlayer | null>(null)
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
+  // Stable identity so it can be handed to memoized row components as a prop
+  // without defeating their memoization.
+  const clearDrag = useCallback(() => { setDragging(null); setDragOverKey(null) }, [])
 
   /**
    * Sets the tier, and — only when the tier actually changes — auto-fills
@@ -257,79 +260,19 @@ export function TiersView({ players, prep }: Props) {
                   </span>
                 </div>
                 <ul className="px-3 pb-1.5">
-                  {members.map((p) => {
-                    const mine = prep?.entry(p.gsis_id)
-                    // The base a nudge starts from — your own value if you've
-                    // set one, otherwise the system's, same fallback the
-                    // auto-fill interpolation uses.
-                    const base = mine?.my_value ?? p.auction_value
-                    return (
-                    <li
+                  {members.map((p) => (
+                    <TierMemberRow
                       key={p.gsis_id}
-                      draggable={!!prep}
-                      onDragStart={prep ? () => setDragging(p) : undefined}
-                      onDragEnd={prep ? () => { setDragging(null); setDragOverKey(null) } : undefined}
-                      className={`flex items-center gap-2 py-0.5 ${
-                        prep ? 'cursor-grab active:cursor-grabbing' : ''
-                      } ${dragging?.gsis_id === p.gsis_id ? 'opacity-40' : ''}`}
-                    >
-                      <PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />
-                      <RouterLink
-                        to={`/players/${p.gsis_id}`}
-                        className="min-w-0 flex-1 truncate font-display text-xs font-semibold text-foreground hover:underline"
-                        title={`${p.name} · ${p.team} · ${p.proj_league_fpts.toFixed(0)} proj`}
-                      >
-                        {p.name}
-                      </RouterLink>
-                      <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{p.team}</span>
-                      <span
-                        className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground"
-                        title="System value"
-                      >
-                        ${p.auction_value}
-                      </span>
-                      {prep && (
-                        <MyValueField
-                          value={mine!.my_value}
-                          onCommit={(v) => prep.setMyValue(p.gsis_id, v)}
-                        />
-                      )}
-                      {prep && (
-                        <>
-                          {/* Nudges your value by $1 — tier changes are drag or the
-                              picker below, not these; a spot is a dollar, not a tier. */}
-                          <span className="flex shrink-0 flex-col leading-none">
-                            <button
-                              onClick={() => prep.setMyValue(p.gsis_id, Math.min(10000, base + 1))}
-                              aria-label={`Increase ${p.name}'s value by $1`}
-                              title="+$1"
-                              className="font-mono text-[9px] text-muted-foreground hover:text-foreground"
-                            >
-                              ▲
-                            </button>
-                            <button
-                              onClick={() => prep.setMyValue(p.gsis_id, Math.max(0, base - 1))}
-                              disabled={base <= 0}
-                              aria-label={`Decrease ${p.name}'s value by $1`}
-                              title="−$1"
-                              className="font-mono text-[9px] text-muted-foreground hover:text-foreground disabled:opacity-30"
-                            >
-                              ▼
-                            </button>
-                          </span>
-                          <button
-                            onClick={() => setPicking(p)}
-                            title="Move to a different tier"
-                            aria-label={`Set tier for ${p.name}`}
-                            className="shrink-0 font-mono text-[10px] text-muted-foreground hover:text-foreground"
-                          >
-                            ⋯
-                          </button>
-                        </>
-                      )}
-                    </li>
-                    )
-                  })}
+                      player={p}
+                      myValue={prep?.entry(p.gsis_id).my_value ?? null}
+                      editable={!!prep}
+                      isDragging={dragging?.gsis_id === p.gsis_id}
+                      onDragStart={setDragging}
+                      onDragEnd={clearDrag}
+                      onCommitValue={prep?.setMyValue}
+                      onOpenPicker={setPicking}
+                    />
+                  ))}
                 </ul>
               </div>
             )
@@ -350,6 +293,104 @@ export function TiersView({ players, prep }: Props) {
     </div>
   )
 }
+
+/**
+ * Memoized so unrelated re-renders of the page (a filter chip, a query
+ * refetch elsewhere, another tab's state) don't force ~300 players' worth of
+ * grouping/sorting and DOM back through render again — it only actually runs
+ * when the player list or the (now-stable) prep controls object changes.
+ */
+export const TiersView = memo(TiersViewImpl)
+
+interface TierMemberRowProps {
+  player: DraftPlayer
+  myValue: number | null
+  editable: boolean
+  isDragging: boolean
+  onDragStart: (player: DraftPlayer) => void
+  onDragEnd: () => void
+  onCommitValue?: (gsisId: string, value: number | null) => void
+  onOpenPicker: (player: DraftPlayer) => void
+}
+
+/**
+ * One player row. Memoized on primitive/stable props so editing one player's
+ * value (or dragging one player) only re-renders that row, not every other
+ * member across every tier and position panel.
+ */
+const TierMemberRow = memo(function TierMemberRow({
+  player: p, myValue, editable, isDragging, onDragStart, onDragEnd, onCommitValue, onOpenPicker,
+}: TierMemberRowProps) {
+  // The base a nudge starts from — your own value if you've set one,
+  // otherwise the system's, same fallback the auto-fill interpolation uses.
+  const base = myValue ?? p.auction_value
+
+  return (
+    <li
+      draggable={editable}
+      onDragStart={editable ? () => onDragStart(p) : undefined}
+      onDragEnd={editable ? onDragEnd : undefined}
+      className={`flex items-center gap-2 py-0.5 ${
+        editable ? 'cursor-grab active:cursor-grabbing' : ''
+      } ${isDragging ? 'opacity-40' : ''}`}
+    >
+      <PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />
+      <RouterLink
+        to={`/players/${p.gsis_id}`}
+        className="min-w-0 flex-1 truncate font-display text-xs font-semibold text-foreground hover:underline"
+        title={`${p.name} · ${p.team} · ${p.proj_league_fpts.toFixed(0)} proj`}
+      >
+        {p.name}
+      </RouterLink>
+      <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{p.team}</span>
+      <span
+        className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground"
+        title="System value"
+      >
+        ${p.auction_value}
+      </span>
+      {editable && onCommitValue && (
+        <MyValueField
+          value={myValue}
+          onCommit={(v) => onCommitValue(p.gsis_id, v)}
+        />
+      )}
+      {editable && onCommitValue && (
+        <>
+          {/* Nudges your value by $1 — tier changes are drag or the
+              picker below, not these; a spot is a dollar, not a tier. */}
+          <span className="flex shrink-0 flex-col leading-none">
+            <button
+              onClick={() => onCommitValue(p.gsis_id, Math.min(10000, base + 1))}
+              aria-label={`Increase ${p.name}'s value by $1`}
+              title="+$1"
+              className="font-mono text-[9px] text-muted-foreground hover:text-foreground"
+            >
+              ▲
+            </button>
+            <button
+              onClick={() => onCommitValue(p.gsis_id, Math.max(0, base - 1))}
+              disabled={base <= 0}
+              aria-label={`Decrease ${p.name}'s value by $1`}
+              title="−$1"
+              className="font-mono text-[9px] text-muted-foreground hover:text-foreground disabled:opacity-30"
+            >
+              ▼
+            </button>
+          </span>
+          <button
+            onClick={() => onOpenPicker(p)}
+            title="Move to a different tier"
+            aria-label={`Set tier for ${p.name}`}
+            className="shrink-0 font-mono text-[10px] text-muted-foreground hover:text-foreground"
+          >
+            ⋯
+          </button>
+        </>
+      )}
+    </li>
+  )
+})
 
 /**
  * Editable "my value" figure. Blank means no opinion yet — distinct from a
