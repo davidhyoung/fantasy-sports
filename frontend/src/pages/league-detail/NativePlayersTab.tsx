@@ -7,6 +7,7 @@ import { FilterChip } from '@/components/ui/filter-chip'
 import { useQuery } from '@tanstack/react-query'
 import { getLeagueRosters, getLeagueFreeAgents, type Team, type PlayerStat } from '../../api/client'
 import { keys } from '../../api/queryKeys'
+import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
 import { SCORING_STATS, SCORING_LABELS, type ScoringStat } from './hooks/useDraftSettings'
 import { L4Sparkline } from './components/L4Sparkline'
 
@@ -46,6 +47,7 @@ function statValue(stats: PlayerStat[] | undefined, stat: ScoringStat): number |
 export function NativePlayersTab({ leagueId, active, teams }: Props) {
   const [view, setView] = useState<'free-agents' | 'rostered'>('free-agents')
   const [positions, setPositions] = useState<Set<string>>(new Set())
+  const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
 
   const togglePosition = (p: string) => {
     setPositions((prev) => {
@@ -149,7 +151,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                   return (
                     <MobileStatCard
                       key={p.gsis_id}
-                      href={`/players/${p.gsis_id}?league=${leagueId}`}
+                      onClick={() => setViewingPlayer(p.gsis_id)}
                       leading={<PlayerAvatar src={p.headshot_url} alt={p.name} />}
                       title={p.name}
                       subtitle={`${p.team || 'FA'} · ${p.position}`}
@@ -177,7 +179,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                   return (
                     <MobileStatCard
                       key={p.gsis_id}
-                      href={`/players/${p.gsis_id}?league=${leagueId}`}
+                      onClick={() => setViewingPlayer(p.gsis_id)}
                       leading={<PlayerAvatar src={p.headshot_url} alt={p.name} />}
                       title={p.name}
                       subtitle={`${p.team || '—'} · ${p.position}`}
@@ -221,7 +223,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
               {view === 'free-agents'
                 ? (rows as NonNullable<typeof freeAgents>).map((p) => (
                     <ClickableRow key={p.gsis_id}>
-                      <PlayerCell name={p.name} imageUrl={p.headshot_url} href={`/players/${p.gsis_id}?league=${leagueId}`} notes={p.notes} />
+                      <PlayerCell name={p.name} imageUrl={p.headshot_url} onClick={() => setViewingPlayer(p.gsis_id)} notes={p.notes} />
                       <TableCell className="text-muted-foreground">{p.team || '—'}</TableCell>
                       <TableCell className="text-muted-foreground">{p.position}</TableCell>
                       {statColumns.map((s) => {
@@ -240,7 +242,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                   ))
                 : (rows as NonNullable<typeof roster>).map((p) => (
                     <ClickableRow key={p.gsis_id}>
-                      <PlayerCell name={p.name} imageUrl={p.headshot_url} href={`/players/${p.gsis_id}?league=${leagueId}`} notes={p.notes} />
+                      <PlayerCell name={p.name} imageUrl={p.headshot_url} onClick={() => setViewingPlayer(p.gsis_id)} notes={p.notes} />
                       <TableCell className="text-muted-foreground">{p.team || '—'}</TableCell>
                       <TableCell className="text-muted-foreground">{p.position}</TableCell>
                       {statColumns.map((s) => {
@@ -264,6 +266,8 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
         </div>
         </>
       )}
+
+      <PlayerDetailPanel gsisId={viewingPlayer} leagueId={leagueId} onClose={() => setViewingPlayer(null)} />
     </>
   )
 }

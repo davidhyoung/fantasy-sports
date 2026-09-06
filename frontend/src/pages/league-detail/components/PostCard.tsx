@@ -28,6 +28,9 @@ interface Props {
   onDelete: () => void
   onPin?: () => void
   voting?: boolean
+  /** Opens the attached player in-place (a drawer/sheet) rather than
+   *  navigating to `/players/:gsisId`. */
+  onPlayerClick: (gsisId: string) => void
 }
 
 /**
@@ -37,7 +40,7 @@ interface Props {
  * that chrome, since the row still has to exist (a reply's parent pointer
  * and a thread's reply count both depend on the row surviving).
  */
-export function PostCard({ leagueId, post, isThread, canModerate, onReact, onVote, onEdit, onDelete, onPin, voting }: Props) {
+export function PostCard({ post, isThread, canModerate, onReact, onVote, onEdit, onDelete, onPin, voting, onPlayerClick }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(post.body)
@@ -102,14 +105,15 @@ export function PostCard({ leagueId, post, isThread, canModerate, onReact, onVot
           )}
 
           {post.attached_player && (
-            <RouterLink
-              to={`/players/${post.attached_player.gsis_id}?league=${leagueId}`}
-              className="mt-2 flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 hover:bg-muted"
+            <button
+              type="button"
+              onClick={() => onPlayerClick(post.attached_player!.gsis_id)}
+              className="mt-2 flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-left hover:bg-muted"
             >
               <PlayerAvatar src={post.attached_player.headshot_url} alt={post.attached_player.name} size={28} />
               <span className="font-display text-[13px] font-semibold text-foreground">{post.attached_player.name}</span>
               <span className="text-xs text-muted-foreground">{post.attached_player.position} · {post.attached_player.team || 'FA'}</span>
-            </RouterLink>
+            </button>
           )}
 
           {post.poll && <PollBar poll={post.poll} onVote={onVote} voting={!!voting} />}

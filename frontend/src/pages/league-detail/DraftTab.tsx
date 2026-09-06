@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { getDraftValues, DraftPlayer, DraftReplacementLevel } from '@/api/client'
@@ -6,6 +6,7 @@ import { keys } from '@/api/queryKeys'
 import { PROJECTION_SEASON } from '@/lib/constants'
 import { DraftBoardTable } from '@/pages/draft-prep/components/DraftBoardTable'
 import { TiersView } from '@/pages/draft-prep/components/TiersView'
+import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
 import { draftQuery, printPoolSize as computePrintPoolSize, readSettings } from './hooks/useDraftSettings'
 
 const POSITIONS = ['All', 'QB', 'RB', 'WR', 'TE', 'K']
@@ -35,6 +36,7 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
   // so a refresh (or a shared link) lands you back where you were — distinct
   // param names from the league page's own `?tab=`/`?sub=`/`?team=`.
   const [searchParams, setSearchParams] = useSearchParams()
+  const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
   const position = searchParams.get('pos') ?? ''
   const setPosition = (pos: string) => {
     searchParams.set('pos', pos)
@@ -189,12 +191,14 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
             {data.settings?.overridden && ' · your Draft Prep settings'}
           </p>
           {boardMode === 'tiers' ? (
-            <TiersView players={filtered} printPoolSize={printPoolSize} />
+            <TiersView players={filtered} printPoolSize={printPoolSize} onPlayerClick={setViewingPlayer} />
           ) : (
-            <DraftBoardTable players={filtered} gradeRankMap={gradeRankMap} />
+            <DraftBoardTable players={filtered} gradeRankMap={gradeRankMap} onPlayerClick={setViewingPlayer} />
           )}
         </>
       ) : null}
+
+      <PlayerDetailPanel gsisId={viewingPlayer} leagueId={leagueId} onClose={() => setViewingPlayer(null)} />
     </div>
   )
 }

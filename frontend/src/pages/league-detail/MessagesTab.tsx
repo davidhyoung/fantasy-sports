@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { FilterChip } from '@/components/ui/filter-chip'
+import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
 import { PostCard } from './components/PostCard'
 import { PostComposer } from './components/PostComposer'
 import { ThreadDetailView } from './components/ThreadDetailView'
@@ -31,6 +32,7 @@ export function MessagesTab({ leagueId, active, teams, canModerate }: Props) {
   const [searchParams] = useSearchParams()
   const threadId = searchParams.get('thread')
   const [filter, setFilter] = useState<ThreadFilter>('all')
+  const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
 
   const { data, isLoading, error } = useLeagueThreads(leagueId, filter, active && !threadId)
   const create = useCreateThread(leagueId)
@@ -43,7 +45,18 @@ export function MessagesTab({ leagueId, active, teams, canModerate }: Props) {
   if (!active) return null
 
   if (threadId) {
-    return <ThreadDetailView leagueId={leagueId} threadId={Number(threadId)} teams={teams} canModerate={canModerate} />
+    return (
+      <>
+        <ThreadDetailView
+          leagueId={leagueId}
+          threadId={Number(threadId)}
+          teams={teams}
+          canModerate={canModerate}
+          onPlayerClick={setViewingPlayer}
+        />
+        <PlayerDetailPanel gsisId={viewingPlayer} leagueId={leagueId} onClose={() => setViewingPlayer(null)} />
+      </>
+    )
   }
 
   return (
@@ -90,10 +103,13 @@ export function MessagesTab({ leagueId, active, teams, canModerate }: Props) {
               onDelete={() => del.mutate(t.id)}
               onPin={() => pin.mutate({ threadId: t.id, pinned: !t.is_pinned })}
               voting={vote.isPending}
+              onPlayerClick={setViewingPlayer}
             />
           ))}
         </div>
       )}
+
+      <PlayerDetailPanel gsisId={viewingPlayer} leagueId={leagueId} onClose={() => setViewingPlayer(null)} />
     </div>
   )
 }

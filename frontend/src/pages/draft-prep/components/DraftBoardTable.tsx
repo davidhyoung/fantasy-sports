@@ -88,6 +88,10 @@ interface Props {
    *  Undo control instead. Maps id -> the interest level that was cleared. */
   recentlyCleared?: Map<string, InterestLevel>
   onUndoInterest?: (gsisId: string) => void
+  /** Opens the player in-place (a drawer/sheet) rather than navigating to
+   *  `/players/:gsisId` — every caller owns its own drawer state and passes
+   *  this down, same convention as NativeRosterTable's onPlayerClick. */
+  onPlayerClick: (gsisId: string) => void
 }
 
 /** Our price minus the market's. Positive = we're higher on him than the market. */
@@ -172,7 +176,7 @@ function BoardPrintSheet({ players, entry, cap }: { players: DraftPlayer[]; entr
   )
 }
 
-export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus, printPoolSize, recentlyCleared, onUndoInterest }: Props) {
+export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus, printPoolSize, recentlyCleared, onUndoInterest, onPlayerClick }: Props) {
   const { sortCol, sortDir, handleSort } = useTableSort(prep ? 'board' : 'rank', 'asc', ASC_COLS)
   // Drag state lives here rather than per-row: only one row can be dragged (or
   // hovered as a drop target) at a time, and lifting it out of the row map
@@ -311,6 +315,7 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus, pr
         isVisible={isVisible}
         recentlyCleared={recentlyCleared}
         onUndoInterest={onUndoInterest}
+        onPlayerClick={onPlayerClick}
       />
     {prep && <BoardPrintSheet players={players} entry={prep.entry} cap={printPoolSize ?? 0} />}
     {/* The consensus columns push this past a narrow viewport; scroll the table
@@ -514,7 +519,7 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus, pr
                   name={p.name}
                   imageUrl={p.headshot_url}
                   sub={p.team}
-                  href={`/players/${p.gsis_id}`}
+                  onClick={() => onPlayerClick(p.gsis_id)}
                   notes={p.notes}
                   strikethrough={clearedLevel != null}
                 />

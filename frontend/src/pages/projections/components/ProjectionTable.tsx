@@ -1,10 +1,11 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { ProjPlayerListItem } from '@/api/client'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
 import { SortableHead, useTableSort, PlayerCell, PlayerAvatar, ClickableRow, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
 import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-stat-card'
 import { MobileSortSheet, type MobileSortOption } from '@/components/ui/mobile-sort-sheet'
 import { gradeColorClass } from '@/lib/grades'
+import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
 import ConfidenceBadge from './ConfidenceBadge'
 import UniquenessBadge from './UniquenessBadge'
 import DeltaBadge from '../../divergences/components/DeltaBadge'
@@ -43,6 +44,7 @@ export default function ProjectionTable({
   divergences,
 }: ProjectionTableProps) {
   const { sortCol, sortDir, handleSort } = useTableSort('rank', 'asc', ASC_COLS)
+  const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
 
   const projPts = useCallback((p: ProjPlayerListItem) => {
     switch (scoringFormat) {
@@ -119,7 +121,7 @@ export default function ProjectionTable({
           return (
             <MobileStatCard
               key={p.gsis_id}
-              href={`/players/${p.gsis_id}`}
+              onClick={() => setViewingPlayer(p.gsis_id)}
               leading={<PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />}
               title={p.name}
               subtitle={`${p.team ?? ''} · ${p.position_group}`}
@@ -178,7 +180,7 @@ export default function ProjectionTable({
               <TableCell className="text-center text-muted-foreground font-mono tabular-nums">
                 {p.overall_rank}
               </TableCell>
-              <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} href={`/players/${p.gsis_id}`} notes={p.notes} />
+              <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} onClick={() => setViewingPlayer(p.gsis_id)} notes={p.notes} />
               <TableCell className="text-center text-muted-foreground">{p.position_group}</TableCell>
               <TableCell className="text-center text-muted-foreground font-mono tabular-nums">{p.age || '—'}</TableCell>
               <TableCell className="text-right tabular-nums font-mono">
@@ -215,6 +217,8 @@ export default function ProjectionTable({
         </TableBody>
       </Table>
       </div>
+
+      <PlayerDetailPanel gsisId={viewingPlayer} onClose={() => setViewingPlayer(null)} />
     </>
   )
 }

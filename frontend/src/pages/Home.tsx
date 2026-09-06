@@ -6,6 +6,7 @@ import { ListRow } from '@/components/ui/list-row'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { Badge } from '@/components/ui/badge'
 import { PlayerAvatar } from '@/components/ui/table-helpers'
+import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
 import { useDivergences } from './divergences/hooks/useDivergences'
 import { listLeagues, sync, type User, type DivergenceItem } from '../api/client'
 import { keys } from '../api/queryKeys'
@@ -56,7 +57,7 @@ function deltaGlyph(delta: number): string {
   return mag >= 10 ? arrow + arrow : arrow
 }
 
-function SignalCard({ d }: { d: DivergenceItem }) {
+function SignalCard({ d, onPlayerClick }: { d: DivergenceItem; onPlayerClick: (gsisId: string) => void }) {
   const higher = d.rank_delta < 0
   const note = d.notes[0]
   const blurb = note
@@ -64,9 +65,10 @@ function SignalCard({ d }: { d: DivergenceItem }) {
     : 'No situational news — the gap here is model-driven.'
 
   return (
-    <RouterLink
-      to={`/players/${d.gsis_id}`}
-      className="flex items-start gap-4 rounded-xl border border-border px-[18px] py-4 hover:bg-card"
+    <button
+      type="button"
+      onClick={() => onPlayerClick(d.gsis_id)}
+      className="flex w-full items-start gap-4 rounded-xl border border-border px-[18px] py-4 text-left hover:bg-card"
     >
       <PlayerAvatar src={d.headshot_url} alt={d.name} size={40} />
       <div className="min-w-0 flex-1">
@@ -90,7 +92,7 @@ function SignalCard({ d }: { d: DivergenceItem }) {
           {Math.abs(Math.round(d.rank_delta))}
         </div>
       </div>
-    </RouterLink>
+    </button>
   )
 }
 
@@ -99,6 +101,7 @@ function SignalCard({ d }: { d: DivergenceItem }) {
 export default function Home({ user }: { user: User | null }) {
   const qc = useQueryClient()
   const [signalFilter, setSignalFilter] = useState<SignalFilter>('all')
+  const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
 
   const { data: leagues = [], error: leaguesError } = useQuery({
     queryKey: keys.leagues,
@@ -226,11 +229,13 @@ export default function Home({ user }: { user: User | null }) {
         ) : (
           <div className="mt-3 flex flex-col gap-2.5">
             {signals.map(d => (
-              <SignalCard key={d.gsis_id} d={d} />
+              <SignalCard key={d.gsis_id} d={d} onPlayerClick={setViewingPlayer} />
             ))}
           </div>
         )}
       </section>
+
+      <PlayerDetailPanel gsisId={viewingPlayer} onClose={() => setViewingPlayer(null)} />
     </div>
   )
 }

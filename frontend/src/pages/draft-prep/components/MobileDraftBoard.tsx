@@ -55,6 +55,7 @@ interface Props {
   isVisible: (col: AdvancedCol) => boolean
   recentlyCleared?: Map<string, InterestLevel>
   onUndoInterest?: (gsisId: string) => void
+  onPlayerClick: (gsisId: string) => void
 }
 
 /**
@@ -66,7 +67,7 @@ interface Props {
  */
 export function MobileDraftBoard({
   players: sorted, gradeRankMap, prep, showConsensus, sortCol, sortDir, onSort, canMove, sortNotice,
-  isVisible, recentlyCleared, onUndoInterest,
+  isVisible, recentlyCleared, onUndoInterest, onPlayerClick,
 }: Props) {
   const options = SORT_OPTIONS.filter((o) => {
     if (o.col === 'board' && !prep) return false
@@ -107,6 +108,7 @@ export function MobileDraftBoard({
               isVisible={isVisible}
               clearedLevel={clearedLevel}
               onUndoInterest={onUndoInterest}
+              onPlayerClick={onPlayerClick}
             />
           </div>
         )
@@ -144,7 +146,7 @@ function RankFace({ customRank, overallRank }: { customRank: number; overallRank
 }
 
 function PlayerCard({
-  player: p, index: i, players: sorted, gradeRank, prep, showConsensus, canMove, isVisible, clearedLevel, onUndoInterest,
+  player: p, index: i, players: sorted, gradeRank, prep, showConsensus, canMove, isVisible, clearedLevel, onUndoInterest, onPlayerClick,
 }: {
   player: DraftPlayer
   index: number
@@ -156,6 +158,7 @@ function PlayerCard({
   isVisible: (col: AdvancedCol) => boolean
   clearedLevel?: InterestLevel
   onUndoInterest?: (gsisId: string) => void
+  onPlayerClick: (gsisId: string) => void
 }) {
   const [moveOpen, setMoveOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
@@ -291,7 +294,7 @@ function PlayerCard({
   return (
     <>
       <MobileStatCard
-        href={`/players/${p.gsis_id}`}
+        onClick={() => onPlayerClick(p.gsis_id)}
         leading={<PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />}
         title={<span className={clearedLevel != null ? 'line-through text-muted-foreground' : ''}>{p.name}</span>}
         subtitle={`${p.team ?? ''} · ${p.position_group}`}

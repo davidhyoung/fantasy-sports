@@ -8,6 +8,7 @@ import { PROJECTION_SEASON } from '@/lib/constants'
 import {
   useDraftSettings, serverSettings, draftQuery, printPoolSize as computePrintPoolSize, type DraftSettings,
 } from '@/pages/league-detail/hooks/useDraftSettings'
+import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
 import { DraftBoardTable, boardOrder } from './components/DraftBoardTable'
 import { TiersView } from './components/TiersView'
 import { TeamPanel } from './components/TeamPanel'
@@ -171,6 +172,10 @@ export default function DraftPrep() {
     localStorage.setItem(PRIMER_KEY, '1')
     setPrimerDismissed(true)
   }
+
+  // Every player click across the Board, Tiers, and the docked panel opens
+  // this same drawer in place rather than navigating to /players/:gsisId.
+  const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
 
   const allPlayers = data?.players ?? NO_PLAYERS
   // The team builder measures a lineup against replacement, same as the board's prices do.
@@ -423,7 +428,7 @@ export default function DraftPrep() {
                 : `${settings.scoringFormat.toUpperCase()} scoring`}
             {isCustomized && ' · custom settings'}
           </p>
-          <TiersView players={allPlayers} prep={prepControls} printPoolSize={printPoolSize} />
+          <TiersView players={allPlayers} prep={prepControls} printPoolSize={printPoolSize} onPlayerClick={setViewingPlayer} />
         </>
       ) : (
         <>
@@ -451,6 +456,7 @@ export default function DraftPrep() {
             printPoolSize={printPoolSize}
             recentlyCleared={recentlyCleared}
             onUndoInterest={undoInterest}
+            onPlayerClick={setViewingPlayer}
           />
         </>
       )}
@@ -466,6 +472,13 @@ export default function DraftPrep() {
         editingSettings={editing}
         settingsControls={settingsControls}
         prep={prep}
+        onPlayerClick={setViewingPlayer}
+      />
+
+      <PlayerDetailPanel
+        gsisId={viewingPlayer}
+        leagueId={leagueId ?? undefined}
+        onClose={() => setViewingPlayer(null)}
       />
     </div>
   )

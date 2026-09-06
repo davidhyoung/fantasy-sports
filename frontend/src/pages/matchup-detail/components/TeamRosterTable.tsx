@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
 import { PlayerCell, PlayerAvatar, ClickableRow, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
 import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-stat-card'
 import { describeStat } from '@/lib/statDescriptions'
+import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
 import type { RosterPlayer, RosterStat } from '../../../api/client'
 
 interface Props {
@@ -12,6 +14,7 @@ interface Props {
 
 /** Roster table for one side of a matchup, with stat columns matching the shared label set. */
 export function TeamRosterTable({ teamName, roster, statLabels }: Props) {
+  const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
   return (
     <div className="mb-8">
       <h2 className="text-base font-semibold text-foreground mb-3">{teamName}</h2>
@@ -27,7 +30,7 @@ export function TeamRosterTable({ teamName, roster, statLabels }: Props) {
           return (
             <MobileStatCard
               key={p.player_key}
-              href={canLink ? `/players/${p.gsis_id}` : undefined}
+              onClick={canLink ? () => setViewingPlayer(p.gsis_id!) : undefined}
               leading={<PlayerAvatar src={p.image_url} alt={p.name.full} size={28} />}
               title={p.name.full}
               subtitle={p.selected_position.position}
@@ -58,7 +61,7 @@ export function TeamRosterTable({ teamName, roster, statLabels }: Props) {
                   <PlayerCell
                     name={p.name.full}
                     imageUrl={p.image_url}
-                    href={canLink ? `/players/${p.gsis_id}` : undefined}
+                    onClick={canLink ? () => setViewingPlayer(p.gsis_id!) : undefined}
                     notes={p.notes}
                   />
                   <TableCell className="text-muted-foreground">{p.selected_position.position}</TableCell>
@@ -76,6 +79,8 @@ export function TeamRosterTable({ teamName, roster, statLabels }: Props) {
           </TableBody>
         </Table>
       </div>
+
+      <PlayerDetailPanel gsisId={viewingPlayer} onClose={() => setViewingPlayer(null)} />
     </div>
   )
 }

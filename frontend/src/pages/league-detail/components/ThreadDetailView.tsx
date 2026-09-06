@@ -13,9 +13,11 @@ interface Props {
   threadId: number
   teams: Team[]
   canModerate: boolean
+  /** Opens an attached player in-place rather than navigating to `/players/:gsisId`. */
+  onPlayerClick: (gsisId: string) => void
 }
 
-export function ThreadDetailView({ leagueId, threadId, teams, canModerate }: Props) {
+export function ThreadDetailView({ leagueId, threadId, teams, canModerate, onPlayerClick }: Props) {
   const { data, isLoading, error } = useLeagueThread(leagueId, threadId)
   const reply = useCreateReply(leagueId, threadId)
   const react = useToggleReaction(leagueId)
@@ -44,6 +46,7 @@ export function ThreadDetailView({ leagueId, threadId, teams, canModerate }: Pro
         onDelete={() => del.mutate(data.thread.id)}
         onPin={() => pin.mutate({ threadId: data.thread.id, pinned: !data.thread.is_pinned })}
         voting={vote.isPending}
+        onPlayerClick={onPlayerClick}
       />
 
       {data.replies.length > 0 && (
@@ -58,6 +61,7 @@ export function ThreadDetailView({ leagueId, threadId, teams, canModerate }: Pro
               onVote={() => {}}
               onEdit={(body) => edit.mutate({ postId: r.id, body })}
               onDelete={() => del.mutate(r.id)}
+              onPlayerClick={onPlayerClick}
             />
           ))}
         </div>

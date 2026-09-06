@@ -15,6 +15,7 @@ import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-sta
 import { MobileSortSheet, type MobileSortOption } from '@/components/ui/mobile-sort-sheet'
 import { PROJECTION_SEASON } from '@/lib/constants'
 import type { DivergenceItem, RankingsFormat } from '@/api/client'
+import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
 import { useDivergences } from './hooks/useDivergences'
 import DeltaBadge from './components/DeltaBadge'
 
@@ -78,6 +79,7 @@ function sortRows(players: DivergenceItem[], col: SortKey, dir: 'asc' | 'desc'):
 export default function Divergences() {
   const [positionLabel, setPositionLabel] = useState('All')
   const [format, setFormat] = useState<RankingsFormat>('ppr')
+  const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
   const position =
     positionLabel === 'All' ? '' : (POSITION_FILTER[positionLabel] ?? positionLabel)
 
@@ -181,7 +183,7 @@ export default function Divergences() {
                 return (
                   <MobileStatCard
                     key={p.gsis_id}
-                    href={`/players/${p.gsis_id}`}
+                    onClick={() => setViewingPlayer(p.gsis_id)}
                     leading={<PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />}
                     title={p.name}
                     subtitle={p.team}
@@ -262,7 +264,7 @@ export default function Divergences() {
                       <TableCell className="text-right">
                         <DeltaBadge delta={p.rank_delta} />
                       </TableCell>
-                      <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} href={`/players/${p.gsis_id}`} />
+                      <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} onClick={() => setViewingPlayer(p.gsis_id)} />
                       <TableCell className="text-center text-xs text-muted-foreground">
                         {p.position_group}
                       </TableCell>
@@ -316,6 +318,8 @@ export default function Divergences() {
           )}
         </>
       ) : null}
+
+      <PlayerDetailPanel gsisId={viewingPlayer} onClose={() => setViewingPlayer(null)} />
     </div>
   )
 }

@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
 import type { DraftPlayer } from '@/api/client'
 import { PlayerAvatar } from '@/components/ui/table-helpers'
 import type { useDraftPrep } from '../hooks/useDraftPrep'
@@ -7,6 +6,8 @@ import type { useDraftPrep } from '../hooks/useDraftPrep'
 interface Props {
   players: DraftPlayer[]
   prep: ReturnType<typeof useDraftPrep>
+  /** Opens the player in-place (a drawer/sheet) rather than navigating to `/players/:gsisId`. */
+  onPlayerClick: (gsisId: string) => void
 }
 
 /** Draft order, so the panel reads the way a roster is built. */
@@ -27,7 +28,7 @@ function primaryPosition(p: DraftPlayer): string {
  * are computed within position, so a bare "Tier 2" heading spanning RBs and WRs
  * would be comparing two different things.
  */
-export function TargetList({ players, prep }: Props) {
+export function TargetList({ players, prep, onPlayerClick }: Props) {
   const groups = useMemo(() => {
     const targets = players.filter((p) => prep.entry(p.gsis_id).interest === 1)
 
@@ -97,13 +98,14 @@ export function TargetList({ players, prep }: Props) {
                   return (
                     <li key={p.gsis_id} className="flex items-center gap-2 py-0.5">
                       <PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />
-                      <RouterLink
-                        to={`/players/${p.gsis_id}`}
-                        className="min-w-0 flex-1 truncate font-display text-xs font-semibold text-foreground hover:underline"
+                      <button
+                        type="button"
+                        onClick={() => onPlayerClick(p.gsis_id)}
+                        className="min-w-0 flex-1 truncate text-left font-display text-xs font-semibold text-foreground hover:underline"
                         title={`${p.name} · ${p.team} · ${p.proj_league_fpts.toFixed(0)} proj`}
                       >
                         {p.name}
-                      </RouterLink>
+                      </button>
                       <span
                         className={`shrink-0 font-mono text-[11px] tabular-nums ${
                           planned != null ? 'text-primary' : 'text-muted-foreground'

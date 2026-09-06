@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -10,6 +10,7 @@ import { MobileSortSheet, type MobileSortOption } from '@/components/ui/mobile-s
 import { gradeColorClass, trendIndicator } from '@/lib/grades'
 import { zScoreIndicator, zScoreColor } from '@/lib/utils'
 import { describeStat } from '@/lib/statDescriptions'
+import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
 import { usePlayers, STATUS_FILTERS } from './hooks/usePlayers'
 import type { PlayerRow } from './hooks/usePlayers'
 
@@ -62,6 +63,7 @@ export function PlayersTab({ leagueId, active, sport }: Props) {
     [cats]
   )
   const { sortCol, sortDir, handleSort } = useTableSort('vorp', 'desc', isAscCol)
+  const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
 
   const positions = POSITIONS_BY_SPORT[sport] ?? []
 
@@ -231,7 +233,7 @@ export function PlayersTab({ leagueId, active, sport }: Props) {
             return (
               <MobileStatCard
                 key={row.playerKey}
-                href={canLink ? `/players/${row.gsisId}` : undefined}
+                onClick={canLink ? () => setViewingPlayer(row.gsisId!) : undefined}
                 leading={<PlayerAvatar src={row.imageUrl} alt={row.name} size={28} />}
                 title={row.name}
                 subtitle={`${row.teamAbbr || '—'} · ${row.position}`}
@@ -330,7 +332,7 @@ export function PlayersTab({ leagueId, active, sport }: Props) {
                     <PlayerCell
                       name={row.name}
                       imageUrl={row.imageUrl}
-                      href={canLink ? `/players/${row.gsisId}` : undefined}
+                      onClick={canLink ? () => setViewingPlayer(row.gsisId!) : undefined}
                       notes={row.rp?.notes}
                     />
                     <TableCell className="text-muted-foreground">{row.teamAbbr || '—'}</TableCell>
@@ -409,6 +411,8 @@ export function PlayersTab({ leagueId, active, sport }: Props) {
         </div>
         </>
       )}
+
+      <PlayerDetailPanel gsisId={viewingPlayer} leagueId={leagueId} onClose={() => setViewingPlayer(null)} />
     </>
   )
 }

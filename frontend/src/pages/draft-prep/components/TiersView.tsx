@@ -1,5 +1,4 @@
 import { memo, useCallback, useMemo, useState } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
 import type { DraftPlayer, DraftPrepEntry } from '@/api/client'
 import { PlayerAvatar } from '@/components/ui/table-helpers'
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
@@ -17,6 +16,8 @@ interface Props {
    *  untouched; players beyond the cap just carry `print:hidden`. No cap
    *  (undefined/0) prints everyone. */
   printPoolSize?: number
+  /** Opens the player in-place (a drawer/sheet) rather than navigating to `/players/:gsisId`. */
+  onPlayerClick: (gsisId: string) => void
 }
 
 /** Draft-relevant position order — the order a roster gets built in. */
@@ -124,7 +125,7 @@ interface PositionGroup {
  * a tier number is never seen without the position it belongs to right there
  * next to it.
  */
-function TiersViewImpl({ players, prep, printPoolSize }: Props) {
+function TiersViewImpl({ players, prep, printPoolSize, onPlayerClick }: Props) {
   const printable = useCallback(
     (p: DraftPlayer) => !printPoolSize || p.overall_rank <= printPoolSize,
     [printPoolSize],
@@ -305,6 +306,7 @@ function TiersViewImpl({ players, prep, printPoolSize }: Props) {
                       onDragEnd={clearDrag}
                       onCommitValue={prep?.setMyValue}
                       onOpenPicker={setPicking}
+                      onPlayerClick={onPlayerClick}
                     />
                   ))}
                 </ul>
@@ -353,6 +355,7 @@ function TiersViewImpl({ players, prep, printPoolSize }: Props) {
                       editable={!!prep}
                       onCommitValue={prep?.setMyValue}
                       onOpenPicker={setPicking}
+                      onPlayerClick={onPlayerClick}
                     />
                   ))}
                 </div>
@@ -395,6 +398,7 @@ interface TierMemberRowProps {
   onDragEnd: () => void
   onCommitValue?: (gsisId: string, value: number | null) => void
   onOpenPicker: (player: DraftPlayer) => void
+  onPlayerClick: (gsisId: string) => void
 }
 
 /**
@@ -403,7 +407,7 @@ interface TierMemberRowProps {
  * member across every tier and position panel.
  */
 const TierMemberRow = memo(function TierMemberRow({
-  player: p, myValue, myValueSource, editable, printable, isDragging, onDragStart, onDragEnd, onCommitValue, onOpenPicker,
+  player: p, myValue, myValueSource, editable, printable, isDragging, onDragStart, onDragEnd, onCommitValue, onOpenPicker, onPlayerClick,
 }: TierMemberRowProps) {
   // The base a nudge starts from — your own value if you've set one,
   // otherwise the system's, same fallback the auto-fill interpolation uses.
@@ -419,13 +423,14 @@ const TierMemberRow = memo(function TierMemberRow({
       } ${isDragging ? 'opacity-40' : ''} ${printable ? '' : 'print:hidden'}`}
     >
       <PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />
-      <RouterLink
-        to={`/players/${p.gsis_id}`}
-        className="min-w-0 flex-1 truncate font-display text-xs font-semibold text-foreground hover:underline"
+      <button
+        type="button"
+        onClick={() => onPlayerClick(p.gsis_id)}
+        className="min-w-0 flex-1 truncate text-left font-display text-xs font-semibold text-foreground hover:underline"
         title={`${p.name} · ${p.team} · ${p.proj_league_fpts.toFixed(0)} proj`}
       >
         {p.name}
-      </RouterLink>
+      </button>
       <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{p.team}</span>
       <span
         className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground"
@@ -485,7 +490,7 @@ const TierMemberRow = memo(function TierMemberRow({
  * desktop row uses, so there's one behavior underneath either input method.
  */
 function MobileTierMemberCard({
-  player: p, myValue, myValueSource, editable, onCommitValue, onOpenPicker,
+  player: p, myValue, myValueSource, editable, onCommitValue, onOpenPicker, onPlayerClick,
 }: {
   player: DraftPlayer
   myValue: number | null
@@ -493,6 +498,7 @@ function MobileTierMemberCard({
   editable: boolean
   onCommitValue?: (gsisId: string, value: number | null) => void
   onOpenPicker: (player: DraftPlayer) => void
+  onPlayerClick: (gsisId: string) => void
 }) {
   const [valueOpen, setValueOpen] = useState(false)
   const derived = myValueSource === 'derived'
@@ -500,6 +506,7 @@ function MobileTierMemberCard({
   return (
     <>
       <MobileStatCard
+        onClick={() => onPlayerClick(p.gsis_id)}
         leading={<PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />}
         title={p.name}
         subtitle={`${p.team} · sys $${p.auction_value}`}

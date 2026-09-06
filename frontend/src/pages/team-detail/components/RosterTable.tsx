@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
 import { PlayerCell, PlayerAvatar, ClickableRow, ZScoreCell, HeaderRow, HeaderTip } from '@/components/ui/table-helpers'
 import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-stat-card'
 import { describeStat } from '@/lib/statDescriptions'
 import { zScoreIndicator, zScoreColor } from '@/lib/utils'
+import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
 import type { RosterPlayer, RankedPlayer } from '../../../api/client'
 
 interface Props {
@@ -14,6 +16,7 @@ interface Props {
 /** Roster table with dynamic stat columns derived from the selected stat period. */
 export function RosterTable({ roster, statLabels, rankByPlayer }: Props) {
   const hasRankings = rankByPlayer && rankByPlayer.size > 0
+  const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
 
   return (
     <>
@@ -45,7 +48,7 @@ export function RosterTable({ roster, statLabels, rankByPlayer }: Props) {
           return (
             <MobileStatCard
               key={p.player_key}
-              href={canLink ? `/players/${p.gsis_id}` : undefined}
+              onClick={canLink ? () => setViewingPlayer(p.gsis_id!) : undefined}
               leading={<PlayerAvatar src={p.image_url} alt={p.name.full} size={32} />}
               title={p.name.full}
               subtitle={p.selected_position.position}
@@ -96,7 +99,7 @@ export function RosterTable({ roster, statLabels, rankByPlayer }: Props) {
                 <PlayerCell
                   name={p.name.full}
                   imageUrl={p.image_url}
-                  href={canLink ? `/players/${p.gsis_id}` : undefined}
+                  onClick={canLink ? () => setViewingPlayer(p.gsis_id!) : undefined}
                   avatarSize={32}
                   notes={p.notes}
                 />
@@ -138,6 +141,8 @@ export function RosterTable({ roster, statLabels, rankByPlayer }: Props) {
         </TableBody>
       </Table>
       </div>
+
+      <PlayerDetailPanel gsisId={viewingPlayer} onClose={() => setViewingPlayer(null)} />
     </>
   )
 }

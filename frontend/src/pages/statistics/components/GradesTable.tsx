@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { GradePlayerItem } from '@/api/client'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
 import { PlayerCell, PlayerAvatar, ClickableRow, HeaderRow, SortableHead, useTableSort, HeaderTip } from '@/components/ui/table-helpers'
 import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-stat-card'
 import { MobileSortSheet, type MobileSortOption } from '@/components/ui/mobile-sort-sheet'
 import { gradeColorClass, trendIndicator, phaseLabel, phaseColor } from '@/lib/grades'
+import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
 
 const SORT_OPTIONS: MobileSortOption[] = [
   { col: 'name', label: 'Player' },
@@ -35,6 +37,7 @@ function sortPlayers(players: GradePlayerItem[], col: SortKey, dir: 'asc' | 'des
 export default function GradesTable({ players }: { players: GradePlayerItem[] }) {
   const { sortCol, sortDir, handleSort } = useTableSort('overall', 'desc', ['name'])
   const sorted = sortPlayers(players, sortCol as SortKey, sortDir)
+  const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
 
   if (players.length === 0) {
     return <p className="text-muted-foreground text-sm mt-6">No players match this filter.</p>
@@ -61,7 +64,7 @@ export default function GradesTable({ players }: { players: GradePlayerItem[] })
           return (
             <MobileStatCard
               key={p.gsis_id}
-              href={`/players/${p.gsis_id}`}
+              onClick={() => setViewingPlayer(p.gsis_id)}
               leading={<PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />}
               title={p.name}
               subtitle={`${p.team ?? ''} · ${p.position_group}`}
@@ -120,7 +123,7 @@ export default function GradesTable({ players }: { players: GradePlayerItem[] })
                 <TableCell className="text-center text-muted-foreground font-mono tabular-nums">
                   {sortCol === 'overall' ? p.overall_rank : i + 1}
                 </TableCell>
-                <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} href={`/players/${p.gsis_id}`} notes={p.notes} />
+                <PlayerCell name={p.name} imageUrl={p.headshot_url} sub={p.team} onClick={() => setViewingPlayer(p.gsis_id)} notes={p.notes} />
                 <TableCell className="text-center text-muted-foreground">{p.position_group}</TableCell>
                 <TableCell className="text-right text-muted-foreground font-mono tabular-nums">{p.age || '—'}</TableCell>
                 {(['overall', 'production', 'efficiency', 'usage', 'durability'] as const).map(key => (
@@ -146,6 +149,8 @@ export default function GradesTable({ players }: { players: GradePlayerItem[] })
         </TableBody>
       </Table>
       </div>
+
+      <PlayerDetailPanel gsisId={viewingPlayer} onClose={() => setViewingPlayer(null)} />
     </>
   )
 }

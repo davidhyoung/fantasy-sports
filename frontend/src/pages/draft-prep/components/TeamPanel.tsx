@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
 import type { DraftPlayer, DraftReplacementLevel } from '@/api/client'
 import { MobileSheet } from '@/components/ui/mobile-sheet'
 import {
@@ -52,6 +51,8 @@ interface Props {
   editingSettings: DraftSettings
   settingsControls: SettingsControls
   prep: ReturnType<typeof useDraftPrep>
+  /** Opens the player in-place (a drawer/sheet) rather than navigating to `/players/:gsisId`. */
+  onPlayerClick: (gsisId: string) => void
 }
 
 /** Editable dollar figure that commits on blur, not on every keystroke. */
@@ -123,7 +124,7 @@ function Stat({ label, value, tone = '' }: { label: string; value: string; tone?
  * block.
  */
 export function TeamPanel({
-  open, onToggle, plannedCount, players, replacementLevels, settings, editingSettings, settingsControls, prep,
+  open, onToggle, plannedCount, players, replacementLevels, settings, editingSettings, settingsControls, prep, onPlayerClick,
 }: Props) {
   const [bucket, setBucketState] = useState<Bucket>(
     () => (localStorage.getItem(BUCKET_KEY) === 'settings' ? 'settings' : 'plan'),
@@ -210,7 +211,7 @@ export function TeamPanel({
   const body = (
     <>
       {mode === 'targets' ? (
-        <TargetList players={players} prep={prep} />
+        <TargetList players={players} prep={prep} onPlayerClick={onPlayerClick} />
       ) : (
       <>
         <div className="rounded-lg bg-card lg:mb-3">
@@ -260,13 +261,14 @@ export function TeamPanel({
                       </span>
                       {p ? (
                         <>
-                          <RouterLink
-                            to={`/players/${p.player.gsis_id}`}
-                            className="min-w-0 flex-1 truncate font-display text-xs font-semibold text-foreground hover:underline"
+                          <button
+                            type="button"
+                            onClick={() => onPlayerClick(p.player.gsis_id)}
+                            className="min-w-0 flex-1 truncate text-left font-display text-xs font-semibold text-foreground hover:underline"
                             title={`${p.player.name} · ${p.player.proj_league_fpts.toFixed(0)} proj · our value $${p.player.auction_value}`}
                           >
                             {p.player.name}
-                          </RouterLink>
+                          </button>
                           <CostField
                             value={p.cost}
                             onCommit={(v) => prep.setPlannedCost(p.player.gsis_id, v)}
@@ -308,12 +310,13 @@ export function TeamPanel({
             <ul className="mt-1 space-y-1">
               {roster.overflow.map((p) => (
                 <li key={p.player.gsis_id} className="flex items-center gap-2">
-                  <RouterLink
-                    to={`/players/${p.player.gsis_id}`}
-                    className="min-w-0 flex-1 truncate font-display text-xs font-semibold text-foreground hover:underline"
+                  <button
+                    type="button"
+                    onClick={() => onPlayerClick(p.player.gsis_id)}
+                    className="min-w-0 flex-1 truncate text-left font-display text-xs font-semibold text-foreground hover:underline"
                   >
                     {p.player.name}
-                  </RouterLink>
+                  </button>
                   <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
                     ${p.cost}
                   </span>
