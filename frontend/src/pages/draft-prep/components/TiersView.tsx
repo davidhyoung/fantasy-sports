@@ -9,6 +9,12 @@ interface Props {
   players: DraftPlayer[]
   /** Read-only (no tier editing) when omitted — the league Draft tab's usage. */
   prep?: PrepControls
+  /** Caps the printed sheet to this many players overall (by `overall_rank`) —
+   *  a full 700-deep board is a browsing tool on screen, not something anyone
+   *  drafts off paper past the realistic player pool. Screen view is
+   *  untouched; players beyond the cap just carry `print:hidden`. No cap
+   *  (undefined/0) prints everyone. */
+  printPoolSize?: number
 }
 
 /** Draft-relevant position order — the order a roster gets built in. */
@@ -116,7 +122,12 @@ interface PositionGroup {
  * a tier number is never seen without the position it belongs to right there
  * next to it.
  */
-function TiersViewImpl({ players, prep }: Props) {
+function TiersViewImpl({ players, prep, printPoolSize }: Props) {
+  const printable = useCallback(
+    (p: DraftPlayer) => !printPoolSize || p.overall_rank <= printPoolSize,
+    [printPoolSize],
+  )
+
   const groups = useMemo<PositionGroup[]>(() => {
     const byPosition = new Map<string, Map<number, DraftPlayer[]>>()
     for (const p of players) {
@@ -200,10 +211,17 @@ function TiersViewImpl({ players, prep }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 print:grid-cols-3 print:gap-2">
       {groups.map(({ position, tiers }) => {
+        // A position with nobody inside the print pool (realistically only an
+        // ultra-late K/DEF panel) drops out of the printed sheet entirely
+        // rather than printing an empty card.
+        const groupPrintable = tiers.some((t) => t.members.some(printable))
         return (
-        <div key={position} className="rounded-lg bg-card">
+        <div
+          key={position}
+          className={`rounded-lg bg-card print:break-inside-avoid ${groupPrintable ? '' : 'print:hidden'}`}
+        >
           <h3 className="border-b border-border px-3 py-1.5 font-display text-[11px] font-semibold uppercase tracking-wide text-foreground">
             {position}{' '}
             <span className="font-mono text-muted-foreground">
@@ -223,12 +241,18 @@ function TiersViewImpl({ players, prep }: Props) {
             // never calling preventDefault, same convention as roster-slot
             // eligibility gating elsewhere in the app.
             const canDrop = !!prep && !!dragging && primaryPos(dragging) === position
+            // Same idea one level down — a tier that's entirely past the print
+            // pool (a deep bench tier, or "Untiered") doesn't print its header
+            // for zero printed rows underneath it.
+            const tierPrintable = members.some(printable)
             return (
               <div
                 key={tier}
                 className={`border-b border-border last:border-0 ${
                   canDrop ? 'bg-positive-light/10' : ''
-                } ${canDrop && dragOverKey === key ? 'ring-1 ring-inset ring-primary' : ''}`}
+                } ${canDrop && dragOverKey === key ? 'ring-1 ring-inset ring-primary' : ''} ${
+                  tierPrintable ? '' : 'print:hidden'
+                }`}
                 onDragOver={
                   canDrop
                     ? (e) => {
@@ -266,6 +290,7 @@ function TiersViewImpl({ players, prep }: Props) {
                       player={p}
                       myValue={prep?.entry(p.gsis_id).my_value ?? null}
                       editable={!!prep}
+                      printable={printable(p)}
                       isDragging={dragging?.gsis_id === p.gsis_id}
                       onDragStart={setDragging}
                       onDragEnd={clearDrag}
@@ -306,6 +331,7 @@ interface TierMemberRowProps {
   player: DraftPlayer
   myValue: number | null
   editable: boolean
+  printable: boolean
   isDragging: boolean
   onDragStart: (player: DraftPlayer) => void
   onDragEnd: () => void
@@ -319,7 +345,7 @@ interface TierMemberRowProps {
  * member across every tier and position panel.
  */
 const TierMemberRow = memo(function TierMemberRow({
-  player: p, myValue, editable, isDragging, onDragStart, onDragEnd, onCommitValue, onOpenPicker,
+  player: p, myValue, editable, printable, isDragging, onDragStart, onDragEnd, onCommitValue, onOpenPicker,
 }: TierMemberRowProps) {
   // The base a nudge starts from — your own value if you've set one,
   // otherwise the system's, same fallback the auto-fill interpolation uses.
@@ -332,7 +358,7 @@ const TierMemberRow = memo(function TierMemberRow({
       onDragEnd={editable ? onDragEnd : undefined}
       className={`flex items-center gap-2 py-0.5 ${
         editable ? 'cursor-grab active:cursor-grabbing' : ''
-      } ${isDragging ? 'opacity-40' : ''}`}
+      } ${isDragging ? 'opacity-40' : ''} ${printable ? '' : 'print:hidden'}`}
     >
       <PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />
       <RouterLink
@@ -356,10 +382,11 @@ const TierMemberRow = memo(function TierMemberRow({
         />
       )}
       {editable && onCommitValue && (
-        <>
+        // Editor-only chrome — meaningless on a printed sheet, so it drops out there.
+        <span className="flex shrink-0 items-center gap-1 print:hidden">
           {/* Nudges your value by $1 — tier changes are drag or the
               picker below, not these; a spot is a dollar, not a tier. */}
-          <span className="flex shrink-0 flex-col leading-none">
+          <span className="flex flex-col leading-none">
             <button
               onClick={() => onCommitValue(p.gsis_id, Math.min(10000, base + 1))}
               aria-label={`Increase ${p.name}'s value by $1`}
@@ -382,11 +409,11 @@ const TierMemberRow = memo(function TierMemberRow({
             onClick={() => onOpenPicker(p)}
             title="Move to a different tier"
             aria-label={`Set tier for ${p.name}`}
-            className="shrink-0 font-mono text-[10px] text-muted-foreground hover:text-foreground"
+            className="font-mono text-[10px] text-muted-foreground hover:text-foreground"
           >
             ⋯
           </button>
-        </>
+        </span>
       )}
     </li>
   )

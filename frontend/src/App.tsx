@@ -122,7 +122,7 @@ export default function App() {
       >
         Skip to content
       </a>
-      <nav className="sticky top-0 z-40 bg-card border-b border-border px-4 sm:px-7 py-4">
+      <nav className="sticky top-0 z-40 bg-card border-b border-border px-4 sm:px-7 py-4 print:hidden">
         <div className="flex items-center justify-between">
           <RouterLink to="/" className="flex items-center gap-2.5">
             <BrandMark />

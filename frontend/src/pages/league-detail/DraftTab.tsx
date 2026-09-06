@@ -6,7 +6,7 @@ import { keys } from '@/api/queryKeys'
 import { PROJECTION_SEASON } from '@/lib/constants'
 import { DraftBoardTable } from '@/pages/draft-prep/components/DraftBoardTable'
 import { TiersView } from '@/pages/draft-prep/components/TiersView'
-import { draftQuery, readSettings } from './hooks/useDraftSettings'
+import { draftQuery, printPoolSize as computePrintPoolSize, readSettings } from './hooks/useDraftSettings'
 
 const POSITIONS = ['All', 'QB', 'RB', 'WR', 'TE', 'K']
 const BOARD_MODES = [
@@ -68,6 +68,8 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
   const allPlayers = data?.players ?? NO_PLAYERS
   const replacementLevels = data?.replacement_levels ?? []
 
+  const printPoolSize = computePrintPoolSize(data)
+
   // Grade ranks across ALL players (not filtered), so the badge means the same thing
   // whichever position filter is on.
   const gradeRankMap = useMemo(() => {
@@ -89,7 +91,7 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
   return (
     <div className="space-y-4">
       {/* Header row + replacement levels */}
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 print:hidden">
         <div>
           <h2 className="text-lg font-semibold text-foreground">{seasonNum} Draft Rankings</h2>
           <p className="text-sm text-muted-foreground">
@@ -118,20 +120,31 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
 
       {/* Board and Tiers are different sub-pages of the same data, so this
           comes before the position filter rather than sitting beside it. */}
-      <div className="flex w-fit rounded-lg bg-muted overflow-hidden">
-        {BOARD_MODES.map((m) => (
+      <div className="flex items-center justify-between gap-3 print:hidden">
+        <div className="flex w-fit rounded-lg bg-muted overflow-hidden">
+          {BOARD_MODES.map((m) => (
+            <button
+              key={m.value}
+              onClick={() => setBoardMode(m.value)}
+              className={`px-4 py-2 font-display text-sm font-semibold ${
+                boardMode === m.value
+                  ? 'bg-foreground text-background'
+                  : 'bg-card text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        {/* Tiers only — the Board's sortable table isn't laid out for paper. */}
+        {boardMode === 'tiers' && (
           <button
-            key={m.value}
-            onClick={() => setBoardMode(m.value)}
-            className={`px-4 py-2 font-display text-sm font-semibold ${
-              boardMode === m.value
-                ? 'bg-foreground text-background'
-                : 'bg-card text-muted-foreground hover:bg-muted'
-            }`}
+            onClick={() => window.print()}
+            className="rounded-lg border border-border px-3 py-2 font-display text-sm font-semibold text-muted-foreground hover:text-foreground hover:border-muted-foreground"
           >
-            {m.label}
+            Print
           </button>
-        ))}
+        )}
       </div>
 
       {/* Position filter — Board only. */}
@@ -176,7 +189,7 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
             {data.settings?.overridden && ' · your Draft Prep settings'}
           </p>
           {boardMode === 'tiers' ? (
-            <TiersView players={filtered} />
+            <TiersView players={filtered} printPoolSize={printPoolSize} />
           ) : (
             <DraftBoardTable players={filtered} gradeRankMap={gradeRankMap} />
           )}

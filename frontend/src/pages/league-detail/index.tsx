@@ -71,7 +71,7 @@ export default function LeagueDetail() {
     <div className="max-w-6xl" style={{ '--tabs-height': '64px' } as React.CSSProperties}>
       {/* League header */}
       <div className="mb-6">
-        <RouterLink to="/leagues" className="text-sm text-primary hover:underline">
+        <RouterLink to="/leagues" className="text-sm text-primary hover:underline print:hidden">
           ← Leagues
         </RouterLink>
         <div className="flex items-center gap-4 mt-2">
@@ -93,7 +93,7 @@ export default function LeagueDetail() {
       </div>
 
       <Tabs value={visibleTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-6">
+        <TabsList className="mb-6 print:hidden">
           {/* Native leagues fold "my team" into Roster (a team switcher
               defaulting to your claimed team) instead of a separate tab —
               the two were the same content, once Roster grew a matchup card

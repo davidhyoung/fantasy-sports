@@ -171,3 +171,27 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Print (draft tiers board, and anything else printed): force the light
+   palette regardless of the active theme — a dark background makes sense on
+   screen, not on paper — and keep tier/value background tints instead of the
+   browser stripping them by default. Selectors mirror the .dark block's own
+   tokens so a dark-themed session still prints on a white background. */
+@media print {
+  :root,
+  .dark {
+    --background: 40 30% 94%;
+    --foreground: 40 17% 10%;
+    --card: 42 45% 98%;
+    --card-foreground: 40 17% 10%;
+    --primary: 347 62% 48%;
+    --muted: 40 20% 89%;
+    --muted-foreground: 39 12% 38%;
+    --border: 38 18% 84%;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

@@ -170,6 +170,21 @@ export function serverSettings(data: DraftValuesResponse | undefined): DraftSett
 }
 
 /**
+ * Print-sheet cap: total rostered spots (every slot, bench included) across
+ * every team, padded 1.5x — the same "some padding" convention the tiering
+ * algorithm itself uses for its own per-position draftable range (see
+ * services/tiers). A printed cheat sheet has no use for the couple hundred
+ * players past any plausible draft. Reads off what the board was actually
+ * computed with (via serverSettings), not a possibly-stale local edit draft.
+ */
+export function printPoolSize(data: DraftValuesResponse | undefined): number {
+  const settings = serverSettings(data)
+  if (!settings) return 0
+  const totalSlots = SLOT_POSITIONS.reduce((sum, pos) => sum + settings.slots[pos], 0)
+  return Math.ceil(totalSlots * settings.numTeams * 1.5)
+}
+
+/**
  * Draft-view state for one league, persisted to localStorage so a refresh lands
  * on the same setup. Edits are held as an unsaved draft until `save()`, which is
  * what applies them to the rankings — so a half-typed roster never rescores the

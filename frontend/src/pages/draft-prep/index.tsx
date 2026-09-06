@@ -7,7 +7,7 @@ import { keys } from '@/api/queryKeys'
 import { FilterChip, SelectControl } from '@/components/ui/filter-chip'
 import { PROJECTION_SEASON } from '@/lib/constants'
 import {
-  useDraftSettings, serverSettings, draftQuery, type DraftSettings,
+  useDraftSettings, serverSettings, draftQuery, printPoolSize as computePrintPoolSize, type DraftSettings,
 } from '@/pages/league-detail/hooks/useDraftSettings'
 import { DraftBoardTable, boardOrder } from './components/DraftBoardTable'
 import { TiersView } from './components/TiersView'
@@ -128,6 +128,8 @@ export default function DraftPrep() {
   // The team builder measures a lineup against replacement, same as the board's prices do.
   const replacementLevels = data?.replacement_levels ?? NO_LEVELS
 
+  const printPoolSize = computePrintPoolSize(data)
+
   const gradeRankMap = useMemo(() => {
     const map = new Map<string, number>()
     const withGrade = allPlayers
@@ -234,8 +236,8 @@ export default function DraftPrep() {
   }
 
   return (
-    <div className={`space-y-5 ${teamOpen ? 'lg:mr-[332px]' : 'lg:mr-14'}`}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className={`space-y-5 print:mr-0 ${teamOpen ? 'lg:mr-[332px]' : 'lg:mr-14'}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Draft Prep</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -262,20 +264,31 @@ export default function DraftPrep() {
           the chips below. League Settings used to live here too; it's now the
           docked panel's Settings bucket (→) so this reads as page navigation,
           not one option in a stack of accordions. */}
-      <div className="flex w-fit rounded-lg bg-muted overflow-hidden">
-        {BOARD_MODES.map((m) => (
+      <div className="flex items-center justify-between gap-3 print:hidden">
+        <div className="flex w-fit rounded-lg bg-muted overflow-hidden">
+          {BOARD_MODES.map((m) => (
+            <button
+              key={m.value}
+              onClick={() => setBoardMode(m.value)}
+              className={`px-4 py-2 font-display text-sm font-semibold ${
+                boardMode === m.value
+                  ? 'bg-foreground text-background'
+                  : 'bg-card text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        {/* Tiers only — the Board's sortable table isn't laid out for paper. */}
+        {boardMode === 'tiers' && (
           <button
-            key={m.value}
-            onClick={() => setBoardMode(m.value)}
-            className={`px-4 py-2 font-display text-sm font-semibold ${
-              boardMode === m.value
-                ? 'bg-foreground text-background'
-                : 'bg-card text-muted-foreground hover:bg-muted'
-            }`}
+            onClick={() => window.print()}
+            className="rounded-lg border border-border px-3 py-2 font-display text-sm font-semibold text-muted-foreground hover:text-foreground hover:border-muted-foreground"
           >
-            {m.label}
+            Print
           </button>
-        ))}
+        )}
       </div>
 
       {/* The team panel is fixed to the window edge on wide screens, so it's out
@@ -333,7 +346,7 @@ export default function DraftPrep() {
                 : `${settings.scoringFormat.toUpperCase()} scoring`}
             {isCustomized && ' · custom settings'}
           </p>
-          <TiersView players={allPlayers} prep={prepControls} />
+          <TiersView players={allPlayers} prep={prepControls} printPoolSize={printPoolSize} />
         </>
       ) : (
         <>

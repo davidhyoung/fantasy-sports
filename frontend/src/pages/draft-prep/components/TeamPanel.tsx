@@ -344,7 +344,7 @@ export function TeamPanel({
       {/* Desktop: docked to the window edge, or a collapsed vertical tab. */}
       {open ? (
         <aside
-          className="hidden lg:block lg:fixed lg:bottom-0 lg:right-0 lg:top-[var(--nav-height)] lg:z-30 lg:w-[320px] lg:overflow-y-auto lg:border-l lg:border-border lg:bg-background lg:p-3"
+          className="hidden lg:block lg:fixed lg:bottom-0 lg:right-0 lg:top-[var(--nav-height)] lg:z-30 lg:w-[320px] lg:overflow-y-auto lg:border-l lg:border-border lg:bg-background lg:p-3 print:hidden"
           aria-label="Draft prep panel"
         >
           <div className="mb-3 flex items-center justify-between gap-2">
@@ -366,7 +366,7 @@ export function TeamPanel({
           onClick={onToggle}
           aria-expanded={false}
           title="Show the draft prep panel"
-          className="hidden lg:fixed lg:right-0 lg:top-[calc(var(--nav-height)+1.5rem)] lg:z-30 lg:flex lg:w-auto lg:flex-col lg:items-center lg:gap-2 lg:rounded-l-lg lg:border-y lg:border-l lg:border-border lg:bg-card lg:px-2 lg:py-4 lg:hover:bg-muted"
+          className="hidden lg:fixed lg:right-0 lg:top-[calc(var(--nav-height)+1.5rem)] lg:z-30 lg:flex lg:w-auto lg:flex-col lg:items-center lg:gap-2 lg:rounded-l-lg lg:border-y lg:border-l lg:border-border lg:bg-card lg:px-2 lg:py-4 lg:hover:bg-muted print:hidden"
         >
           <span className="font-mono text-xs text-muted-foreground">◂</span>
           <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground lg:[writing-mode:vertical-rl]">
@@ -381,12 +381,12 @@ export function TeamPanel({
         onClick={onToggle}
         aria-expanded={open}
         title={open ? 'Hide the draft prep panel' : 'Show the draft prep panel'}
-        className="fixed bottom-4 right-4 z-30 flex h-11 items-center gap-1.5 rounded-pill border border-border bg-card px-4 shadow-none lg:hidden"
+        className="fixed bottom-4 right-4 z-30 flex h-11 items-center gap-1.5 rounded-pill border border-border bg-card px-4 shadow-none lg:hidden print:hidden"
       >
         <span className="font-display text-xs font-semibold text-foreground">{collapsedLabel}</span>
         <span className="font-mono text-xs text-muted-foreground">▸</span>
       </button>
-      <div className="lg:hidden">
+      <div className="lg:hidden print:hidden">
         <MobileSheet open={open} onClose={onToggle} title="Draft prep panel">
           <div className="mb-3">{bucketToggle}</div>
           {bucket === 'plan' && <div className="mb-3">{modeToggle}</div>}
