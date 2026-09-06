@@ -3,6 +3,8 @@ import { Link as RouterLink } from 'react-router-dom'
 import type { DraftPlayer, DraftPrepEntry } from '@/api/client'
 import { PlayerAvatar } from '@/components/ui/table-helpers'
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
+import { MobileStatCard } from '@/components/ui/mobile-stat-card'
+import { MobileSheet } from '@/components/ui/mobile-sheet'
 import type { PrepControls } from './DraftBoardTable'
 
 interface Props {
@@ -198,11 +200,16 @@ function TiersViewImpl({ players, prep, printPoolSize }: Props) {
       prep.setCustomTier(player.gsis_id, newCustomTier)
       return
     }
+    // Never overwrite a value the user typed themselves.
+    if (prep.entry(player.gsis_id).my_value_source === 'user') {
+      prep.setCustomTier(player.gsis_id, newCustomTier)
+      return
+    }
     const { above, below } = neighborValuesForTierMove(player, target, groups, prep.entry)
     const interpolated = interpolate(above, below)
     prep.setFields(player.gsis_id, {
       customTier: newCustomTier,
-      ...(interpolated != null ? { myValue: interpolated } : {}),
+      ...(interpolated != null ? { myValue: interpolated, myValueSource: 'derived' } : {}),
     })
   }
 
@@ -211,7 +218,8 @@ function TiersViewImpl({ players, prep, printPoolSize }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 print:grid-cols-3 print:gap-2">
+    <>
+    <div className="hidden gap-4 md:grid md:grid-cols-2 xl:grid-cols-3 print:grid print:grid-cols-3 print:gap-2">
       {groups.map(({ position, tiers }) => {
         // A position with nobody inside the print pool (realistically only an
         // ultra-late K/DEF panel) drops out of the printed sheet entirely
@@ -289,6 +297,7 @@ function TiersViewImpl({ players, prep, printPoolSize }: Props) {
                       key={p.gsis_id}
                       player={p}
                       myValue={prep?.entry(p.gsis_id).my_value ?? null}
+                      myValueSource={prep?.entry(p.gsis_id).my_value_source ?? null}
                       editable={!!prep}
                       printable={printable(p)}
                       isDragging={dragging?.gsis_id === p.gsis_id}
@@ -305,17 +314,65 @@ function TiersViewImpl({ players, prep, printPoolSize }: Props) {
         </div>
         )
       })}
-
-      {prep && (
-        <TierPickerDialog
-          player={picking}
-          max={pickingMax}
-          prep={prep}
-          onCommit={(target) => picking && moveToTier(picking, target)}
-          onClose={() => setPicking(null)}
-        />
-      )}
     </div>
+
+    {/* Touch replacement for the desktop grid above — HTML5 drag-and-drop
+        (the desktop tier-move mechanism) never fires on touch, so tier
+        reassignment here goes entirely through the picker dialog, and value
+        editing through a numeric sheet, rather than a drag gesture. */}
+    <div className="space-y-4 md:hidden">
+      {groups.map(({ position, tiers }) => (
+        <div key={position} className="rounded-lg bg-card">
+          <h3 className="border-b border-border px-3 py-1.5 font-display text-[11px] font-semibold uppercase tracking-wide text-foreground">
+            {position}{' '}
+            <span className="font-mono text-muted-foreground">
+              {tiers.reduce((n, t) => n + t.members.length, 0)}
+            </span>
+          </h3>
+          {tiers.map(({ tier, members }) => {
+            const pts = members.map((m) => m.proj_league_fpts)
+            const top = Math.max(...pts)
+            const bottom = Math.min(...pts)
+            return (
+              <div key={tier} className="border-b border-border px-3 py-1.5 last:border-0">
+                <div className="flex items-baseline justify-between gap-2 pb-1.5">
+                  <span className={`inline-block rounded px-1.5 py-0.5 font-display text-[10px] font-semibold uppercase tracking-wide ${tierWeightClass(tier)}`}>
+                    {tier > 0 ? `Tier ${tier}` : 'Untiered'}
+                  </span>
+                  <span className="font-mono text-[10px] text-muted-foreground/60">
+                    {members.length} · {top === bottom ? top.toFixed(0) : `${bottom.toFixed(0)}–${top.toFixed(0)}`} pts
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {members.map((p) => (
+                    <MobileTierMemberCard
+                      key={p.gsis_id}
+                      player={p}
+                      myValue={prep?.entry(p.gsis_id).my_value ?? null}
+                      myValueSource={prep?.entry(p.gsis_id).my_value_source ?? null}
+                      editable={!!prep}
+                      onCommitValue={prep?.setMyValue}
+                      onOpenPicker={setPicking}
+                    />
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ))}
+    </div>
+
+    {prep && (
+      <TierPickerDialog
+        player={picking}
+        max={pickingMax}
+        prep={prep}
+        onCommit={(target) => picking && moveToTier(picking, target)}
+        onClose={() => setPicking(null)}
+      />
+    )}
+    </>
   )
 }
 
@@ -330,6 +387,7 @@ export const TiersView = memo(TiersViewImpl)
 interface TierMemberRowProps {
   player: DraftPlayer
   myValue: number | null
+  myValueSource: 'user' | 'derived' | null
   editable: boolean
   printable: boolean
   isDragging: boolean
@@ -345,7 +403,7 @@ interface TierMemberRowProps {
  * member across every tier and position panel.
  */
 const TierMemberRow = memo(function TierMemberRow({
-  player: p, myValue, editable, printable, isDragging, onDragStart, onDragEnd, onCommitValue, onOpenPicker,
+  player: p, myValue, myValueSource, editable, printable, isDragging, onDragStart, onDragEnd, onCommitValue, onOpenPicker,
 }: TierMemberRowProps) {
   // The base a nudge starts from — your own value if you've set one,
   // otherwise the system's, same fallback the auto-fill interpolation uses.
@@ -378,6 +436,7 @@ const TierMemberRow = memo(function TierMemberRow({
       {editable && onCommitValue && (
         <MyValueField
           value={myValue}
+          derived={myValueSource === 'derived'}
           onCommit={(v) => onCommitValue(p.gsis_id, v)}
         />
       )}
@@ -420,11 +479,116 @@ const TierMemberRow = memo(function TierMemberRow({
 })
 
 /**
+ * Touch equivalent of `TierMemberRow`: no drag gesture, so tier reassignment
+ * routes through the picker dialog and value editing through a numeric sheet
+ * instead. Both funnel through the same `prep.setMyValue`/`moveToTier` the
+ * desktop row uses, so there's one behavior underneath either input method.
+ */
+function MobileTierMemberCard({
+  player: p, myValue, myValueSource, editable, onCommitValue, onOpenPicker,
+}: {
+  player: DraftPlayer
+  myValue: number | null
+  myValueSource: 'user' | 'derived' | null
+  editable: boolean
+  onCommitValue?: (gsisId: string, value: number | null) => void
+  onOpenPicker: (player: DraftPlayer) => void
+}) {
+  const [valueOpen, setValueOpen] = useState(false)
+  const derived = myValueSource === 'derived'
+
+  return (
+    <>
+      <MobileStatCard
+        leading={<PlayerAvatar src={p.headshot_url} alt={p.name} size={28} />}
+        title={p.name}
+        subtitle={`${p.team} · sys $${p.auction_value}`}
+        face={
+          editable && onCommitValue ? (
+            <button
+              onClick={() => setValueOpen(true)}
+              title={derived ? 'Interpolated from neighbours — edit to keep it fixed' : 'My value'}
+              className="flex h-11 min-w-[3rem] flex-col items-center justify-center rounded font-mono text-xs tabular-nums hover:bg-muted"
+            >
+              <span className="text-[9px] font-display uppercase text-muted-foreground">Mine</span>
+              <span className={derived ? 'border-b border-dotted border-primary text-primary opacity-60' : 'text-primary'}>
+                {myValue != null ? `$${myValue}` : '—'}
+              </span>
+            </button>
+          ) : undefined
+        }
+        expandedExtra={
+          editable ? (
+            <div className="flex gap-2">
+              <button
+                onClick={() => onOpenPicker(p)}
+                className="flex h-11 flex-1 items-center justify-center rounded-md border border-input font-display text-xs font-semibold text-foreground"
+              >
+                Set tier ▾
+              </button>
+              {onCommitValue && (
+                <button
+                  onClick={() => setValueOpen(true)}
+                  className="flex h-11 flex-1 items-center justify-center rounded-md border border-input font-display text-xs font-semibold text-foreground"
+                >
+                  Edit value
+                </button>
+              )}
+            </div>
+          ) : undefined
+        }
+      />
+      {editable && onCommitValue && (
+        <MobileSheet open={valueOpen} onClose={() => setValueOpen(false)} title={`My value — ${p.name}`}>
+          <MobileValueSheetBody
+            value={myValue}
+            onSave={(v) => {
+              onCommitValue(p.gsis_id, v)
+              setValueOpen(false)
+            }}
+          />
+        </MobileSheet>
+      )}
+    </>
+  )
+}
+
+function MobileValueSheetBody({ value, onSave }: { value: number | null; onSave: (v: number | null) => void }) {
+  const [draft, setDraft] = useState(value != null ? String(value) : '')
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-center gap-1">
+        <span className="font-mono text-2xl text-muted-foreground">$</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          className="w-24 bg-transparent text-center font-mono text-2xl tabular-nums text-foreground focus-visible:outline-none"
+        />
+      </div>
+      <button
+        onClick={() => {
+          if (draft.trim() === '') { onSave(null); return }
+          const n = parseInt(draft, 10)
+          if (Number.isFinite(n) && n >= 0) onSave(Math.min(n, 10000))
+        }}
+        className="flex h-11 items-center justify-center rounded-md bg-primary font-display text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+      >
+        Save
+      </button>
+    </div>
+  )
+}
+
+/**
  * Editable "my value" figure. Blank means no opinion yet — distinct from a
  * literal $0 — so clearing the field removes the override rather than
- * storing a zero.
+ * storing a zero. A derived (auto-interpolated) value renders dimmed with a
+ * dotted underline — the same affordance HeaderTip uses — so it reads as a
+ * suggestion rather than something you typed, until you edit it yourself.
  */
-function MyValueField({ value, onCommit }: { value: number | null; onCommit: (v: number | null) => void }) {
+function MyValueField({ value, derived, onCommit }: { value: number | null; derived: boolean; onCommit: (v: number | null) => void }) {
   const [draft, setDraft] = useState(value != null ? String(value) : '')
   // Adopt server/optimistic changes (e.g. the auto-fill from a move) that
   // didn't come from this field.
@@ -448,7 +612,10 @@ function MyValueField({ value, onCommit }: { value: number | null; onCommit: (v:
   }
 
   return (
-    <span className="inline-flex shrink-0 items-baseline" title="My value">
+    <span
+      className="inline-flex shrink-0 items-baseline"
+      title={derived ? 'Interpolated from neighbours — edit to keep it fixed' : 'My value'}
+    >
       <span className="font-mono text-[10px] text-primary/70">$</span>
       <input
         value={draft}
@@ -460,7 +627,9 @@ function MyValueField({ value, onCommit }: { value: number | null; onCommit: (v:
         }}
         placeholder="—"
         aria-label="My value"
-        className="w-8 bg-transparent text-right font-mono text-[11px] tabular-nums text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary placeholder:text-muted-foreground/40"
+        className={`w-8 bg-transparent text-right font-mono text-[11px] tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary placeholder:text-muted-foreground/40 ${
+          derived ? 'border-b border-dotted border-primary text-primary opacity-60' : 'text-primary'
+        }`}
       />
     </span>
   )

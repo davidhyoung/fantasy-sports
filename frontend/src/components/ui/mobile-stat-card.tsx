@@ -84,7 +84,7 @@ export function MobileStatCard({
             }}
             aria-expanded={open}
             aria-label={open ? 'Collapse details' : 'Expand details'}
-            className="flex h-11 w-6 flex-none items-center justify-center font-mono text-xs text-muted-foreground hover:text-foreground"
+            className="flex h-11 w-11 flex-none items-center justify-center font-mono text-xs text-muted-foreground hover:text-foreground"
           >
             {open ? '▴' : '▾'}
           </button>

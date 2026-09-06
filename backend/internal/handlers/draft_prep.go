@@ -29,6 +29,10 @@ type draftPrepEntry struct {
 	// automatically by the client when the player is moved on the board or in
 	// the tiers view (interpolated between the new neighbours' values).
 	MyValue *int `json:"my_value"`
+	// MyValueSource distinguishes a MyValue the user typed themselves ("user")
+	// from one the client auto-filled by interpolating neighbours on a move
+	// ("derived"). nil whenever MyValue is nil.
+	MyValueSource *string `json:"my_value_source"`
 }
 
 type draftPrepResp struct {
@@ -75,7 +79,7 @@ func (h *Handler) GetDraftPrep(w http.ResponseWriter, r *http.Request) {
 	season := h.prepSeason(r)
 
 	rows, err := h.db.Query(r.Context(), `
-		SELECT gsis_id, interest, custom_rank, custom_tier, note, planned_cost, my_value
+		SELECT gsis_id, interest, custom_rank, custom_tier, note, planned_cost, my_value, my_value_source
 		FROM draft_prep_players
 		WHERE user_id = $1 AND league_id = $2 AND season = $3
 		ORDER BY custom_rank NULLS LAST, interest DESC NULLS LAST, gsis_id
@@ -89,7 +93,7 @@ func (h *Handler) GetDraftPrep(w http.ResponseWriter, r *http.Request) {
 	players := []draftPrepEntry{}
 	for rows.Next() {
 		var e draftPrepEntry
-		if err := rows.Scan(&e.GsisID, &e.Interest, &e.CustomRank, &e.CustomTier, &e.Note, &e.PlannedCost, &e.MyValue); err != nil {
+		if err := rows.Scan(&e.GsisID, &e.Interest, &e.CustomRank, &e.CustomTier, &e.Note, &e.PlannedCost, &e.MyValue, &e.MyValueSource); err != nil {
 			respondError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -127,12 +131,13 @@ func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) 
 	season := h.prepSeason(r)
 
 	var body struct {
-		Interest    *int   `json:"interest"`
-		CustomRank  *int   `json:"custom_rank"`
-		CustomTier  *int   `json:"custom_tier"`
-		Note        string `json:"note"`
-		PlannedCost *int   `json:"planned_cost"`
-		MyValue     *int   `json:"my_value"`
+		Interest      *int    `json:"interest"`
+		CustomRank    *int    `json:"custom_rank"`
+		CustomTier    *int    `json:"custom_tier"`
+		Note          string  `json:"note"`
+		PlannedCost   *int    `json:"planned_cost"`
+		MyValue       *int    `json:"my_value"`
+		MyValueSource *string `json:"my_value_source"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid body")
@@ -148,6 +153,13 @@ func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) 
 	}
 	if body.MyValue != nil && (*body.MyValue < 0 || *body.MyValue > 10000) {
 		respondError(w, http.StatusBadRequest, "my_value out of range")
+		return
+	}
+	// The source only means something alongside a value.
+	if body.MyValue == nil {
+		body.MyValueSource = nil
+	} else if body.MyValueSource != nil && *body.MyValueSource != "user" && *body.MyValueSource != "derived" {
+		respondError(w, http.StatusBadRequest, "my_value_source must be user or derived")
 		return
 	}
 	if body.CustomRank != nil && (*body.CustomRank < 1 || *body.CustomRank > 10000) {
@@ -175,24 +187,26 @@ func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if _, err := h.db.Exec(r.Context(), `
-		INSERT INTO draft_prep_players (user_id, league_id, season, gsis_id, interest, custom_rank, custom_tier, note, planned_cost, my_value, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+		INSERT INTO draft_prep_players (user_id, league_id, season, gsis_id, interest, custom_rank, custom_tier, note, planned_cost, my_value, my_value_source, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
 		ON CONFLICT (user_id, league_id, season, gsis_id) DO UPDATE
 		SET interest = EXCLUDED.interest, custom_rank = EXCLUDED.custom_rank, custom_tier = EXCLUDED.custom_tier,
-		    note = EXCLUDED.note, planned_cost = EXCLUDED.planned_cost, my_value = EXCLUDED.my_value, updated_at = NOW()
-	`, user.ID, leagueID, season, gsisID, body.Interest, body.CustomRank, body.CustomTier, body.Note, body.PlannedCost, body.MyValue); err != nil {
+		    note = EXCLUDED.note, planned_cost = EXCLUDED.planned_cost, my_value = EXCLUDED.my_value,
+		    my_value_source = EXCLUDED.my_value_source, updated_at = NOW()
+	`, user.ID, leagueID, season, gsisID, body.Interest, body.CustomRank, body.CustomTier, body.Note, body.PlannedCost, body.MyValue, body.MyValueSource); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	respondJSON(w, http.StatusOK, draftPrepEntry{
-		GsisID:      gsisID,
-		Interest:    body.Interest,
-		CustomRank:  body.CustomRank,
-		CustomTier:  body.CustomTier,
-		Note:        body.Note,
-		PlannedCost: body.PlannedCost,
-		MyValue:     body.MyValue,
+		GsisID:        gsisID,
+		Interest:      body.Interest,
+		CustomRank:    body.CustomRank,
+		CustomTier:    body.CustomTier,
+		Note:          body.Note,
+		PlannedCost:   body.PlannedCost,
+		MyValue:       body.MyValue,
+		MyValueSource: body.MyValueSource,
 	})
 }
 

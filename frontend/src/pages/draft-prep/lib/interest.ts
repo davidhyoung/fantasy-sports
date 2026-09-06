@@ -17,7 +17,7 @@ export function interestLabel(level: InterestLevel | null): string {
 /** Positive takes the one accent, negative the cool secondary. */
 export function interestIconClass(level: InterestLevel, selected: boolean): string {
   if (!selected) return 'text-muted-foreground/40'
-  return level > 0 ? 'fill-current text-primary' : 'fill-current text-secondary'
+  return level > 0 ? 'text-primary' : 'text-secondary'
 }
 
 /**

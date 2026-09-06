@@ -170,7 +170,7 @@ export function TeamPanel({
           key={b.value}
           onClick={() => setBucket(b.value)}
           aria-pressed={bucket === b.value}
-          className={`px-2.5 py-1 font-display text-[11px] font-semibold ${
+          className={`px-3 py-1.5 font-display text-xs font-bold ${
             bucket === b.value
               ? 'bg-foreground text-background'
               : 'bg-card text-muted-foreground hover:text-foreground'
@@ -183,17 +183,20 @@ export function TeamPanel({
     </div>
   )
 
+  // A step down from the bucket pill above it — Team/Targets is a mode that
+  // only exists inside Plan, not a sibling choice of equal weight, so it
+  // reads as an underline text switch rather than a second stacked pill.
   const modeToggle = (
-    <div className="flex rounded-lg bg-muted overflow-hidden">
+    <div className="flex items-center gap-3 pl-1">
       {MODES.map((m) => (
         <button
           key={m.value}
           onClick={() => setMode(m.value)}
           aria-pressed={mode === m.value}
-          className={`px-2.5 py-1 font-display text-[11px] font-semibold ${
+          className={`font-mono text-[11px] ${
             mode === m.value
-              ? 'bg-foreground text-background'
-              : 'bg-card text-muted-foreground hover:text-foreground'
+              ? 'border-b border-primary text-primary'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
         >
           {m.label}

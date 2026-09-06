@@ -994,6 +994,9 @@ export interface DraftPrepEntry {
    * players that now flank it).
    */
   my_value: number | null
+  /** 'user' = typed by hand; 'derived' = auto-filled by a move's interpolation.
+   *  null whenever my_value is null. */
+  my_value_source: 'user' | 'derived' | null
 }
 
 export interface DraftPrepResponse {
@@ -1008,7 +1011,7 @@ export const setDraftPrepPlayer = (
   leagueId: number,
   season: number,
   gsisId: string,
-  body: { interest: InterestLevel | null; custom_rank: number | null; custom_tier: number | null; note: string; planned_cost: number | null; my_value: number | null },
+  body: { interest: InterestLevel | null; custom_rank: number | null; custom_tier: number | null; note: string; planned_cost: number | null; my_value: number | null; my_value_source: 'user' | 'derived' | null },
 ) =>
   request<DraftPrepEntry>(`/leagues/${leagueId}/draft-prep/${gsisId}?season=${season}`, {
     method: 'PUT',

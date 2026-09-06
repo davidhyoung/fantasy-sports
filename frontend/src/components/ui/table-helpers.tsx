@@ -270,6 +270,10 @@ interface PlayerCellProps {
   /** Situational notes (injury, depth chart, etc.). Renders a notes button
    *  next to the name — absent entirely when there's nothing to show. */
   notes?: SituationalNote[]
+  /** Struck-through, muted name — a row pending removal (e.g. an interest
+   *  flag just cleared, kept visible with an Undo) rather than one that's
+   *  already gone. */
+  strikethrough?: boolean
 }
 
 /** Standard player cell with avatar + name (+ optional subtitle). The name is
@@ -277,7 +281,8 @@ interface PlayerCellProps {
  *  (see ClickableRow), since a row-wide click target swallowed clicks meant
  *  for other cells (stats, contract actions, drag handles) and made "click
  *  to see this player" ambiguous on rows with several interactive parts. */
-function PlayerCell({ name, imageUrl, sub, href, onClick, avatarSize = 28, notes }: PlayerCellProps) {
+function PlayerCell({ name, imageUrl, sub, href, onClick, avatarSize = 28, notes, strikethrough }: PlayerCellProps) {
+  const nameClass = strikethrough ? 'line-through text-muted-foreground' : ''
   return (
     <TableCell className="font-medium">
       <div className="flex items-center gap-2">
@@ -290,7 +295,7 @@ function PlayerCell({ name, imageUrl, sub, href, onClick, avatarSize = 28, notes
                 e.stopPropagation()
                 onClick()
               }}
-              className="rounded-sm text-left hover:text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className={cn('rounded-sm text-left hover:text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', nameClass)}
             >
               {name}
             </button>
@@ -298,12 +303,12 @@ function PlayerCell({ name, imageUrl, sub, href, onClick, avatarSize = 28, notes
             <Link
               to={href}
               onClick={(e) => e.stopPropagation()}
-              className="rounded-sm hover:text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className={cn('rounded-sm hover:text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', nameClass)}
             >
               {name}
             </Link>
           ) : (
-            <span>{name}</span>
+            <span className={nameClass}>{name}</span>
           )}
           {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
         </div>

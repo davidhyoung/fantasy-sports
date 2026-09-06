@@ -6,7 +6,7 @@ import {
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 
-const EMPTY: DraftPrepEntry = { gsis_id: '', interest: null, custom_rank: null, custom_tier: null, note: '', planned_cost: null, my_value: null }
+const EMPTY: DraftPrepEntry = { gsis_id: '', interest: null, custom_rank: null, custom_tier: null, note: '', planned_cost: null, my_value: null, my_value_source: null }
 
 /**
  * Your personal board for one league and season: targets and avoids, a custom
@@ -54,9 +54,9 @@ export function useDraftPrep(leagueId: number | null, season: number) {
   }
 
   const setPlayer = useMutation({
-    mutationFn: (v: { gsisId: string; interest: InterestLevel | null; customRank: number | null; customTier: number | null; note: string; plannedCost: number | null; myValue: number | null }) =>
+    mutationFn: (v: { gsisId: string; interest: InterestLevel | null; customRank: number | null; customTier: number | null; note: string; plannedCost: number | null; myValue: number | null; myValueSource: 'user' | 'derived' | null }) =>
       setDraftPrepPlayer(leagueId!, season, v.gsisId, {
-        interest: v.interest, custom_rank: v.customRank, custom_tier: v.customTier, note: v.note, planned_cost: v.plannedCost, my_value: v.myValue,
+        interest: v.interest, custom_rank: v.customRank, custom_tier: v.customTier, note: v.note, planned_cost: v.plannedCost, my_value: v.myValue, my_value_source: v.myValueSource,
       }),
     onMutate: async (v) => {
       await qc.cancelQueries({ queryKey })
@@ -67,7 +67,7 @@ export function useDraftPrep(leagueId: number | null, season: number) {
         if (v.interest === null && v.customRank === null && v.customTier === null && !v.note && v.plannedCost === null && v.myValue === null) return rest
         return [...rest, {
           gsis_id: v.gsisId, interest: v.interest, custom_rank: v.customRank, custom_tier: v.customTier,
-          note: v.note, planned_cost: v.plannedCost, my_value: v.myValue,
+          note: v.note, planned_cost: v.plannedCost, my_value: v.myValue, my_value_source: v.myValueSource,
         }]
       })
       return { previous }
@@ -88,7 +88,7 @@ export function useDraftPrep(leagueId: number | null, season: number) {
         // Players ranked for the first time have no row yet.
         for (const id of gsisIds) {
           if (!merged.some((p) => p.gsis_id === id)) {
-            merged.push({ gsis_id: id, interest: null, custom_rank: rank.get(id)!, custom_tier: null, note: '', planned_cost: null, my_value: null })
+            merged.push({ gsis_id: id, interest: null, custom_rank: rank.get(id)!, custom_tier: null, note: '', planned_cost: null, my_value: null, my_value_source: null })
           }
         }
         return merged
@@ -103,7 +103,7 @@ export function useDraftPrep(leagueId: number | null, season: number) {
 
   /** Writes one field, carrying the rest of the row through unchanged. */
   const patch = useCallback(
-    (gsisId: string, changes: Partial<{ interest: InterestLevel | null; customRank: number | null; customTier: number | null; note: string; plannedCost: number | null; myValue: number | null }>) => {
+    (gsisId: string, changes: Partial<{ interest: InterestLevel | null; customRank: number | null; customTier: number | null; note: string; plannedCost: number | null; myValue: number | null; myValueSource: 'user' | 'derived' | null }>) => {
       const current = entry(gsisId)
       setPlayer.mutate({
         gsisId,
@@ -113,6 +113,7 @@ export function useDraftPrep(leagueId: number | null, season: number) {
         note: changes.note ?? current.note,
         plannedCost: changes.plannedCost !== undefined ? changes.plannedCost : current.planned_cost,
         myValue: changes.myValue !== undefined ? changes.myValue : current.my_value,
+        myValueSource: changes.myValueSource !== undefined ? changes.myValueSource : current.my_value_source,
       })
     },
     [entry, setPlayer.mutate],
@@ -133,8 +134,13 @@ export function useDraftPrep(leagueId: number | null, season: number) {
   /** null reverts to the algorithm's own tier for this player. */
   const setCustomTier = useCallback((gsisId: string, tier: number | null) => patch(gsisId, { customTier: tier }), [patch])
 
-  /** Your own valuation, distinct from the algorithm's auction_value. */
-  const setMyValue = useCallback((gsisId: string, value: number | null) => patch(gsisId, { myValue: value }), [patch])
+  /** Your own valuation, distinct from the algorithm's auction_value — always
+   *  a hand-typed edit, so it's tagged 'user' (or cleared to null alongside a
+   *  cleared value). */
+  const setMyValue = useCallback(
+    (gsisId: string, value: number | null) => patch(gsisId, { myValue: value, myValueSource: value == null ? null : 'user' }),
+    [patch],
+  )
 
   /**
    * Sets several fields in one write. Needed whenever a single action changes
@@ -147,7 +153,7 @@ export function useDraftPrep(leagueId: number | null, season: number) {
   const setFields = useCallback(
     (
       gsisId: string,
-      changes: Partial<{ customRank: number | null; customTier: number | null; myValue: number | null }>,
+      changes: Partial<{ customRank: number | null; customTier: number | null; myValue: number | null; myValueSource: 'user' | 'derived' | null }>,
     ) => patch(gsisId, changes),
     [patch],
   )

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
-import { getDraftValues, listLeagues, type DraftPlayer, type DraftReplacementLevel } from '@/api/client'
+import { getDraftValues, listLeagues, type DraftPlayer, type DraftReplacementLevel, type InterestLevel } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 import { FilterChip, SelectControl } from '@/components/ui/filter-chip'
 import { PROJECTION_SEASON } from '@/lib/constants'
@@ -38,6 +37,7 @@ const NO_PLAYERS: DraftPlayer[] = []
 const NO_LEVELS: DraftReplacementLevel[] = []
 const LEAGUE_KEY = 'fs.draft-prep.league'
 const TEAM_PANEL_KEY = 'fs.draft-prep.team-panel'
+const PRIMER_KEY = 'fs.draft-prep.primer-dismissed'
 
 /**
  * Draft Prep — the board you build before a draft: league settings you can model,
@@ -124,6 +124,54 @@ export default function DraftPrep() {
 
   const prep = useDraftPrep(leagueId, seasonNum)
 
+  // Name search is ephemeral session state, not something worth a URL param.
+  const [nameFilter, setNameFilter] = useState('')
+
+  // Players whose interest was just cleared while a Targets/Avoids filter is
+  // active — kept around (rather than let the row vanish) so the row can
+  // still be undone. Maps id -> the level that was cleared. Reset whenever a
+  // filter changes, since a stale "undo" stops making sense once you've moved on.
+  const [recentlyCleared, setRecentlyCleared] = useState<Map<string, InterestLevel>>(new Map())
+  useEffect(() => { setRecentlyCleared(new Map()) }, [view, position])
+
+  const clearingInterest = useCallback((gsisId: string, level: InterestLevel) => {
+    const current = prep.entry(gsisId).interest
+    setRecentlyCleared((prev) => {
+      const next = new Map(prev)
+      if (current === level) next.set(gsisId, level) // about to clear
+      else next.delete(gsisId) // a real choice was made — no longer pending undo
+      return next
+    })
+    prep.setInterest(gsisId, level)
+  }, [prep.entry, prep.setInterest])
+
+  const undoInterest = useCallback((gsisId: string) => {
+    const level = recentlyCleared.get(gsisId)
+    if (level == null) return
+    setRecentlyCleared((prev) => {
+      const next = new Map(prev)
+      next.delete(gsisId)
+      return next
+    })
+    prep.setInterest(gsisId, level)
+  }, [recentlyCleared, prep.setInterest])
+
+  // "league synced, zero prep" drops a first-time visitor into a few hundred
+  // rows with no guidance — one dismissible row, gone for good after the
+  // first real interest/plan/reorder write (not just on ✕).
+  const [primerDismissed, setPrimerDismissed] = useState(() => localStorage.getItem(PRIMER_KEY) === '1')
+  const hasAnyPrep = prep.counts.ranked > 0 || prep.counts.targets > 0 || prep.counts.planned > 0
+  useEffect(() => {
+    if (hasAnyPrep && localStorage.getItem(PRIMER_KEY) !== '1') {
+      localStorage.setItem(PRIMER_KEY, '1')
+      setPrimerDismissed(true)
+    }
+  }, [hasAnyPrep])
+  const dismissPrimer = () => {
+    localStorage.setItem(PRIMER_KEY, '1')
+    setPrimerDismissed(true)
+  }
+
   const allPlayers = data?.players ?? NO_PLAYERS
   // The team builder measures a lineup against replacement, same as the board's prices do.
   const replacementLevels = data?.replacement_levels ?? NO_LEVELS
@@ -146,15 +194,19 @@ export default function DraftPrep() {
   const boardFiltered = useMemo(
     () =>
       allPlayers.filter((p) => {
+        if (nameFilter && !p.name.toLowerCase().includes(nameFilter.toLowerCase())) return false
         if (position && p.position_group !== position && p.position !== position) return false
         const interest = prep.entry(p.gsis_id).interest
+        const clearedLevel = recentlyCleared.get(p.gsis_id)
         switch (view) {
-          case 'positive': return interest === 1
-          case 'negative': return interest === -1
+          // A just-cleared row stays visible (muted, with Undo) rather than
+          // vanishing the moment a re-click clears its flag.
+          case 'positive': return interest === 1 || clearedLevel === 1
+          case 'negative': return interest === -1 || clearedLevel === -1
           default: return true
         }
       }),
-    [allPlayers, position, view, prep],
+    [allPlayers, position, view, prep, nameFilter, recentlyCleared],
   )
 
   /** A neighbour's own value, falling back to the algorithm's price when they
@@ -183,20 +235,27 @@ export default function DraftPrep() {
 
     // "My value" auto-fills to sit between whichever players now flank this
     // one on the board, so a manually-built board reads as a real price
-    // curve without having to type every number by hand.
-    const above = order[newIndex - 1] != null ? valueOf(order[newIndex - 1]) : null
-    const below = order[newIndex + 1] != null ? valueOf(order[newIndex + 1]) : null
-    const interpolated = above != null && below != null
-      ? Math.round((above + below) / 2)
-      : above ?? below ?? null
-    if (interpolated == null) return
-    // setFields, not setMyValue: the reorder above is a separate bulk request
-    // that hasn't landed in the cache yet (nothing has re-rendered between the
-    // two calls), so a plain setMyValue here would build its payload from the
-    // pre-reorder rank and could revert it once both requests resolve. Passing
-    // the rank we already know this player ends up at sidesteps that read
-    // entirely instead of racing it.
-    prep.setFields(movingId, { customRank: newIndex + 1, myValue: interpolated })
+    // curve without having to type every number by hand — but never when the
+    // user has already typed a value of their own for this player, which a
+    // move must leave untouched.
+    if (prep.entry(movingId).my_value_source !== 'user') {
+      const above = order[newIndex - 1] != null ? valueOf(order[newIndex - 1]) : null
+      const below = order[newIndex + 1] != null ? valueOf(order[newIndex + 1]) : null
+      const interpolated = above != null && below != null
+        ? Math.round((above + below) / 2)
+        : above ?? below ?? null
+      if (interpolated != null) {
+        // setFields, not setMyValue: the reorder above is a separate bulk request
+        // that hasn't landed in the cache yet (nothing has re-rendered between the
+        // two calls), so a plain setMyValue here would build its payload from the
+        // pre-reorder rank and could revert it once both requests resolve. Passing
+        // the rank we already know this player ends up at sidesteps that read
+        // entirely instead of racing it.
+        prep.setFields(movingId, { customRank: newIndex + 1, myValue: interpolated, myValueSource: 'derived' })
+        return
+      }
+    }
+    prep.setFields(movingId, { customRank: newIndex + 1 })
   }, [allPlayers, prep.entry, prep.reorder.mutate, prep.setFields, valueOf])
 
   // Shared by both board layouts (table, tiers) so they never disagree about
@@ -206,14 +265,14 @@ export default function DraftPrep() {
   // nothing to do with this data.
   const prepControls = useMemo(() => ({
     entry: prep.entry,
-    setInterest: prep.setInterest,
+    setInterest: clearingInterest,
     setPlannedCost: prep.setPlannedCost,
     setNote: prep.setNote,
     setCustomTier: prep.setCustomTier,
     setMyValue: prep.setMyValue,
     setFields: prep.setFields,
     onMove: handleMove,
-  }), [prep.entry, prep.setInterest, prep.setPlannedCost, prep.setNote, prep.setCustomTier, prep.setMyValue, prep.setFields, handleMove])
+  }), [prep.entry, clearingInterest, prep.setPlannedCost, prep.setNote, prep.setCustomTier, prep.setMyValue, prep.setFields, handleMove])
 
   // Fed to the docked panel's Settings bucket.
   const settingsControls = {
@@ -221,7 +280,7 @@ export default function DraftPrep() {
     onSave: save, onDiscard: discard, onReset: reset,
   }
 
-  if (leaguesLoading) return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+  if (leaguesLoading) return <p className="text-sm text-muted-foreground">Loading…</p>
 
   if (!nflLeagues.length) {
     return (
@@ -236,7 +295,7 @@ export default function DraftPrep() {
   }
 
   return (
-    <div className={`space-y-5 print:mr-0 ${teamOpen ? 'lg:mr-[332px]' : 'lg:mr-14'}`}>
+    <div className={`space-y-5 pb-20 print:mr-0 print:pb-0 lg:pb-0 ${teamOpen ? 'lg:mr-[332px]' : 'lg:mr-14'}`}>
       <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Draft Prep</h1>
@@ -280,15 +339,12 @@ export default function DraftPrep() {
             </button>
           ))}
         </div>
-        {/* Tiers only — the Board's sortable table isn't laid out for paper. */}
-        {boardMode === 'tiers' && (
-          <button
-            onClick={() => window.print()}
-            className="rounded-lg border border-border px-3 py-2 font-display text-sm font-semibold text-muted-foreground hover:text-foreground hover:border-muted-foreground"
-          >
-            Print
-          </button>
-        )}
+        <button
+          onClick={() => window.print()}
+          className="rounded-lg border border-border px-3 py-2 font-display text-sm font-semibold text-muted-foreground hover:text-foreground hover:border-muted-foreground"
+        >
+          Print
+        </button>
       </div>
 
       {/* The team panel is fixed to the window edge on wide screens, so it's out
@@ -299,32 +355,53 @@ export default function DraftPrep() {
             regardless of how you've flagged them, so these hide there instead
             of quietly doing nothing. */}
         {boardMode === 'board' && (
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex flex-wrap gap-1.5">
-              {POSITIONS.map((pos) => (
-                <FilterChip
-                  key={pos}
-                  active={(pos === 'All' && position === '') || pos === position}
-                  onClick={() => setPosition(pos === 'All' ? '' : pos)}
-                >
-                  {pos}
-                </FilterChip>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {VIEWS.map((v) => (
-                <FilterChip key={v.value} active={view === v.value} onClick={() => setView(v.value)}>
-                  {v.label}
-                  {v.value === 'positive' && prep.counts.targets > 0 && ` ${prep.counts.targets}`}
-                  {v.value === 'negative' && prep.counts.avoids > 0 && ` ${prep.counts.avoids}`}
-                </FilterChip>
-              ))}
+          <div className="space-y-3">
+            <input
+              value={nameFilter}
+              onChange={(e) => setNameFilter(e.target.value)}
+              placeholder="Search players…"
+              aria-label="Search players"
+              className="h-11 w-full max-w-xs rounded-md border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            {/* One scrolling track below md (position chips, then interest chips,
+                separated by this same gap-4 as the divider); wraps normally at md+. */}
+            <div className="flex gap-4 overflow-x-auto [&::-webkit-scrollbar]:hidden md:flex-wrap md:overflow-visible">
+              <div className="flex shrink-0 gap-1.5 snap-x">
+                {POSITIONS.map((pos) => (
+                  <FilterChip
+                    key={pos}
+                    active={(pos === 'All' && position === '') || pos === position}
+                    onClick={() => setPosition(pos === 'All' ? '' : pos)}
+                    className="shrink-0 snap-start"
+                  >
+                    {pos}
+                  </FilterChip>
+                ))}
+              </div>
+              <div className="flex shrink-0 gap-1.5 snap-x">
+                {VIEWS.map((v) => (
+                  <FilterChip key={v.value} active={view === v.value} onClick={() => setView(v.value)} className="shrink-0 snap-start">
+                    {v.label}
+                    {v.value === 'positive' && prep.counts.targets > 0 && ` ${prep.counts.targets}`}
+                    {v.value === 'negative' && prep.counts.avoids > 0 && ` ${prep.counts.avoids}`}
+                  </FilterChip>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
+      {!primerDismissed && !hasAnyPrep && !isLoading && allPlayers.length > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+          <span>Flag targets with △▽, plan a price with +, drag to set your own order.</span>
+          <button onClick={dismissPrimer} aria-label="Dismiss" className="font-mono text-sm text-muted-foreground hover:text-foreground">
+            ✕
+          </button>
+        </div>
+      )}
+
       {isLoading ? (
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : isError ? (
         <p className="text-sm text-destructive">
           Failed to load draft values. Make sure this league is synced.
@@ -351,17 +428,30 @@ export default function DraftPrep() {
       ) : (
         <>
           <p className="text-xs text-muted-foreground">
-            {boardFiltered.length} player{boardFiltered.length !== 1 ? 's' : ''}
-            {position ? ` (${position})` : ''} ·{' '}
-            {settings.scoringCustomized
-              ? 'custom scoring'
-              : settings.scoringFormat === 'league'
-                ? 'league scoring'
-                : `${settings.scoringFormat.toUpperCase()} scoring`}
-            {isCustomized && ' · custom settings'}
-            {prep.counts.ranked > 0 && ` · ${prep.counts.ranked} ranked on your board`}
+            {/* The rest is already stated in the panel's Settings bucket — no
+                need to repeat it in a line that has to fit at 375px too. */}
+            <span className="md:hidden">{boardFiltered.length} player{boardFiltered.length !== 1 ? 's' : ''}</span>
+            <span className="hidden md:inline">
+              {boardFiltered.length} player{boardFiltered.length !== 1 ? 's' : ''}
+              {position ? ` (${position})` : ''} ·{' '}
+              {settings.scoringCustomized
+                ? 'custom scoring'
+                : settings.scoringFormat === 'league'
+                  ? 'league scoring'
+                  : `${settings.scoringFormat.toUpperCase()} scoring`}
+              {isCustomized && ' · custom settings'}
+              {prep.counts.ranked > 0 && ` · ${prep.counts.ranked} ranked on your board`}
+            </span>
           </p>
-          <DraftBoardTable players={boardFiltered} gradeRankMap={gradeRankMap} showConsensus prep={prepControls} />
+          <DraftBoardTable
+            players={boardFiltered}
+            gradeRankMap={gradeRankMap}
+            showConsensus
+            prep={prepControls}
+            printPoolSize={printPoolSize}
+            recentlyCleared={recentlyCleared}
+            onUndoInterest={undoInterest}
+          />
         </>
       )}
       </div>
