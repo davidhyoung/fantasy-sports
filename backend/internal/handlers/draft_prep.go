@@ -33,6 +33,13 @@ type draftPrepEntry struct {
 	// from one the client auto-filled by interpolating neighbours on a move
 	// ("derived"). nil whenever MyValue is nil.
 	MyValueSource *string `json:"my_value_source"`
+	// Kept marks the player as already locked to a team this year — off the
+	// board, not a target/avoid opinion. Defaults to false, unlike the nil-as-
+	// "no opinion" fields above, since availability is a fact, not a stance.
+	Kept bool `json:"kept"`
+	// KeptCost is the keeper's locked-in salary, when known. nil when Kept is
+	// false, or when it's true but the cost isn't known/applicable.
+	KeptCost *int `json:"kept_cost"`
 }
 
 type draftPrepResp struct {
@@ -79,7 +86,7 @@ func (h *Handler) GetDraftPrep(w http.ResponseWriter, r *http.Request) {
 	season := h.prepSeason(r)
 
 	rows, err := h.db.Query(r.Context(), `
-		SELECT gsis_id, interest, custom_rank, custom_tier, note, planned_cost, my_value, my_value_source
+		SELECT gsis_id, interest, custom_rank, custom_tier, note, planned_cost, my_value, my_value_source, kept, kept_cost
 		FROM draft_prep_players
 		WHERE user_id = $1 AND league_id = $2 AND season = $3
 		ORDER BY custom_rank NULLS LAST, interest DESC NULLS LAST, gsis_id
@@ -93,7 +100,7 @@ func (h *Handler) GetDraftPrep(w http.ResponseWriter, r *http.Request) {
 	players := []draftPrepEntry{}
 	for rows.Next() {
 		var e draftPrepEntry
-		if err := rows.Scan(&e.GsisID, &e.Interest, &e.CustomRank, &e.CustomTier, &e.Note, &e.PlannedCost, &e.MyValue, &e.MyValueSource); err != nil {
+		if err := rows.Scan(&e.GsisID, &e.Interest, &e.CustomRank, &e.CustomTier, &e.Note, &e.PlannedCost, &e.MyValue, &e.MyValueSource, &e.Kept, &e.KeptCost); err != nil {
 			respondError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -138,6 +145,8 @@ func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) 
 		PlannedCost   *int    `json:"planned_cost"`
 		MyValue       *int    `json:"my_value"`
 		MyValueSource *string `json:"my_value_source"`
+		Kept          bool    `json:"kept"`
+		KeptCost      *int    `json:"kept_cost"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid body")
@@ -162,6 +171,14 @@ func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusBadRequest, "my_value_source must be user or derived")
 		return
 	}
+	if body.KeptCost != nil && (*body.KeptCost < 0 || *body.KeptCost > 10000) {
+		respondError(w, http.StatusBadRequest, "kept_cost out of range")
+		return
+	}
+	// A cost only means something alongside being kept.
+	if !body.Kept {
+		body.KeptCost = nil
+	}
 	if body.CustomRank != nil && (*body.CustomRank < 1 || *body.CustomRank > 10000) {
 		respondError(w, http.StatusBadRequest, "custom_rank out of range")
 		return
@@ -174,7 +191,7 @@ func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) 
 		body.Note = body.Note[:500]
 	}
 
-	if body.Interest == nil && body.CustomRank == nil && body.CustomTier == nil && body.Note == "" && body.PlannedCost == nil && body.MyValue == nil {
+	if body.Interest == nil && body.CustomRank == nil && body.CustomTier == nil && body.Note == "" && body.PlannedCost == nil && body.MyValue == nil && !body.Kept {
 		if _, err := h.db.Exec(r.Context(), `
 			DELETE FROM draft_prep_players
 			WHERE user_id = $1 AND league_id = $2 AND season = $3 AND gsis_id = $4
@@ -187,13 +204,13 @@ func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if _, err := h.db.Exec(r.Context(), `
-		INSERT INTO draft_prep_players (user_id, league_id, season, gsis_id, interest, custom_rank, custom_tier, note, planned_cost, my_value, my_value_source, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+		INSERT INTO draft_prep_players (user_id, league_id, season, gsis_id, interest, custom_rank, custom_tier, note, planned_cost, my_value, my_value_source, kept, kept_cost, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
 		ON CONFLICT (user_id, league_id, season, gsis_id) DO UPDATE
 		SET interest = EXCLUDED.interest, custom_rank = EXCLUDED.custom_rank, custom_tier = EXCLUDED.custom_tier,
 		    note = EXCLUDED.note, planned_cost = EXCLUDED.planned_cost, my_value = EXCLUDED.my_value,
-		    my_value_source = EXCLUDED.my_value_source, updated_at = NOW()
-	`, user.ID, leagueID, season, gsisID, body.Interest, body.CustomRank, body.CustomTier, body.Note, body.PlannedCost, body.MyValue, body.MyValueSource); err != nil {
+		    my_value_source = EXCLUDED.my_value_source, kept = EXCLUDED.kept, kept_cost = EXCLUDED.kept_cost, updated_at = NOW()
+	`, user.ID, leagueID, season, gsisID, body.Interest, body.CustomRank, body.CustomTier, body.Note, body.PlannedCost, body.MyValue, body.MyValueSource, body.Kept, body.KeptCost); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -207,6 +224,8 @@ func (h *Handler) UpsertDraftPrepPlayer(w http.ResponseWriter, r *http.Request) 
 		PlannedCost:   body.PlannedCost,
 		MyValue:       body.MyValue,
 		MyValueSource: body.MyValueSource,
+		Kept:          body.Kept,
+		KeptCost:      body.KeptCost,
 	})
 }
 

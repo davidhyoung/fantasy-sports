@@ -9,7 +9,7 @@ import ConfidenceBadge from '@/pages/projections/components/ConfidenceBadge'
 import UniquenessBadge from '@/pages/projections/components/UniquenessBadge'
 import { TrendSparkline } from '@/pages/league-detail/components/TrendSparkline'
 import { INTEREST_LEVELS, interestIconClass, interestRowClass } from '../lib/interest'
-import { edgeOf, type AdvancedCol, type PrepControls } from './DraftBoardTable'
+import { edgeOf, KeptCostField, type AdvancedCol, type PrepControls } from './DraftBoardTable'
 
 const SORT_OPTIONS: MobileSortOption[] = [
   { col: 'board', label: 'Board' },
@@ -189,7 +189,22 @@ function PlayerCard({
   )
 
   const faceExtra = prep && (
-    clearedLevel != null ? (
+    mine?.kept ? (
+      <div className="flex items-center justify-between gap-3">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="font-mono text-xs font-semibold text-secondary" title="Already locked to a team this year — not available in the draft">
+            KEPT
+          </span>
+          <KeptCostField value={mine.kept_cost} onCommit={(v) => prep.setKeptCost(p.gsis_id, v)} />
+        </span>
+        <button
+          onClick={() => prep.setKept(p.gsis_id, false)}
+          className="font-mono text-xs text-muted-foreground hover:text-foreground"
+        >
+          Not kept
+        </button>
+      </div>
+    ) : clearedLevel != null ? (
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-muted-foreground">Interest cleared</span>
         <button
@@ -217,6 +232,14 @@ function PlayerCard({
             </button>
           )
         })}
+        <button
+          onClick={() => prep.setKept(p.gsis_id, true)}
+          title="Mark kept — already locked to a team this year"
+          aria-label={`Mark ${p.name} kept`}
+          className="flex h-11 w-11 items-center justify-center rounded font-mono text-xs font-semibold text-muted-foreground/40 hover:bg-muted hover:text-foreground"
+        >
+          K
+        </button>
       </div>
       {mine?.planned_cost == null ? (
         <button
@@ -301,7 +324,7 @@ function PlayerCard({
         face={face}
         faceExtra={faceExtra}
         expanded={expanded}
-        className={clearedLevel != null ? 'opacity-50' : interestRowClass(mine?.interest ?? null)}
+        className={clearedLevel != null ? 'opacity-50' : mine?.kept ? 'opacity-60' : interestRowClass(mine?.interest ?? null)}
       />
       {prep && canMove && (
         <MoveToPositionSheet

@@ -6,7 +6,7 @@ import {
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 
-const EMPTY: DraftPrepEntry = { gsis_id: '', interest: null, custom_rank: null, custom_tier: null, note: '', planned_cost: null, my_value: null, my_value_source: null }
+const EMPTY: DraftPrepEntry = { gsis_id: '', interest: null, custom_rank: null, custom_tier: null, note: '', planned_cost: null, my_value: null, my_value_source: null, kept: false, kept_cost: null }
 
 /**
  * Your personal board for one league and season: targets and avoids, a custom
@@ -54,20 +54,21 @@ export function useDraftPrep(leagueId: number | null, season: number) {
   }
 
   const setPlayer = useMutation({
-    mutationFn: (v: { gsisId: string; interest: InterestLevel | null; customRank: number | null; customTier: number | null; note: string; plannedCost: number | null; myValue: number | null; myValueSource: 'user' | 'derived' | null }) =>
+    mutationFn: (v: { gsisId: string; interest: InterestLevel | null; customRank: number | null; customTier: number | null; note: string; plannedCost: number | null; myValue: number | null; myValueSource: 'user' | 'derived' | null; kept: boolean; keptCost: number | null }) =>
       setDraftPrepPlayer(leagueId!, season, v.gsisId, {
-        interest: v.interest, custom_rank: v.customRank, custom_tier: v.customTier, note: v.note, planned_cost: v.plannedCost, my_value: v.myValue, my_value_source: v.myValueSource,
+        interest: v.interest, custom_rank: v.customRank, custom_tier: v.customTier, note: v.note, planned_cost: v.plannedCost, my_value: v.myValue, my_value_source: v.myValueSource, kept: v.kept, kept_cost: v.keptCost,
       }),
     onMutate: async (v) => {
       await qc.cancelQueries({ queryKey })
       const previous = patchCache((players) => {
         const rest = players.filter((p) => p.gsis_id !== v.gsisId)
-        // A player with no interest, rank, tier override, note, planned cost
-        // or personal value carries nothing — drop the row, same as the server.
-        if (v.interest === null && v.customRank === null && v.customTier === null && !v.note && v.plannedCost === null && v.myValue === null) return rest
+        // A player with no interest, rank, tier override, note, planned cost,
+        // personal value, or kept flag carries nothing — drop the row, same as the server.
+        if (v.interest === null && v.customRank === null && v.customTier === null && !v.note && v.plannedCost === null && v.myValue === null && !v.kept) return rest
         return [...rest, {
           gsis_id: v.gsisId, interest: v.interest, custom_rank: v.customRank, custom_tier: v.customTier,
           note: v.note, planned_cost: v.plannedCost, my_value: v.myValue, my_value_source: v.myValueSource,
+          kept: v.kept, kept_cost: v.keptCost,
         }]
       })
       return { previous }
@@ -88,7 +89,7 @@ export function useDraftPrep(leagueId: number | null, season: number) {
         // Players ranked for the first time have no row yet.
         for (const id of gsisIds) {
           if (!merged.some((p) => p.gsis_id === id)) {
-            merged.push({ gsis_id: id, interest: null, custom_rank: rank.get(id)!, custom_tier: null, note: '', planned_cost: null, my_value: null, my_value_source: null })
+            merged.push({ gsis_id: id, interest: null, custom_rank: rank.get(id)!, custom_tier: null, note: '', planned_cost: null, my_value: null, my_value_source: null, kept: false, kept_cost: null })
           }
         }
         return merged
@@ -103,7 +104,7 @@ export function useDraftPrep(leagueId: number | null, season: number) {
 
   /** Writes one field, carrying the rest of the row through unchanged. */
   const patch = useCallback(
-    (gsisId: string, changes: Partial<{ interest: InterestLevel | null; customRank: number | null; customTier: number | null; note: string; plannedCost: number | null; myValue: number | null; myValueSource: 'user' | 'derived' | null }>) => {
+    (gsisId: string, changes: Partial<{ interest: InterestLevel | null; customRank: number | null; customTier: number | null; note: string; plannedCost: number | null; myValue: number | null; myValueSource: 'user' | 'derived' | null; kept: boolean; keptCost: number | null }>) => {
       const current = entry(gsisId)
       setPlayer.mutate({
         gsisId,
@@ -114,6 +115,8 @@ export function useDraftPrep(leagueId: number | null, season: number) {
         plannedCost: changes.plannedCost !== undefined ? changes.plannedCost : current.planned_cost,
         myValue: changes.myValue !== undefined ? changes.myValue : current.my_value,
         myValueSource: changes.myValueSource !== undefined ? changes.myValueSource : current.my_value_source,
+        kept: changes.kept !== undefined ? changes.kept : current.kept,
+        keptCost: changes.keptCost !== undefined ? changes.keptCost : current.kept_cost,
       })
     },
     [entry, setPlayer.mutate],
@@ -133,6 +136,16 @@ export function useDraftPrep(leagueId: number | null, season: number) {
 
   /** null reverts to the algorithm's own tier for this player. */
   const setCustomTier = useCallback((gsisId: string, tier: number | null) => patch(gsisId, { customTier: tier }), [patch])
+
+  /** Marks (or un-marks) the player as kept — already locked to a team, off
+   *  the board this year. Un-keeping also drops any recorded keeper cost. */
+  const setKept = useCallback(
+    (gsisId: string, kept: boolean) => patch(gsisId, { kept, keptCost: kept ? entry(gsisId).kept_cost : null }),
+    [patch, entry],
+  )
+
+  /** The keeper's locked-in salary. Only meaningful once the player is kept. */
+  const setKeptCost = useCallback((gsisId: string, cost: number | null) => patch(gsisId, { keptCost: cost }), [patch])
 
   /** Your own valuation, distinct from the algorithm's auction_value — always
    *  a hand-typed edit, so it's tagged 'user' (or cleared to null alongside a
@@ -159,15 +172,16 @@ export function useDraftPrep(leagueId: number | null, season: number) {
   )
 
   const counts = useMemo(() => {
-    const c = { targets: 0, avoids: 0, ranked: 0, planned: 0 }
+    const c = { targets: 0, avoids: 0, ranked: 0, planned: 0, kept: 0 }
     for (const e of data?.players ?? []) {
       if (e.interest === 1) c.targets++
       else if (e.interest === -1) c.avoids++
       if (e.custom_rank != null) c.ranked++
       if (e.planned_cost != null) c.planned++
+      if (e.kept) c.kept++
     }
     return c
   }, [data])
 
-  return { entry, byPlayer, setInterest, setNote, setPlannedCost, setCustomTier, setMyValue, setFields, reorder, counts, isLoaded: !!data }
+  return { entry, byPlayer, setInterest, setNote, setPlannedCost, setCustomTier, setMyValue, setKept, setKeptCost, setFields, reorder, counts, isLoaded: !!data }
 }

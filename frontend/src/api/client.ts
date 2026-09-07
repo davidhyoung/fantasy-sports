@@ -997,6 +997,12 @@ export interface DraftPrepEntry {
   /** 'user' = typed by hand; 'derived' = auto-filled by a move's interpolation.
    *  null whenever my_value is null. */
   my_value_source: 'user' | 'derived' | null
+  /** True if the player is already locked to a team this year — off the
+   *  board, not a target/avoid opinion. Defaults false. */
+  kept: boolean
+  /** The keeper's locked-in salary, when known. null when kept is false, or
+   *  true but the cost isn't known/applicable. */
+  kept_cost: number | null
 }
 
 export interface DraftPrepResponse {
@@ -1011,7 +1017,7 @@ export const setDraftPrepPlayer = (
   leagueId: number,
   season: number,
   gsisId: string,
-  body: { interest: InterestLevel | null; custom_rank: number | null; custom_tier: number | null; note: string; planned_cost: number | null; my_value: number | null; my_value_source: 'user' | 'derived' | null },
+  body: { interest: InterestLevel | null; custom_rank: number | null; custom_tier: number | null; note: string; planned_cost: number | null; my_value: number | null; my_value_source: 'user' | 'derived' | null; kept: boolean; kept_cost: number | null },
 ) =>
   request<DraftPrepEntry>(`/leagues/${leagueId}/draft-prep/${gsisId}?season=${season}`, {
     method: 'PUT',

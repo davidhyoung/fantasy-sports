@@ -61,6 +61,10 @@ export interface PrepControls {
   setCustomTier: (gsisId: string, tier: number | null) => void
   /** Your own valuation for this player, distinct from the algorithm's auction_value. */
   setMyValue: (gsisId: string, value: number | null) => void
+  /** Marks (or un-marks) the player as kept — already locked to a team, off the board this year. */
+  setKept: (gsisId: string, kept: boolean) => void
+  /** The keeper's locked-in salary. Only meaningful once the player is kept. */
+  setKeptCost: (gsisId: string, cost: number | null) => void
   /** Sets several fields in one write — see useDraftPrep's setFields for why
    *  this exists instead of two independent single-field calls. */
   setFields: (gsisId: string, changes: Partial<{ customRank: number | null; customTier: number | null; myValue: number | null; myValueSource: 'user' | 'derived' | null }>) => void
@@ -138,6 +142,41 @@ function RankDelta({ customRank, overallRank }: { customRank: number; overallRan
       title={`${n} spot${n === 1 ? '' : 's'} ${diff > 0 ? 'above' : 'below'} the projection's rank`}
     >
       {diff > 0 ? '▲' : '▼'}{n}
+    </span>
+  )
+}
+
+/** Inline, commit-on-blur editor for a kept player's locked-in salary — same
+ *  write-on-blur/Enter convention as NoteField, just numeric and nullable. */
+export function KeptCostField({ value, onCommit }: { value: number | null; onCommit: (next: number | null) => void }) {
+  const [draft, setDraft] = useState(value == null ? '' : String(value))
+  const [seen, setSeen] = useState(value)
+  if (seen !== value) {
+    setSeen(value)
+    setDraft(value == null ? '' : String(value))
+  }
+
+  const commit = () => {
+    const trimmed = draft.trim()
+    const next = trimmed === '' ? null : Math.max(0, Math.min(10000, parseInt(trimmed, 10) || 0))
+    if (next !== value) onCommit(next)
+    setDraft(next == null ? '' : String(next))
+  }
+
+  return (
+    <span className="inline-flex items-center font-mono text-[10px] tabular-nums text-muted-foreground">
+      $
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ''))}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          if (e.key === 'Escape') setDraft(value == null ? '' : String(value))
+        }}
+        placeholder="—"
+        className="w-8 bg-transparent focus:text-foreground focus-visible:outline-none"
+      />
     </span>
   )
 }
@@ -424,6 +463,7 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus, pr
                 // accent line on whichever edge it'll actually land on.
                 className={[
                   interestRowClass(mine?.interest ?? null),
+                  mine?.kept ? 'opacity-60' : '',
                   clearedLevel != null ? 'opacity-50' : '',
                   canMove && dragId === p.gsis_id ? 'opacity-40' : '',
                   canMove && dragOverId === p.gsis_id && dragOverPlace === 'before' ? 'border-t-2 border-primary' : '',
@@ -525,7 +565,25 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus, pr
                 />
                 {prep && (
                   <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                    {clearedLevel != null ? (
+                    {mine?.kept ? (
+                      // Kept — off the board, not a target/avoid opinion.
+                      <span className="inline-flex items-center gap-1">
+                        <span
+                          className="font-mono text-[10px] font-semibold text-secondary"
+                          title="Already locked to a team this year — not available in the draft"
+                        >
+                          KEPT
+                        </span>
+                        <KeptCostField value={mine.kept_cost} onCommit={(v) => prep.setKeptCost(p.gsis_id, v)} />
+                        <button
+                          onClick={() => prep.setKept(p.gsis_id, false)}
+                          title="Not kept"
+                          className="font-mono text-[10px] text-muted-foreground hover:text-foreground"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ) : clearedLevel != null ? (
                       <button
                         onClick={() => onUndoInterest?.(p.gsis_id)}
                         className="font-mono text-[10px] text-primary underline underline-offset-2 hover:text-foreground"
@@ -550,13 +608,23 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus, pr
                             </button>
                           )
                         })}
+                        <button
+                          onClick={() => prep.setKept(p.gsis_id, true)}
+                          title="Mark kept — already locked to a team this year"
+                          aria-label={`Mark ${p.name} kept`}
+                          className="flex h-5 w-5 items-center justify-center rounded font-mono text-[10px] font-semibold text-muted-foreground/40 hover:bg-muted hover:text-foreground"
+                        >
+                          K
+                        </button>
                       </div>
                     )}
                   </TableCell>
                 )}
                 {prep && (
                   <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                    {mine?.planned_cost == null ? (
+                    {mine?.kept ? (
+                      <span className="text-muted-foreground/40">—</span>
+                    ) : mine?.planned_cost == null ? (
                       <button
                         onClick={() => prep.setPlannedCost(p.gsis_id, p.auction_value)}
                         title={`Add to your team at $${p.auction_value}`}

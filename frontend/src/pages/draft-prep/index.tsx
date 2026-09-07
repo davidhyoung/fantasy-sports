@@ -275,9 +275,11 @@ export default function DraftPrep() {
     setNote: prep.setNote,
     setCustomTier: prep.setCustomTier,
     setMyValue: prep.setMyValue,
+    setKept: prep.setKept,
+    setKeptCost: prep.setKeptCost,
     setFields: prep.setFields,
     onMove: handleMove,
-  }), [prep.entry, clearingInterest, prep.setPlannedCost, prep.setNote, prep.setCustomTier, prep.setMyValue, prep.setFields, handleMove])
+  }), [prep.entry, clearingInterest, prep.setPlannedCost, prep.setNote, prep.setCustomTier, prep.setMyValue, prep.setKept, prep.setKeptCost, prep.setFields, handleMove])
 
   // Fed to the docked panel's Settings bucket.
   const settingsControls = {
