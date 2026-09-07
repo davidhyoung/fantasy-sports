@@ -183,15 +183,6 @@ export default function DraftPrep() {
 
   const printPoolSize = computePrintPoolSize(data)
 
-  const gradeRankMap = useMemo(() => {
-    const map = new Map<string, number>()
-    const withGrade = allPlayers
-      .filter((p) => p.player_grade != null)
-      .sort((a, b) => (b.player_grade ?? 0) - (a.player_grade ?? 0))
-    withGrade.forEach((p, i) => map.set(p.gsis_id, i + 1))
-    return map
-  }, [allPlayers])
-
   // Position and target/avoid filtering only apply to the sortable Board — the
   // Tiers layout already organizes by position (a position filter would just
   // collapse it to one panel) and shows every player's standing regardless of
@@ -452,7 +443,6 @@ export default function DraftPrep() {
           </p>
           <DraftBoardTable
             players={boardFiltered}
-            gradeRankMap={gradeRankMap}
             showConsensus
             prep={prepControls}
             printPoolSize={printPoolSize}

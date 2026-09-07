@@ -41,7 +41,6 @@ const CARD_CAP = 150
 interface Props {
   /** Already sorted by the parent. */
   players: DraftPlayer[]
-  gradeRankMap: Map<string, number>
   prep?: PrepControls
   showConsensus?: boolean
   sortCol: string
@@ -66,7 +65,7 @@ interface Props {
  * same `prep.onMove` handler the drag interaction uses.
  */
 export function MobileDraftBoard({
-  players: sorted, gradeRankMap, prep, showConsensus, sortCol, sortDir, onSort, canMove, sortNotice,
+  players: sorted, prep, showConsensus, sortCol, sortDir, onSort, canMove, sortNotice,
   isVisible, recentlyCleared, onUndoInterest, onPlayerClick,
 }: Props) {
   const options = SORT_OPTIONS.filter((o) => {
@@ -101,7 +100,6 @@ export function MobileDraftBoard({
               player={p}
               index={i}
               players={sorted}
-              gradeRank={gradeRankMap.get(p.gsis_id)}
               prep={prep}
               showConsensus={showConsensus}
               canMove={canMove}
@@ -125,14 +123,6 @@ export function MobileDraftBoard({
   )
 }
 
-function DeltaBadge({ gradeRank, fantasyRank }: { gradeRank: number; fantasyRank: number }) {
-  const diff = fantasyRank - gradeRank
-  if (Math.abs(diff) < 10) return null
-  return diff > 0
-    ? <span className="ml-1 rounded bg-positive-light px-1 py-0.5 text-[10px] text-positive-foreground">UV</span>
-    : <span className="ml-1 rounded bg-negative-light px-1 py-0.5 text-[10px] text-negative-foreground">OV</span>
-}
-
 /** Rank + delta vs. the projection's own rank, same composite as the desktop board. */
 function RankFace({ customRank, overallRank }: { customRank: number; overallRank: number }) {
   const diff = overallRank - customRank
@@ -146,12 +136,11 @@ function RankFace({ customRank, overallRank }: { customRank: number; overallRank
 }
 
 function PlayerCard({
-  player: p, index: i, players: sorted, gradeRank, prep, showConsensus, canMove, isVisible, clearedLevel, onUndoInterest, onPlayerClick,
+  player: p, index: i, players: sorted, prep, showConsensus, canMove, isVisible, clearedLevel, onUndoInterest, onPlayerClick,
 }: {
   player: DraftPlayer
   index: number
   players: DraftPlayer[]
-  gradeRank?: number
   prep?: PrepControls
   showConsensus?: boolean
   canMove: boolean
@@ -286,12 +275,9 @@ function PlayerCard({
     ...(isVisible('age') ? [{ label: 'Age', value: p.age || '—' }] : []),
     {
       label: 'Grade',
-      value: p.player_grade != null ? (
-        <>
-          <span className={gradeColorClass(p.player_grade)}>{p.player_grade.toFixed(0)}</span>
-          {gradeRank != null && <DeltaBadge gradeRank={gradeRank} fantasyRank={p.overall_rank} />}
-        </>
-      ) : '—',
+      value: p.player_grade != null
+        ? <span className={gradeColorClass(p.player_grade)}>{p.player_grade.toFixed(0)}</span>
+        : '—',
     },
     ...(isVisible('vor') ? [{ label: 'VOR', value: p.vor.toFixed(1) }] : []),
     ...(isVisible('pts') ? [{ label: 'Proj Pts', value: p.proj_league_fpts.toFixed(1) }] : []),

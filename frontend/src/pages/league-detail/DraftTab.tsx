@@ -72,17 +72,6 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
 
   const printPoolSize = computePrintPoolSize(data)
 
-  // Grade ranks across ALL players (not filtered), so the badge means the same thing
-  // whichever position filter is on.
-  const gradeRankMap = useMemo(() => {
-    const map = new Map<string, number>()
-    const withGrade = allPlayers
-      .filter((p) => p.player_grade != null)
-      .sort((a, b) => (b.player_grade ?? 0) - (a.player_grade ?? 0))
-    withGrade.forEach((p, i) => map.set(p.gsis_id, i + 1))
-    return map
-  }, [allPlayers])
-
   // Position filtering only means something on the sortable Board — Tiers
   // already organizes by position, so a position filter there would just
   // collapse it to one panel instead of the point of the view.
@@ -193,7 +182,7 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
           {boardMode === 'tiers' ? (
             <TiersView players={filtered} printPoolSize={printPoolSize} onPlayerClick={setViewingPlayer} />
           ) : (
-            <DraftBoardTable players={filtered} gradeRankMap={gradeRankMap} onPlayerClick={setViewingPlayer} />
+            <DraftBoardTable players={filtered} onPlayerClick={setViewingPlayer} />
           )}
         </>
       ) : null}

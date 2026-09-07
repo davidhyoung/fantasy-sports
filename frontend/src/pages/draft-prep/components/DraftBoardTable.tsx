@@ -79,8 +79,6 @@ export interface PrepControls {
 
 interface Props {
   players: DraftPlayer[]
-  /** Grade ranks across the unfiltered pool, so the badge means the same everywhere. */
-  gradeRankMap: Map<string, number>
   prep?: PrepControls
   /** Adds the consensus price and our edge over it — draft-prep only. */
   showConsensus?: boolean
@@ -101,16 +99,6 @@ interface Props {
 /** Our price minus the market's. Positive = we're higher on him than the market. */
 export function edgeOf(p: DraftPlayer): number | null {
   return p.consensus_auction_value == null ? null : p.auction_value - p.consensus_auction_value
-}
-
-/** Shows when grade rank and fantasy rank diverge significantly. */
-function DeltaBadge({ gradeRank, fantasyRank }: { gradeRank: number; fantasyRank: number }) {
-  const diff = fantasyRank - gradeRank // positive = grade is better than fantasy rank
-  if (Math.abs(diff) < 10) return null
-  if (diff > 0) {
-    return <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-positive-light text-positive-foreground">UV</span>
-  }
-  return <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-negative-light text-negative-foreground">OV</span>
 }
 
 /**
@@ -215,7 +203,7 @@ function BoardPrintSheet({ players, entry, cap }: { players: DraftPlayer[]; entr
   )
 }
 
-export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus, printPoolSize, recentlyCleared, onUndoInterest, onPlayerClick }: Props) {
+export function DraftBoardTable({ players, prep, showConsensus, printPoolSize, recentlyCleared, onUndoInterest, onPlayerClick }: Props) {
   const { sortCol, sortDir, handleSort } = useTableSort(prep ? 'board' : 'rank', 'asc', ASC_COLS)
   // Drag state lives here rather than per-row: only one row can be dragged (or
   // hovered as a drop target) at a time, and lifting it out of the row map
@@ -342,7 +330,6 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus, pr
       </div>
       <MobileDraftBoard
         players={sorted}
-        gradeRankMap={gradeRankMap}
         prep={prep}
         showConsensus={showConsensus}
         sortCol={sortCol}
@@ -665,12 +652,7 @@ export function DraftBoardTable({ players, gradeRankMap, prep, showConsensus, pr
                 )}
                 <TableCell className="text-right tabular-nums font-mono">
                   {p.player_grade != null ? (
-                    <>
-                      <span className={gradeColorClass(p.player_grade)}>{p.player_grade.toFixed(0)}</span>
-                      {gradeRankMap.has(p.gsis_id) && (
-                        <DeltaBadge gradeRank={gradeRankMap.get(p.gsis_id)!} fantasyRank={p.overall_rank} />
-                      )}
-                    </>
+                    <span className={gradeColorClass(p.player_grade)}>{p.player_grade.toFixed(0)}</span>
                   ) : (
                     <span className="text-muted-foreground/40">—</span>
                   )}
