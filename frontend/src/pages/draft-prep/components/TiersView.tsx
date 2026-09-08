@@ -23,6 +23,15 @@ interface Props {
 /** Draft-relevant position order — the order a roster gets built in. */
 const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF', 'DST']
 
+/**
+ * Tiers shows a fixed top slice of the pool by `overall_rank`, unlike the
+ * Board (which shows everyone and relies on position/interest filters) — a
+ * position panel with 150+ deep-bench names defeats the point of tiering,
+ * which is spotting where the real drop-offs are within a realistic draft
+ * pool. Exported so callers can keep their own "N players" summary in sync.
+ */
+export const TIER_POOL_SIZE = 220
+
 /** Position group can be a comma-separated eligibility list; tiers are per this first one. */
 function primaryPos(p: DraftPlayer): string {
   return (p.position_group || p.position || '').split(',')[0]
@@ -125,10 +134,16 @@ interface PositionGroup {
  * a tier number is never seen without the position it belongs to right there
  * next to it.
  */
-function TiersViewImpl({ players, prep, printPoolSize, onPlayerClick }: Props) {
+function TiersViewImpl({ players: allPlayers, prep, printPoolSize, onPlayerClick }: Props) {
   const printable = useCallback(
     (p: DraftPlayer) => !printPoolSize || p.overall_rank <= printPoolSize,
     [printPoolSize],
+  )
+
+  // Fixed top slice of the pool, not the full board — see TIER_POOL_SIZE.
+  const players = useMemo(
+    () => allPlayers.filter((p) => p.overall_rank <= TIER_POOL_SIZE),
+    [allPlayers],
   )
 
   const groups = useMemo<PositionGroup[]>(() => {

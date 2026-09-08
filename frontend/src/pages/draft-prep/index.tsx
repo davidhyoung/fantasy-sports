@@ -10,7 +10,7 @@ import {
 } from '@/pages/league-detail/hooks/useDraftSettings'
 import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
 import { DraftBoardTable, boardOrder } from './components/DraftBoardTable'
-import { TiersView } from './components/TiersView'
+import { TiersView, TIER_POOL_SIZE } from './components/TiersView'
 import { TeamPanel } from './components/TeamPanel'
 import { useDraftPrep } from './hooks/useDraftPrep'
 
@@ -413,7 +413,7 @@ export default function DraftPrep() {
       ) : boardMode === 'tiers' ? (
         <>
           <p className="text-xs text-muted-foreground">
-            {allPlayers.length} players ·{' '}
+            top {Math.min(allPlayers.length, TIER_POOL_SIZE)} players ·{' '}
             {settings.scoringCustomized
               ? 'custom scoring'
               : settings.scoringFormat === 'league'

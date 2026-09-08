@@ -5,7 +5,7 @@ import { getDraftValues, DraftPlayer, DraftReplacementLevel } from '@/api/client
 import { keys } from '@/api/queryKeys'
 import { PROJECTION_SEASON } from '@/lib/constants'
 import { DraftBoardTable } from '@/pages/draft-prep/components/DraftBoardTable'
-import { TiersView } from '@/pages/draft-prep/components/TiersView'
+import { TiersView, TIER_POOL_SIZE } from '@/pages/draft-prep/components/TiersView'
 import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
 import { draftQuery, printPoolSize as computePrintPoolSize, readSettings } from './hooks/useDraftSettings'
 
@@ -78,6 +78,10 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
   const filtered = boardMode === 'board'
     ? allPlayers.filter((p) => !position || p.position_group === position || p.position === position)
     : allPlayers
+
+  // Tiers only shows its own fixed top slice (see TIER_POOL_SIZE) — the
+  // header count should match what's actually on screen, not the full pool.
+  const shownCount = boardMode === 'tiers' ? Math.min(filtered.length, TIER_POOL_SIZE) : filtered.length
 
   return (
     <div className="space-y-4">
@@ -170,7 +174,7 @@ export function DraftTab({ leagueId, active, season }: DraftTabProps) {
       ) : data ? (
         <>
           <p className="text-xs text-muted-foreground">
-            {filtered.length} player{filtered.length !== 1 ? 's' : ''}
+            {boardMode === 'tiers' && 'top '}{shownCount} player{shownCount !== 1 ? 's' : ''}
             {boardMode === 'board' && position ? ` (${position})` : ''} ·{' '}
             {data.scoring_format === 'league'
               ? 'league scoring'
