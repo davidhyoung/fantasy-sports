@@ -30,10 +30,17 @@ rows, no coherent per-team logic). This import replaced all of it.
   only, not who started each week. Slots were filled with the exact greedy
   algorithm `frontend/src/pages/draft-prep/lib/roster.ts`'s `buildRoster` already
   uses elsewhere in this app (most-restrictive-slot-first fill order, highest
-  `proj_fpts_ppr` first within each slot) rather than a bespoke one-off rule, so a
+  projected points first within each slot) rather than a bespoke one-off rule, so a
   team's "starters" here read the same way the app's own team-builder would have
-  assembled them. `SFLEX` is 0 in this league's settings and `DEF` is unfillable
-  (see above), so the actual fill order used was QB→RB→WR→TE→K→FLEX→BN.
+  assembled them. `DEF` is unfillable (see above); fill order was
+  QB→RB→WR→TE→K→FLEX→SFLEX→BN.
+  **2026-09-10 correction:** the league's real settings are WR2/FLEX1/SFLEX1 (not
+  WR3/no-SFLEX) and 1 pt per 35 pass yards (not 25) — `league_settings` for league
+  13 was wrong and has been fixed. Every roster was fully reslotted from scratch
+  under the corrected settings, sorted by each player's `proj_league_fpts` (the
+  league's own scoring) rather than the generic PPR proxy used the first time —
+  superflex demand meaningfully changes which quarterbacks are worth starting, so
+  this wasn't just a relabeling.
 - **Team → team_id mapping** follows the pick list's own nomination order against
   the placeholder teams' ids in ascending order (145–156) — arbitrary but stable,
   since the placeholder teams had no other identity to preserve.
