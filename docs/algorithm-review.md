@@ -429,3 +429,90 @@ a one-line config edit rather than folded into this change.
 `nfl_projections` for target season 2026 was recomputed. The 2025 target rows are
 uncalibrated and unused by the UI; re-run `-project -season 2025` to bring them in
 line if they are ever needed.
+
+## 8. Rookie/veteran divergence review (September 2026) — investigation only, no changes applied
+
+Requested check: since the live league this app is used for is a real Yahoo
+league, how much should its market values be trusted over our own, especially
+for rookies? Investigated the largest `nfl_projection_divergences` gaps (PPR,
+2026) against each player's actual profile/comp inputs. Nothing below was
+implemented — this is a critical read of what's *causing* each gap, per the
+"introduce behind a flag, validate before replacing" principle §6 already
+follows.
+
+### 8.1 The premise doesn't hold yet: we have almost no rookie consensus data
+
+Checked coverage before checking direction of disagreement. Of 80 fantasy-relevant
+2026 rookies (`entry_year = 2026`, QB/RB/WR/TE, real draft slot), only **4** appear
+anywhere in `nfl_consensus_rankings`, and only one — Jeremiyah Love, RB, drafted
+3rd overall — has real multi-source depth (9 of 13 sources). The #1 overall pick,
+Fernando Mendoza (QB), has zero consensus coverage. This isn't a resolver bug
+(name/team matching is fine for the players present); it's that both consensus
+snapshots were captured in early-to-mid August, before most outlets publish
+rookie-specific rankings — `docs/stats/consensus-sources.md` already documents
+that coverage is "intentionally shallow," this is that limitation hitting rookies
+hardest of all. **"Lean into Yahoo/market values for rookies" isn't actionable
+today for 79 of 80 of them — there's no market signal in the database to lean
+into.** The concrete next step, if this matters enough to act on, is a rookie-
+focused consensus/ADP re-import dated closer to the season (same pattern as the
+2026-09-07 situational-notes refresh), not an algorithm change.
+
+### 8.2 McLaurin: the already-flagged §6 case, now with a cause
+
+§6 flagged Terry McLaurin's 2024→2025 decline as unexplained. It's now explained:
+a situational note (`nfl_player_situational_notes`, dated 2025-09-20) shows he
+held out through camp, signed a 3-year/$97M extension, then tore his quad in
+Week 3 and played only 10 of 17 games — "though he ranked top-5 among WRs in
+first downs per route run when active." That note only exists because of the
+2026-08-28/09-07 research passes; it wasn't available when §6 was written.
+
+The gap itself (our rank 44 vs. consensus 21, delta +23 — third-largest in the
+league) traces to `short_season_shrinkage.go`, which regresses **per-game rate
+fields** (`fpts_pg`, `rec_yds_pg`, etc. — not just season totals) toward the
+position-group mean, weighted by `games_played / 17`. That weighting is
+games-*count*-only: it can't distinguish an 8-game hot streak from a waiver
+pickup (the case it was built for, per the file's own comment — see the Cam
+Skattebo case study it cites) from 10 games of a proven WR1 playing at his
+established level, interrupted by injury and independently corroborated by an
+efficiency stat (first downs per route run) the model never sees. Both get the
+same shrinkage today. Whether that's worth fixing is a real question — the
+Skattebo failure mode it prevents is real too — but it's the same axis, and
+right now there's no way to feed "the observed rate itself is credible" into the
+weight at all.
+
+### 8.3 Adams: full-season data, still a large gap — a different mechanism
+
+Davante Adams (rank 41 vs. 21.5, delta +19.5) is the sharper case for "should we
+trust the market more," because none of §8.2's mitigation applies: `conf_data_quality
+= 1.0`, a full clean 17-game season, real production (71/974/15 receiving).
+The gap comes from comp selection, not shrinkage: his top comps are Julio
+Jones/Larry Fitzgerald/Julian Edelman/Jordy Nelson **at the same age** — an
+aging-WR decline cohort — which is a defensible read (he turns 33 in-season,
+this project's own cohort-bias work already found real signed decline patterns
+by age), but it's applied without weighting *how well he's still playing right
+now*, which is exactly what a fresh team change plus a genuinely strong walk-year
+season would make a human skeptical of. `recency_blend.go` already blends the
+target's own recent seasons for this reason — the open question is narrower:
+should comp *selection* (not just the target's own blend) also weight current
+performance level alongside age-similarity, so an aging star who hasn't shown
+decline yet doesn't get pulled toward comps who already had?
+
+### 8.4 The counter-case: don't reflexively trust the market either
+
+Malik Nabers is the one large gap where *we're* more bullish than consensus
+(our rank 5 vs. 13.5, delta −8.5) — the market is pricing ACL-recovery risk our
+model structurally can't see (situational notes are display-only, never fed
+into the number, by design — §6 already notes this). That's a real blind spot,
+but it doesn't automatically mean the market is right: return-from-ACL outcomes
+for elite receivers vary enormously, and a market discount can just as easily be
+recency-driven overcaution as genuine signal. Recorded as a live open question,
+not a case for leaning either direction.
+
+### 8.5 Bottom line
+
+Don't blanket-trust consensus for rookies — there's barely any to trust yet.
+For veterans, the two real gaps found (§8.2, §8.3) are both explainable and both
+point at the same underlying tension: the model treats *sample size* and *player
+age* as shrinkage/decline triggers without a way to weight *how credible the
+small or recent sample actually looks*. That's a coherent, scoped question for a
+future backtest-gated change — not something to patch ad hoc off two examples.
