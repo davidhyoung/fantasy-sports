@@ -508,7 +508,7 @@ for elite receivers vary enormously, and a market discount can just as easily be
 recency-driven overcaution as genuine signal. Recorded as a live open question,
 not a case for leaning either direction.
 
-### 8.5 Bottom line
+### 8.5 Bottom line (superseded by §8.6 — see below)
 
 Don't blanket-trust consensus for rookies — there's barely any to trust yet.
 For veterans, the two real gaps found (§8.2, §8.3) are both explainable and both
@@ -516,3 +516,62 @@ point at the same underlying tension: the model treats *sample size* and *player
 age* as shrinkage/decline triggers without a way to weight *how credible the
 small or recent sample actually looks*. That's a coherent, scoped question for a
 future backtest-gated change — not something to patch ad hoc off two examples.
+
+### 8.6 Rerun after a fresh rookie/ADP import (2026-09-10)
+
+§8.1's premise — that we can't lean on rookie consensus because there's almost
+none in the database — was itself acted on: two research passes re-fetched
+current (post-Week-1) data. `nfl_consensus_rankings` grew from 785 to 1,849 rows
+(source count per divergence: avg 5.5, max 12, up from avg ~3, max 8). Rookie
+coverage went from **4 of 80** fantasy-relevant 2026 rookies to **77** — via
+Dynasty Nerds' rookie board (previously HTTP 403-blocked, now open — worth
+periodically retrying blocked sources, per the standing note in
+`consensus-sources.md`), KeepTradeCut's rookie rankings, and
+FantasyFootballCalculator's live ADP API (`ffc_adp`, new `ppr`/`half_ppr`/
+`superflex` format rows alongside the existing `standard`). `fantasypros_adp`
+also moved off `curl`/`WebFetch` onto their **Real-Time ADP** tool (JS-rendered,
+needed an actual browser) after their main ADP page went paywalled past row 5
+sometime after August — a real, unprompted change in source accessibility,
+not something to assume is stable.
+
+**Effect on the veteran cases from §8.2–§8.4** — checked with the same players,
+now backed by 11-12 sources each instead of 7-8:
+
+| player | old delta | new delta | what moved |
+|---|---|---|---|
+| Terry McLaurin | +23 | **+11.5** | consensus itself dropped (21→32.5) — the market cooled on him too as August's optimism aged. Roughly halves the case that our shrinkage was uniquely out of step; some of the original gap was a stale snapshot, not a persistent disagreement. |
+| Davante Adams | +19.5 | **+10.5** | same pattern — consensus moved 21.5→30.5. The market has drifted toward *our* read as more Week-1-era information (his age, the Jets' passing volume) became public, not the other way around. |
+| Justin Jefferson | ~+10 | **+7.5** | modest narrowing, same direction. |
+| Malik Nabers | −8.5 | **−17** | the *opposite* move — consensus got *more* cautious (13.5→22) as fresher sources priced in ACL-recovery risk more heavily, while our number is unchanged (structurally can't see it). §8.4's open question stands, and the gap widening under more data makes it slightly more likely the market knows something specific here, not just recency bias. |
+| Bhayshul Tuten | +40 | **+40**, source_count 7→11 | unchanged in magnitude, but now agreed on by nearly twice as many independent sources. §8.2's root cause (comp-matching is blind to a depth-chart battle it can't see, however well-corroborated the situational note) reads as more confirmed, not less. |
+
+**Reading the new rookie divergences:** most of the largest deltas among the
+newly-covered rookies (Cyrus Allen +57, Germie Bernard −37, Seth McGowan +34,
+Demond Claiborne +36, Antonio Williams −31, ...) sit on `source_count` 1-3 —
+below the threshold `consensus-ensemble.md` itself sets for taking a divergence
+seriously ("`source_count` should be ≥2 for any divergence taken seriously;
+single-source divergences are noise until corroborated"). These are Day 3 rookie
+dart-throws with genuinely thin coverage even after this pass, not evidence the
+model mishandles deep rookies specifically — treat them as noise, not signal.
+
+The one rookie worth a second look: **Fernando Mendoza**, the #1 overall pick,
+now shows our_rank 26 vs. consensus 34 (delta −8, `source_count` 3) — we're
+*more* bullish than the market. Real-world context (already in
+`nfl_player_situational_notes`): he was benched for Kirk Cousins in Week 1. The
+market, drafted/updated after that news, has priced it in; our number, built
+from draft-capital/comp inputs with no live-game feed, hasn't and structurally
+can't mid-week. Same root cause as §8.4, different direction — the model isn't
+"wrong" so much as *frozen at the moment it was last computed*, same as any of
+these snapshots are.
+
+**Revised bottom line:** the data-coverage gap in §8.1 is now closed enough to
+actually use — 77 rookies with real market signal instead of 4. Where we
+re-checked veteran gaps with fresher, deeper data, the market moved *toward*
+our numbers about as often as it moved away, which is itself informative: some
+of what looked like a systematic "we're out of step" pattern in the August
+review was partly a stale-snapshot artifact, not a persistent model gap. The
+two mechanism-level findings that survive scrutiny (McLaurin/short-season
+shrinkage in §8.2, the general "situational notes never reach the number"
+limitation reconfirmed by both Tuten and Mendoza) are the same shape of finding
+as before — sample-size/timing blindness the model has always had, now with
+more evidence, still nothing applied.
