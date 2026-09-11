@@ -1402,7 +1402,7 @@ func computeProjections(ctx context.Context, pool *pgxpool.Pool, baseSeason, tar
 		if _, ok := seasonMap[baseSeason]; ok {
 			targets = append(targets, blendTargetProfile(seasonMap, baseSeason,
 				effectiveBlendDecay(seasonMap, baseSeason, cfg.TargetBlendDecay, cfg.TargetBlendDecayUp),
-				groupMeanProfiles))
+				groupMeanProfiles, cfg.ShortSeasonUsageCredit))
 		}
 	}
 	log.Printf("  found %d players with %d base-season profiles", len(targets), baseSeason)

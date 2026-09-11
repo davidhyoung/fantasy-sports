@@ -575,3 +575,58 @@ shrinkage in §8.2, the general "situational notes never reach the number"
 limitation reconfirmed by both Tuten and Mendoza) are the same shape of finding
 as before — sample-size/timing blindness the model has always had, now with
 more evidence, still nothing applied.
+
+### 8.7 ✅ Applied (2026-09-10) — usage-aware short-season shrinkage
+
+**Correction first:** §8.2's claim that Terry McLaurin's gap traces to
+`short_season_shrinkage.go` was wrong in the specifics. He has a full 2024
+season on record, so `blendTargetProfile` takes the *recency-blend* branch
+(his 2025 and 2024 rates weighted by games, `TargetBlendDecay`-discounted),
+never `shrinkShortSeasonTarget` at all — that function only runs when there's
+no prior season. The general shape of the finding (games-played as the only
+credibility signal) held up regardless, just in a different function than
+claimed.
+
+**The case that actually triggered a fix: Omarion Hampton**, found while
+answering "why does a $50 rookie RB price at $16." He is **not** a zero-game
+prospect — he's a 2025 first-rounder who took over the Chargers' lead-back
+role after Najee Harris's Achilles tear, produced 737 scrimmage yards/5 TDs on
+156 touches over 9 healthy games (a real starter's pace), then missed 8 games
+to a separate injury. `conf_data_quality = 0.333` and no 2024 season means he
+*does* go through `shrinkShortSeasonTarget`, which shrinks his elite per-game
+rate toward the RB mean based purely on `games_played/17 ≈ 0.53`, the same
+blind spot as originally described, just correctly identified this time
+(Ashton Jeanty and Bhayshul Tuten are the same case).
+
+**Fix:** `shrinkShortSeasonTarget` now takes a `usageCreditK` term. The
+player's own already-unshrunk opportunity rate (`rush_att_pg`/`targets_pg`/
+`pass_att_pg` — per `short_season_shrinkage.go`'s own long-standing exception
+for usage counts) is compared to the position group's mean opportunity level;
+carrying 2x the average workload earns full credit, average workload earns
+half, and a true committee/backup role earns little to none. `usageCreditK`
+scales how much that credibility can raise the shrinkage weight; `0` is an
+exact no-op.
+
+**Validated, not guessed** (per the user's explicit request to backtest before
+applying): ran `-autotune -from 2015 -to 2024 -train-to 2021` locally against
+full 1999–2025 history. To isolate the new lever's effect from ordinary
+data-drift since the last tune (nfl_player_stats gains real results every
+week, so an August-tuned score isn't a fair baseline in September), reran the
+*old* code against *today's* data as a control:
+
+| config | validation ρ (2022-2024 held out) |
+|---|---|
+| old code, today's data (control) | 0.7519 |
+| new code (`usage_credit` swept 0→1) | **0.7554** |
+
+A clean +0.0035 gain, isolated from data drift. Coordinate ascent settled on
+`short_season_usage_credit = 0.75` (0.7221→0.7250 monotonically across the
+swept range 0→1; 0.75 is where the gain first cleared the `minGain` noise
+floor, 1.0's further gain over 0.75 didn't). Re-ran `-project -season 2026`
+after: Hampton 198.5→**263.9** pts, Jeanty 258.5→**292.5**, Tuten 101.2→
+**115.1** — all three real cases moved up, all in the direction the case study
+argued for. McLaurin also moved (159.7→189.5) despite not running through the
+fixed function directly — an indirect ripple through shared comp/growth-baseline
+populations that include the corrected rookie/sophomore profiles, worth
+noting as a reminder that a comp-based system's changes don't stay as local as
+the code diff suggests.

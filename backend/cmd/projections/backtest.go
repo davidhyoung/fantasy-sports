@@ -67,6 +67,15 @@ type projConfig struct {
 	// baseline, weighted as if it were a comp with this much combined
 	// similarity² weight. 0 = exact no-op; must stay >= 0.
 	GrowthShrinkageK float64 `json:"growth_shrinkage_k"`
+	// ShortSeasonUsageCredit (docs/algorithm-review.md §8.2/§8.6 — the
+	// McLaurin/Hampton cases; short_season_shrinkage.go) raises
+	// shrinkShortSeasonTarget's games-played weight for a rookie-or-no-prior-
+	// season player who was already carrying a full role's worth of
+	// opportunity (rush attempts, targets, pass attempts) when they did play —
+	// an established feature back cut short by injury shouldn't be shrunk as
+	// hard as a true small-sample committee role. Must stay in [0, 1]; 0 =
+	// exact no-op (today's games-only weight).
+	ShortSeasonUsageCredit float64 `json:"short_season_usage_credit"`
 }
 
 // defaultConfig returns the default projection parameters (matching constants
@@ -77,8 +86,9 @@ func defaultConfig() projConfig {
 		AgeWindow:           2,
 		MaxGrowth:           maxGrowthCap,
 		MinGrowth:           minGrowthFloor,
-		TargetBlendDecay:    0.0, // no-op until autotune finds a better value
-		GrowthShrinkageK:    0.0, // no-op until autotune finds a better value
+		TargetBlendDecay:       0.0, // no-op until autotune finds a better value
+		GrowthShrinkageK:       0.0, // no-op until autotune finds a better value
+		ShortSeasonUsageCredit: 0.0, // no-op until autotune finds a better value
 	}
 	// Populate weight maps from positionGroups — keyed by group name.
 	populateWeightMap := func(posGroup string) map[string]float64 {
@@ -160,6 +170,9 @@ func sanitizeConfig(cfg projConfig) projConfig {
 	}
 	if cfg.GrowthShrinkageK < 0 {
 		cfg.GrowthShrinkageK = def.GrowthShrinkageK
+	}
+	if cfg.ShortSeasonUsageCredit < 0 || cfg.ShortSeasonUsageCredit > 1 {
+		cfg.ShortSeasonUsageCredit = def.ShortSeasonUsageCredit
 	}
 	return cfg
 }
@@ -402,7 +415,7 @@ func projectSeasonBacktest(cfg projConfig, allProfiles []seasonProfile, targetSe
 		if _, ok := seasonMap[baseSeason]; ok {
 			targets = append(targets, blendTargetProfile(seasonMap, baseSeason,
 				effectiveBlendDecay(seasonMap, baseSeason, cfg.TargetBlendDecay, cfg.TargetBlendDecayUp),
-				groupMeanProfiles))
+				groupMeanProfiles, cfg.ShortSeasonUsageCredit))
 		}
 	}
 
@@ -969,6 +982,19 @@ func runAutotune(ctx context.Context, pool *pgxpool.Pool, trainFrom, trainTo, va
 		candidate.GrowthShrinkageK = k
 		score := scoreConfig(candidate, trainFrom, trainTo)
 		log.Printf("    growth_shrinkage_k=%.1f → ρ=%.4f", k, score)
+		if score > bestTrainScore+minGain {
+			bestTrainScore = score
+			bestCfg = candidate
+		}
+	}
+
+	// Tune short-season usage credit (docs/algorithm-review.md §8.2/§8.6)
+	log.Println("  tuning short-season usage credit…")
+	for _, k := range []float64{0.0, 0.25, 0.5, 0.75, 1.0} {
+		candidate := bestCfg
+		candidate.ShortSeasonUsageCredit = k
+		score := scoreConfig(candidate, trainFrom, trainTo)
+		log.Printf("    short_season_usage_credit=%.2f → ρ=%.4f", k, score)
 		if score > bestTrainScore+minGain {
 			bestTrainScore = score
 			bestCfg = candidate

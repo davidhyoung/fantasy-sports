@@ -40,27 +40,59 @@ var productionFields = []string{
 	"receiving_first_downs_pg", "fumbles_pg",
 }
 
-// groupMeanProfile holds position-group mean values for productionFields.
+// groupMeanProfile holds position-group mean values for productionFields,
+// plus one synthetic opportunityMeanKey entry (see opportunityValue) used
+// only by the usage-credibility adjustment below — never touched by the
+// productionFields shrink loop, which only ever looks up productionFields' own keys.
 type groupMeanProfile map[string]float64
+
+// opportunityMeanKey is where computeGroupMeanProfiles stashes a group's mean
+// opportunity level (see opportunityValue) inside the same groupMeanProfile
+// map productionFields' means already live in — a second parallel map wasn't
+// worth it for one extra number per group.
+const opportunityMeanKey = "__opportunity_mean"
+
+// opportunityValue returns the one already-unshrunk opportunity field
+// (pass_att_pg/rush_att_pg/targets_pg — see short_season_shrinkage.go's own
+// package comment on why these stay untouched) that best represents a role
+// for this position group. Empty/unrecognized groups (K, DEF) get 0, which
+// makes usage credibility a no-op for them — they have no comparable "touches"
+// stat, and short seasons at those positions aren't this fix's concern.
+func opportunityValue(p *seasonProfile, group string) float64 {
+	switch group {
+	case "QB":
+		return p.PassAttPG
+	case "RB":
+		return p.RushAttPG
+	case "WR", "TE":
+		return p.TargetsPG
+	default:
+		return 0
+	}
+}
 
 // computeGroupMeanProfiles returns, per position group, the mean of each
 // productionFields stat across every profile in the pool — the regression
-// target for shrinkShortSeasonTarget.
+// target for shrinkShortSeasonTarget — plus the group's mean opportunity
+// value under opportunityMeanKey.
 func computeGroupMeanProfiles(byGroup map[string][]*seasonProfile) map[string]groupMeanProfile {
 	out := make(map[string]groupMeanProfile, len(byGroup))
 	for g, ps := range byGroup {
 		sums := make(map[string]float64, len(productionFields))
+		var oppSum float64
 		for _, p := range ps {
 			vals := profileFieldValues(p)
 			for _, f := range productionFields {
 				sums[f] += vals[f]
 			}
+			oppSum += opportunityValue(p, g)
 		}
-		mean := make(groupMeanProfile, len(productionFields))
+		mean := make(groupMeanProfile, len(productionFields)+1)
 		if n := float64(len(ps)); n > 0 {
 			for _, f := range productionFields {
 				mean[f] = sums[f] / n
 			}
+			mean[opportunityMeanKey] = oppSum / n
 		}
 		out[g] = mean
 	}
@@ -148,13 +180,43 @@ func setProfileField(p *seasonProfile, field string, v float64) {
 // no-op. Z-scores are population-standardized (mean 0), so shrinking one
 // toward the mean is just scaling it by the same weight used for the raw
 // value.
-func shrinkShortSeasonTarget(base *seasonProfile, means groupMeanProfile) *seasonProfile {
+//
+// usageCreditK (docs/algorithm-review.md §8.2/§8.6 — the McLaurin/Hampton
+// cases) raises that weight when the player's own unshrunk opportunity level
+// (see opportunityValue) was already at or above a full role, on the
+// reasoning that a proven starter's per-game rate over a real-but-partial
+// season is more trustworthy than raw games_played alone implies — the
+// original games-only weight can't tell an established feature back who
+// missed time to injury (737 yards/5 TD on 156 touches over 9 games, in
+// Hampton's case) from a committee back's small sample. usageCreditK == 0 is
+// an exact no-op (today's behavior); pending backtest validation before it's
+// set to anything else, same as TargetBlendDecay/GrowthShrinkageK.
+func shrinkShortSeasonTarget(base *seasonProfile, means groupMeanProfile, usageCreditK float64) *seasonProfile {
 	weight := float64(base.GamesPlayed) / shortSeasonFullGames
 	if weight >= 1 || means == nil {
 		return base
 	}
 	if weight < 0 {
 		weight = 0
+	}
+
+	if usageCreditK > 0 {
+		if oppMean := means[opportunityMeanKey]; oppMean > 0 {
+			// Capped at 2x the pool's mean opportunity — a player carrying
+			// twice the average workload gets full credit; average workload
+			// gets half; a true committee/backup role gets little to none.
+			// The 2x reference point is a reasoned constant, not itself
+			// autotuned — usageCreditK is the sweepable lever that decides how
+			// much this signal should matter at all.
+			credibility := opportunityValue(base, base.PositionGroup) / oppMean / 2
+			if credibility > 1 {
+				credibility = 1
+			}
+			weight += (1 - weight) * credibility * usageCreditK
+			if weight > 1 {
+				weight = 1
+			}
+		}
 	}
 
 	shrunk := *base // shallow copy — non-production fields carry over unchanged

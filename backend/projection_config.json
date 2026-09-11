@@ -1,23 +1,8 @@
 {
+  "similarity_threshold": 0.6,
   "age_window": 2,
-  "growth_shrinkage_k": 5,
-  "k_weights": {
-    "grade": 1.25,
-    "kicking": 3,
-    "physical": 1,
-    "value": 3
-  },
   "max_growth": 3,
   "min_growth": 0.1,
-  "objective_metric": "per_game_rank_correlation",
-  "projection_calibration": {
-    "K": 0.884,
-    "QB": 0.884,
-    "RB": 0.884,
-    "TE": 0.884,
-    "WR": 0.884,
-    "default": 0.884
-  },
   "qb_weights": {
     "context": 0.75,
     "grade": 1.25,
@@ -34,8 +19,14 @@
     "rushing": 3,
     "value": 2
   },
-  "similarity_threshold": 0.6,
-  "target_blend_decay": 0.5,
+  "wr_weights": {
+    "context": 0.75,
+    "grade": 1.25,
+    "physical": 1,
+    "receiving": 3,
+    "rushing": 0.75,
+    "value": 2
+  },
   "te_weights": {
     "context": 0.75,
     "grade": 1.25,
@@ -44,16 +35,18 @@
     "rushing": 0.5,
     "value": 2
   },
-  "train_seasons": "2015-2021",
-  "tuned_at": "2026-08-04",
-  "validate_seasons": "2022-2024",
-  "validation_score": 0.759216990988962,
-  "wr_weights": {
-    "context": 0.75,
+  "k_weights": {
     "grade": 1.25,
+    "kicking": 3,
     "physical": 1,
-    "receiving": 3,
-    "rushing": 0.75,
-    "value": 2
-  }
+    "value": 3
+  },
+  "tuned_at": "2026-09-10",
+  "train_seasons": "2015-2021",
+  "validate_seasons": "2022-2024",
+  "objective_metric": "per_game_rank_correlation",
+  "validation_score": 0.755442413514547,
+  "target_blend_decay": 0.5,
+  "growth_shrinkage_k": 5,
+  "short_season_usage_credit": 0.75
 }

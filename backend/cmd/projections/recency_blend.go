@@ -85,7 +85,7 @@ func effectiveBlendDecay(seasonMap map[int]*seasonProfile, baseSeason int, decay
 // decay > 0 instead triggers shrinkShortSeasonTarget (short_season_shrinkage.go)
 // — the sibling fix for the same "small sample shouldn't stand alone"
 // problem when a debut season is itself short (e.g. injury-truncated).
-func blendTargetProfile(seasonMap map[int]*seasonProfile, baseSeason int, decay float64, groupMeans map[string]groupMeanProfile) *seasonProfile {
+func blendTargetProfile(seasonMap map[int]*seasonProfile, baseSeason int, decay float64, groupMeans map[string]groupMeanProfile, usageCreditK float64) *seasonProfile {
 	base := seasonMap[baseSeason]
 	if base == nil {
 		return nil
@@ -95,7 +95,7 @@ func blendTargetProfile(seasonMap map[int]*seasonProfile, baseSeason int, decay 
 		if decay <= 0 {
 			return base
 		}
-		return shrinkShortSeasonTarget(base, groupMeans[base.PositionGroup])
+		return shrinkShortSeasonTarget(base, groupMeans[base.PositionGroup], usageCreditK)
 	}
 	if decay <= 0 {
 		return base
