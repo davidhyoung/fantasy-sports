@@ -15,8 +15,10 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/text/unicode/norm"
 )
 
 // ── input JSON shapes ───────────────────────────────────────────────────────
@@ -80,8 +82,25 @@ var spaceRE = regexp.MustCompile(`\s+`)
 
 // normalizePlayerName lowercases, strips punctuation/suffixes, and collapses
 // whitespace so "A.J. Brown Jr." and "aj brown" match.
+// stripDiacritics folds accented characters to their base ASCII form (e.g.
+// "Piñeiro" -> "Pineiro") by decomposing to NFD and dropping the resulting
+// combining marks. External sources render names with real accents; our own
+// nfl_players import doesn't, so without this a perfectly resolvable player
+// (team + position both matched) fails purely on the ñ/n mismatch.
+func stripDiacritics(s string) string {
+	var b strings.Builder
+	for _, r := range norm.NFD.String(s) {
+		if unicode.Is(unicode.Mn, r) {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
 func normalizePlayerName(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
+	s = stripDiacritics(s)
 	s = punctRE.ReplaceAllString(s, "")
 	s = suffixRE.ReplaceAllString(strings.TrimSpace(s), "")
 	s = spaceRE.ReplaceAllString(strings.TrimSpace(s), " ")

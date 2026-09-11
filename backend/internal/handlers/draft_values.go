@@ -249,9 +249,27 @@ func (h *Handler) GetDraftValues(w http.ResponseWriter, r *http.Request) {
 	// individual categories on top of that.
 	defaultScoring := map[scoring.CanonicalStat]float64{}
 	if hasLeagueScoring {
+		// A native league's scoring has no per-distance FG buckets at all —
+		// NativeSource.ScoringMods reads a single flat `fg_made` value straight
+		// out of league_settings — so averaging over FGDistribution's bucket
+		// keys against canonicalMods silently produces 0 there (every bucket
+		// key is simply absent). Only Yahoo leagues populate those buckets, so
+		// fall back to the flat value whenever none of them are present rather
+		// than averaging zeroes.
 		var avgFGMod float64
-		for bucket, share := range scoring.FGDistribution {
-			avgFGMod += share * canonicalMods[bucket]
+		hasFGBuckets := false
+		for bucket := range scoring.FGDistribution {
+			if _, ok := canonicalMods[bucket]; ok {
+				hasFGBuckets = true
+				break
+			}
+		}
+		if hasFGBuckets {
+			for bucket, share := range scoring.FGDistribution {
+				avgFGMod += share * canonicalMods[bucket]
+			}
+		} else {
+			avgFGMod = canonicalMods[scoring.StatFGMade]
 		}
 		defaultScoring[scoring.StatPassYds] = canonicalMods[scoring.StatPassYds]
 		defaultScoring[scoring.StatPassTD] = canonicalMods[scoring.StatPassTD]
