@@ -58,7 +58,8 @@ export function NativeTeamOverview({ leagueId, teamId, slots, myTeamId, onTradeF
       {matchup && me && opponent ? (
         <div className="mb-6 rounded-lg bg-card px-4 py-3">
           <div className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Week {matchup.week} {matchup.status === 'postevent' ? '· Final' : '· Not yet scored'}
+            Week {matchup.week}{' '}
+            {matchup.status === 'postevent' ? '· Final' : matchup.status === 'in_progress' ? '· Live' : '· Not yet scored'}
           </div>
           <div className="mt-1.5 flex items-center justify-between">
             <div className="flex items-center gap-2">

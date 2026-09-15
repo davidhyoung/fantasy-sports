@@ -11,6 +11,42 @@ import (
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/scoring"
 )
 
+// starterRosters loads each team's currently-starter-slotted players
+// (BN/TAXI/IR excluded) for the given teams — the "who counts toward a
+// week's score" query shared by ScoreLeagueWeek (real stats),
+// nativeProjectedPoints (season-projection preview), and the ESPN-derived
+// live-score preview, so all three can never disagree about who's starting.
+// Reflects league_rosters' current slot state — there's no per-week lineup
+// history, so scoring a past week already implicitly assumes the roster
+// hasn't changed since (a pre-existing limitation, not something this
+// helper introduces).
+func (h *Handler) starterRosters(ctx context.Context, leagueID int64, teamIDs []int64) (teamPlayers map[int64][]string, allGsis []string, err error) {
+	teamPlayers = map[int64][]string{}
+	if len(teamIDs) == 0 {
+		return teamPlayers, nil, nil
+	}
+
+	rows, err := h.db.Query(ctx, `
+		SELECT team_id, gsis_id FROM league_rosters
+		WHERE league_id = $1 AND team_id = ANY($2) AND slot NOT IN ('BN', 'TAXI', 'IR')
+	`, leagueID, teamIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var teamID int64
+		var gsisID string
+		if err := rows.Scan(&teamID, &gsisID); err != nil {
+			return nil, nil, err
+		}
+		teamPlayers[teamID] = append(teamPlayers[teamID], gsisID)
+		allGsis = append(allGsis, gsisID)
+	}
+	return teamPlayers, allGsis, rows.Err()
+}
+
 // nativeProjectedPoints estimates one week's worth of projected fantasy
 // points for each team's currently-starter-slotted players, using the same
 // per-game-rate projection data and scoring pipeline relevantPlayerStats and
@@ -28,26 +64,10 @@ func (h *Handler) nativeProjectedPoints(ctx context.Context, leagueID int64, tea
 		return out
 	}
 
-	rows, err := h.db.Query(ctx, `
-		SELECT team_id, gsis_id FROM league_rosters
-		WHERE league_id = $1 AND team_id = ANY($2) AND slot NOT IN ('BN', 'TAXI', 'IR')
-	`, leagueID, teamIDs)
+	teamPlayers, allGsis, err := h.starterRosters(ctx, leagueID, teamIDs)
 	if err != nil {
 		return out
 	}
-	teamPlayers := map[int64][]string{}
-	var allGsis []string
-	for rows.Next() {
-		var teamID int64
-		var gsisID string
-		if err := rows.Scan(&teamID, &gsisID); err != nil {
-			rows.Close()
-			return out
-		}
-		teamPlayers[teamID] = append(teamPlayers[teamID], gsisID)
-		allGsis = append(allGsis, gsisID)
-	}
-	rows.Close()
 	if len(allGsis) == 0 {
 		return out
 	}
@@ -280,28 +300,11 @@ func (h *Handler) ScoreLeagueWeek(w http.ResponseWriter, r *http.Request) {
 		teamIDs = append(teamIDs, id)
 	}
 
-	rrows, err := h.db.Query(r.Context(), `
-		SELECT team_id, gsis_id FROM league_rosters
-		WHERE league_id = $1 AND team_id = ANY($2) AND slot NOT IN ('BN', 'TAXI', 'IR')
-	`, leagueID, teamIDs)
+	teamPlayers, allGsis, err := h.starterRosters(r.Context(), leagueID, teamIDs)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	teamPlayers := map[int64][]string{}
-	var allGsis []string
-	for rrows.Next() {
-		var teamID int64
-		var gsisID string
-		if err := rrows.Scan(&teamID, &gsisID); err != nil {
-			rrows.Close()
-			respondError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		teamPlayers[teamID] = append(teamPlayers[teamID], gsisID)
-		allGsis = append(allGsis, gsisID)
-	}
-	rrows.Close()
 
 	weekStats, err := nflstats.LoadWeekStats(r.Context(), h.db, season, week, allGsis)
 	if err != nil {

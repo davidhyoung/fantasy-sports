@@ -31,6 +31,7 @@ function TeamNameLink({ leagueId, team, bold }: { leagueId: number; team: Matchu
 function MatchupCard({ leagueId, m }: { leagueId: number; m: Matchup }) {
   const [t1, t2] = m.teams
   const scored = m.status === 'postevent'
+  const isLive = m.status === 'in_progress'
   const p1 = t1 ? parseFloat(t1.points) : 0
   const p2 = t2 ? parseFloat(t2.points) : 0
   const winner = scored && p1 !== p2 ? (p1 > p2 ? t1 : t2) : undefined
@@ -53,7 +54,7 @@ function MatchupCard({ leagueId, m }: { leagueId: number; m: Matchup }) {
           <span className={scoreClass}>{team.points}</span>
         ) : (
           <span className="font-mono text-base tabular-nums text-muted-foreground">
-            {team.projected_points || '—'} <span className="text-[10px]">proj</span>
+            {team.projected_points || '—'} <span className="text-[10px]">{isLive ? 'live' : 'proj'}</span>
           </span>
         )}
       </div>
@@ -64,8 +65,9 @@ function MatchupCard({ leagueId, m }: { leagueId: number; m: Matchup }) {
     <div className="rounded-lg bg-card px-4 py-3">
       {teamRow(t1)}
       <div className="mt-1 border-t border-border pt-1">{teamRow(t2)}</div>
-      <div className="mt-1.5 text-xs text-muted-foreground">
-        {scored ? 'Final' : `Awaiting scoring · week ${m.week}`}
+      <div className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+        {isLive && <Badge variant="amber" className="px-1.5 py-0.5 text-[9px]">Live</Badge>}
+        {scored ? 'Final' : isLive ? 'Scores updating during the game' : `Awaiting scoring · week ${m.week}`}
       </div>
     </div>
   )
@@ -77,11 +79,15 @@ interface Props {
 }
 
 /**
- * Scoreboard for a native league. Scoring is an explicit commissioner
- * action, not automatic — the underlying stats arrive via a manual batch
- * import (make import-nfl), never live, so "Score this week" is something
- * you click after importing that week's stats, not something that updates
- * during Sunday games.
+ * Scoreboard for a native league. Official scoring is still an explicit
+ * commissioner action, not automatic — the underlying real stats arrive via
+ * a manual batch import (make import-nfl) and freeze league_matchups when
+ * "Score this week" is clicked. Ahead of that, an unscored week's card shows
+ * a best-effort live preview (status 'in_progress') sourced from ESPN's
+ * unofficial API while games are in progress, falling back to a
+ * season-projection estimate before kickoff — see backend nativeLivePoints /
+ * nativeProjectedPoints. The preview is never written anywhere; it's purely
+ * a display estimate until the commissioner scores the week for real.
  */
 export function NativeScoreboardTab({ leagueId, active }: Props) {
   const qc = useQueryClient()
@@ -91,6 +97,10 @@ export function NativeScoreboardTab({ leagueId, active }: Props) {
     queryKey: keys.scoreboard(leagueId, week),
     queryFn: () => getLeagueScoreboard(leagueId, week),
     enabled: active,
+    // First use of polling in this frontend — scoped tightly so it only
+    // actually fires while this tab is open on a week with a live game.
+    refetchInterval: (query) =>
+      query.state.data?.matchups.some((m) => m.status === 'in_progress') ? 30_000 : false,
   })
 
   const invalidate = () => {

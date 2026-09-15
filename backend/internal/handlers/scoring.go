@@ -7,6 +7,10 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+
+	"github.com/davidyoung/fantasy-sports/backend/internal/services/espnlive"
+	"github.com/davidyoung/fantasy-sports/backend/internal/services/leaguesettings"
+	"github.com/davidyoung/fantasy-sports/backend/internal/services/scoring"
 )
 
 // --- Clean JSON response types ---
@@ -291,6 +295,14 @@ func (h *Handler) nativeScoreboard(w http.ResponseWriter, r *http.Request, leagu
 	// Projected points give an unscored card something better than a blank
 	// dash — never written, purely a display estimate (see nativeProjectedPoints).
 	projected := h.nativeProjectedPoints(r.Context(), leagueID, unscoredTeamIDs, season)
+	// Best-effort live preview from ESPN, overriding the season projection
+	// above for any team with live stats this week (see nativeLivePoints) —
+	// also never written, purely a display estimate. liveTeams is per-team,
+	// not per-week: one game's slate can be in progress while another
+	// matchup's players haven't kicked off yet, so a matchup only counts as
+	// "in_progress" when at least one of its own two teams actually has live
+	// data — never because some other matchup this week does.
+	live, liveTeams := h.nativeLivePoints(r.Context(), leagueID, unscoredTeamIDs, season, week)
 
 	resp := scoreboardResp{Week: week, Matchups: []matchupResp{}}
 	for _, rw := range scanned {
@@ -307,6 +319,15 @@ func (h *Handler) nativeScoreboard(w http.ResponseWriter, r *http.Request, leagu
 		if !rw.scored {
 			t1.ProjectedPoints = fmt.Sprintf("%.1f", projected[rw.t1ID])
 			t2.ProjectedPoints = fmt.Sprintf("%.1f", projected[rw.t2ID])
+			if liveTeams[rw.t1ID] || liveTeams[rw.t2ID] {
+				status = "in_progress"
+				if liveTeams[rw.t1ID] {
+					t1.ProjectedPoints = fmt.Sprintf("%.1f", live[rw.t1ID])
+				}
+				if liveTeams[rw.t2ID] {
+					t2.ProjectedPoints = fmt.Sprintf("%.1f", live[rw.t2ID])
+				}
+			}
 		}
 		resp.Matchups = append(resp.Matchups, matchupResp{
 			Week:       week,
@@ -316,6 +337,50 @@ func (h *Handler) nativeScoreboard(w http.ResponseWriter, r *http.Request, leagu
 		})
 	}
 	respondJSON(w, http.StatusOK, resp)
+}
+
+// nativeLivePoints is the ESPN-derived sibling of nativeProjectedPoints: a
+// best-effort in-progress score for each team's starters, computed from
+// nfl_live_player_stats (see internal/services/espnlive) via the exact same
+// scoring pipeline ScoreLeagueWeek uses for final stats. liveTeams reports
+// which specific teams have at least one starter with live data this
+// week — per team, not per week, since one game's slate can be in progress
+// while another matchup's players haven't kicked off yet. Callers use it to
+// decide, per matchup, whether to show this live preview or fall back to
+// the season-projection one. Never written to league_matchups; purely a
+// display estimate, same as nativeProjectedPoints.
+func (h *Handler) nativeLivePoints(ctx context.Context, leagueID int64, teamIDs []int64, season, week int) (points map[int64]float64, liveTeams map[int64]bool) {
+	points = map[int64]float64{}
+	liveTeams = map[int64]bool{}
+	if len(teamIDs) == 0 {
+		return points, liveTeams
+	}
+	mods, ok := leaguesettings.NewNativeSource(h.db, leagueID).ScoringMods(ctx)
+	if !ok {
+		return points, liveTeams
+	}
+
+	teamPlayers, allGsis, err := h.starterRosters(ctx, leagueID, teamIDs)
+	if err != nil || len(allGsis) == 0 {
+		return points, liveTeams
+	}
+
+	liveStats, err := espnlive.LoadLiveWeekStats(ctx, h.db, season, week, allGsis)
+	if err != nil || len(liveStats) == 0 {
+		return points, liveTeams
+	}
+
+	for teamID, gsisIDs := range teamPlayers {
+		var total float64
+		for _, g := range gsisIDs {
+			if stats, ok := liveStats[g]; ok {
+				total += scoring.ScoreWithModifiers(stats, mods)
+				liveTeams[teamID] = true
+			}
+		}
+		points[teamID] = total
+	}
+	return points, liveTeams
 }
 
 // nativeStandings serves GetLeagueStandings for a native league by

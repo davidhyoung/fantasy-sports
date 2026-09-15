@@ -15,6 +15,7 @@ import (
 	"github.com/davidyoung/fantasy-sports/backend/internal/config"
 	"github.com/davidyoung/fantasy-sports/backend/internal/handlers"
 	appmiddleware "github.com/davidyoung/fantasy-sports/backend/internal/middleware"
+	"github.com/davidyoung/fantasy-sports/backend/internal/services/espnlive"
 	"github.com/davidyoung/fantasy-sports/backend/internal/yahoo"
 )
 
@@ -49,6 +50,9 @@ func main() {
 		log.Println("*** YAHOO_MOCK=1 — serving synthetic Yahoo data and exposing " +
 			"/auth/mock-login, which grants a session with no authentication. " +
 			"Development only; never enable this in a deployed environment. ***")
+	}
+	if cfg.LiveStatsPoll {
+		go espnlive.Run(context.Background(), pool)
 	}
 
 	store.Options = &sessions.Options{

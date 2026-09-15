@@ -230,7 +230,11 @@ export interface Matchup {
   week: number
   week_start: string
   week_end: string
-  status: string
+  // 'in_progress' is native-only: a best-effort ESPN-derived live preview
+  // (see backend nativeLivePoints) for a week that hasn't been officially
+  // scored yet. projected_points holds that live estimate instead of the
+  // season-projection one while this status is set.
+  status: 'preevent' | 'in_progress' | 'postevent'
   is_playoffs: string
   teams: MatchupTeam[]
 }

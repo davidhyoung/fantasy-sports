@@ -18,6 +18,13 @@ type Config struct {
 	// only — it makes every league route reachable without authenticating
 	// against Yahoo, so it must never be set in a deployed environment.
 	MockYahoo bool
+
+	// LiveStatsPoll (LIVE_STATS_POLL=1) starts a background goroutine that
+	// polls ESPN's unofficial scoreboard/summary endpoints during NFL game
+	// windows and writes best-effort in-progress stats to
+	// nfl_live_player_stats (see internal/services/espnlive). Off by default
+	// so local dev/tests never hit ESPN unasked.
+	LiveStatsPoll bool
 }
 
 // Load reads configuration from environment variables, falling back to defaults.
@@ -28,6 +35,7 @@ func Load() Config {
 		DefaultSeason:     envInt("DEFAULT_SEASON", 2026),
 		DefaultBudget:     envInt("DEFAULT_BUDGET", 200),
 		MockYahoo:         envInt("YAHOO_MOCK", 0) == 1,
+		LiveStatsPoll:     envInt("LIVE_STATS_POLL", 0) == 1,
 	}
 }
 
