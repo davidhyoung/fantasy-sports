@@ -331,6 +331,13 @@ export interface PlayerStat {
   value: number
 }
 
+// Which stat window a native league's roster/free-agent stats reflect —
+// mirrors backend statView (league_rosters.go) exactly. 'week'/'season' are
+// real results; 'rest'/'next4' are projections scaled to however many games
+// are actually left. See useStatView (league-detail/hooks) for the shared
+// UI state built on top of this.
+export type StatView = 'week' | 'season' | 'rest' | 'next4'
+
 export interface RosterEntry {
   gsis_id: string
   name: string
@@ -349,8 +356,12 @@ export interface RosterEntry {
   // Chronological (oldest first) real fantasy points for the trailing up to
   // 4 weeks with imported stats — powers the Players tab's "L4 wks" sparkline.
   trend?: number[]
-  // Same nfl_projections figure FreeAgent already carries — used by the
-  // mobile Roster card face (desktop shows the per-category columns instead).
+  // The league's own scoring total for whichever StatView was requested —
+  // moves with the view, unlike proj_fpts_ppr below.
+  fpts: number | null
+  // A fixed full-season straight-PPR projection, independent of StatView —
+  // a stable reference figure. Not currently rendered anywhere (fpts is the
+  // "Pts" column/card-face value); kept in case a future comparison wants it.
   proj_fpts_ppr: number | null
   notes?: SituationalNote[]
 }
@@ -362,13 +373,21 @@ export interface FreeAgent {
   team: string
   headshot_url?: string
   proj_fpts_ppr: number | null
+  fpts: number | null
   stats?: PlayerStat[]
   trend?: number[]
   notes?: SituationalNote[]
 }
 
-export const getLeagueRosters = (leagueId: number) =>
-  request<RosterEntry[]>(`/leagues/${leagueId}/rosters`)
+function statViewParams(view: StatView, week?: number) {
+  const params = new URLSearchParams()
+  params.set('view', view)
+  if (view === 'week' && week != null) params.set('week', String(week))
+  return params
+}
+
+export const getLeagueRosters = (leagueId: number, view: StatView = 'season', week?: number) =>
+  request<RosterEntry[]>(`/leagues/${leagueId}/rosters?${statViewParams(view, week).toString()}`)
 
 export const assignLeagueRoster = (
   leagueId: number,
@@ -391,8 +410,11 @@ export const updateLeagueRoster = (
     body: JSON.stringify(patch),
   })
 
-export const getLeagueFreeAgents = (leagueId: number, position = '', limit = 100, offset = 0, search = '') => {
-  const params = new URLSearchParams()
+export const getLeagueFreeAgents = (
+  leagueId: number, position = '', limit = 100, offset = 0, search = '',
+  view: StatView = 'season', week?: number
+) => {
+  const params = statViewParams(view, week)
   if (position) params.set('position', position)
   params.set('limit', String(limit))
   if (offset > 0) params.set('offset', String(offset))

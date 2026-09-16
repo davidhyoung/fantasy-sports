@@ -124,6 +124,21 @@ func LoadSeasonStats(ctx context.Context, db *pgxpool.Pool, season int, gsisIDs 
 	return out, nil
 }
 
+// LastCompletedWeek returns the highest week with any imported REG stats for
+// the season (0 if none yet, e.g. before the season's first import). Callers
+// use this to derive "games remaining" (regular_season_weeks minus this) for
+// rest-of-season/next-N-games projection views — no live schedule/current-week
+// concept exists anywhere else in this codebase, and this needs none: it's
+// answerable entirely from data already imported.
+func LastCompletedWeek(ctx context.Context, db *pgxpool.Pool, season int) (int, error) {
+	var week int
+	err := db.QueryRow(ctx, `
+		SELECT COALESCE(MAX(week), 0) FROM nfl_player_stats
+		WHERE season = $1 AND season_type = 'REG'
+	`, season).Scan(&week)
+	return week, err
+}
+
 // LoadWeekStats loads a single week's real stat lines (REG only) for the
 // given gsis_ids — the per-week sibling of LoadSeasonStats, used to score
 // native-league matchups from actual results rather than projections. Same

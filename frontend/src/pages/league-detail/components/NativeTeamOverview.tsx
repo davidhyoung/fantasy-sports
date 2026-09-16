@@ -9,6 +9,7 @@ import { keys } from '@/api/queryKeys'
 import { NativeRosterTable } from './NativeRosterTable'
 import { EditContractForm } from './EditContractForm'
 import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
+import type { StatView } from '../hooks/useStatView'
 
 interface Props {
   leagueId: number
@@ -22,6 +23,10 @@ interface Props {
   /** Opens the league's trade builder pre-seeded around a specific player;
    *  passed through to the player-detail panel's Trade/Trade for button. */
   onTradeFor?: (playerTeamId: number, gsisId: string) => void
+  /** Which stat window the roster's per-category columns/Pts reflect — see
+   *  useStatView, owned by the parent Roster tab. */
+  statView: StatView
+  statWeek: number
 }
 
 /**
@@ -30,7 +35,7 @@ interface Props {
  * separate read-only team page: a native league has no reader who isn't
  * the commissioner (single-user model), so this is always fully editable.
  */
-export function NativeTeamOverview({ leagueId, teamId, slots, myTeamId, onTradeFor }: Props) {
+export function NativeTeamOverview({ leagueId, teamId, slots, myTeamId, onTradeFor, statView, statWeek }: Props) {
   const [editing, setEditing] = useState<RosterEntry | null>(null)
   const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
 
@@ -40,8 +45,8 @@ export function NativeTeamOverview({ leagueId, teamId, slots, myTeamId, onTradeF
   // is only true before the first successful fetch, so a reorder/drop/etc.
   // just swaps the updated rows in once the refetch resolves.
   const { data: rosters, isLoading: loadingRosters } = useQuery({
-    queryKey: keys.leagueRosters(leagueId),
-    queryFn: () => getLeagueRosters(leagueId),
+    queryKey: keys.leagueRostersView(leagueId, statView, statWeek),
+    queryFn: () => getLeagueRosters(leagueId, statView, statWeek),
   })
   const { data: scoreboard } = useQuery({
     queryKey: keys.scoreboard(leagueId),

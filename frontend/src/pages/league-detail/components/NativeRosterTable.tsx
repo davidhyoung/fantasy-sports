@@ -418,7 +418,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit, onPlay
         subtitle={isTarget ? targetWord : undefined}
         face={
           <span className="font-mono text-xs tabular-nums text-muted-foreground">
-            {r.proj_fpts_ppr != null ? r.proj_fpts_ppr.toFixed(1) : '—'}
+            {r.fpts != null ? r.fpts.toFixed(1) : '—'}
           </span>
         }
         expanded={[

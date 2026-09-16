@@ -1,3 +1,5 @@
+import type { StatView } from './client'
+
 export const keys = {
   me: ['me'] as const,
   leagues: ['leagues'] as const,
@@ -11,8 +13,17 @@ export const keys = {
   searchPlayers: (id: number, q: string) =>
     ['league', id, 'players', 'search', q] as const,
   leagueRosters: (id: number) => ['league', id, 'rosters'] as const,
+  // View-scoped roster fetch — 'leagueRosters(id)' above stays a *prefix* of
+  // this key, so every existing invalidateQueries({queryKey: leagueRosters(id)})
+  // call site (after assign/drop/trade/contract-edit) keeps invalidating
+  // every StatView variant via normal prefix matching, with no changes there.
+  leagueRostersView: (id: number, view: StatView, week?: number) =>
+    ['league', id, 'rosters', view, week] as const,
   freeAgents: (id: number, position: string, search = '') =>
     ['league', id, 'free-agents', position, search] as const,
+  // Same prefix relationship as leagueRostersView above, for the same reason.
+  freeAgentsView: (id: number, position: string, search: string, view: StatView, week?: number) =>
+    ['league', id, 'free-agents', position, search, view, week] as const,
   leagueSettings: (id: number) => ['league', id, 'settings'] as const,
   leaguePicks: (id: number, season?: number) =>
     season != null ? ['league', id, 'picks', season] as const : ['league', id, 'picks'] as const,

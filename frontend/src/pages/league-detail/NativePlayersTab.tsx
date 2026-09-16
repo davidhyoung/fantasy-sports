@@ -10,6 +10,8 @@ import { keys } from '../../api/queryKeys'
 import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
 import { SCORING_STATS, SCORING_LABELS, type ScoringStat } from './hooks/useDraftSettings'
 import { L4Sparkline } from './components/L4Sparkline'
+import { StatViewToggle } from './components/StatViewToggle'
+import { useStatView } from './hooks/useStatView'
 
 const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF']
 
@@ -48,6 +50,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
   const [view, setView] = useState<'free-agents' | 'rostered'>('free-agents')
   const [positions, setPositions] = useState<Set<string>>(new Set())
   const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
+  const { view: statView, week: statWeek, setView: setStatView, setWeek: setStatWeek } = useStatView()
 
   const togglePosition = (p: string) => {
     setPositions((prev) => {
@@ -61,14 +64,14 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
   // The free-agents endpoint only supports one ?position= value server-side;
   // multi-select filtering happens client-side, same as the rostered view.
   const { data: freeAgents, isFetching: loadingFA } = useQuery({
-    queryKey: keys.freeAgents(leagueId, ''),
-    queryFn: () => getLeagueFreeAgents(leagueId, '', 200),
+    queryKey: keys.freeAgentsView(leagueId, '', '', statView, statWeek),
+    queryFn: () => getLeagueFreeAgents(leagueId, '', 200, 0, '', statView, statWeek),
     enabled: active && view === 'free-agents',
   })
 
   const { data: roster, isFetching: loadingRoster } = useQuery({
-    queryKey: keys.leagueRosters(leagueId),
-    queryFn: () => getLeagueRosters(leagueId),
+    queryKey: keys.leagueRostersView(leagueId, statView, statWeek),
+    queryFn: () => getLeagueRosters(leagueId, statView, statWeek),
     enabled: active && view === 'rostered',
   })
 
@@ -128,6 +131,10 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
         )}
       </div>
 
+      <div className="mb-4">
+        <StatViewToggle view={statView} week={statWeek} onViewChange={setStatView} onWeekChange={setStatWeek} />
+      </div>
+
       {loading ? (
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       ) : rows.length === 0 ? (
@@ -136,7 +143,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
         </p>
       ) : (
         <>
-          {/* Card face: Player, L4 trend, Proj Pts — the sparkline earns a
+          {/* Card face: Player, L4 trend, Pts — the sparkline earns a
            *  permanent face slot since it's the one visual a table cell
            *  can't compress into text. Remaining stat columns (+ Team/Pos,
            *  and for Rostered: team/salary/years) move to the expand panel. */}
@@ -159,7 +166,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                         <>
                           <L4Sparkline trend={p.trend} />
                           <span className="w-11 text-right font-mono text-xs tabular-nums text-foreground">
-                            {p.proj_fpts_ppr != null ? p.proj_fpts_ppr.toFixed(1) : '—'}
+                            {p.fpts != null ? p.fpts.toFixed(1) : '—'}
                           </span>
                         </>
                       }
@@ -187,7 +194,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                         <>
                           <L4Sparkline trend={p.trend} />
                           <span className="w-11 text-right font-mono text-xs tabular-nums text-foreground">
-                            {p.proj_fpts_ppr != null ? p.proj_fpts_ppr.toFixed(1) : '—'}
+                            {p.fpts != null ? p.fpts.toFixed(1) : '—'}
                           </span>
                         </>
                       }
@@ -209,7 +216,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                 ))}
                 <TableHead className="text-center">L4 wks</TableHead>
                 {view === 'free-agents' ? (
-                  <TableHead className="text-right">Proj Pts</TableHead>
+                  <TableHead className="text-right">Pts</TableHead>
                 ) : (
                   <>
                     <TableHead>Rostered By</TableHead>
@@ -236,7 +243,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                       })}
                       <TableCell className="text-center"><L4Sparkline trend={p.trend} /></TableCell>
                       <TableCell className="text-right font-mono tabular-nums">
-                        {p.proj_fpts_ppr != null ? p.proj_fpts_ppr.toFixed(1) : '—'}
+                        {p.fpts != null ? p.fpts.toFixed(1) : '—'}
                       </TableCell>
                     </ClickableRow>
                   ))

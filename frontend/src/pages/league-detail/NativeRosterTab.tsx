@@ -14,6 +14,8 @@ import { keys } from '@/api/queryKeys'
 import { PlayerAssignForm } from './components/PlayerAssignForm'
 import { TradeBuilder, type TradeInitialSelection } from './components/TradeBuilder'
 import { NativeTeamOverview } from './components/NativeTeamOverview'
+import { StatViewToggle } from './components/StatViewToggle'
+import { useStatView } from './hooks/useStatView'
 
 interface Props {
   leagueId: number
@@ -56,6 +58,7 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
   // "Trade" click doesn't inherit a stale seed.
   const [tradeSeed, setTradeSeed] = useState<TradeInitialSelection | undefined>(undefined)
   const [confirmRollover, setConfirmRollover] = useState(false)
+  const { view: statView, week: statWeek, setView: setStatView, setWeek: setStatWeek } = useStatView()
 
   const { data: settings } = useQuery({
     queryKey: keys.leagueSettings(leagueId),
@@ -176,6 +179,10 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
         </div>
       </div>
 
+      <div className="mb-4">
+        <StatViewToggle view={statView} week={statWeek} onViewChange={setStatView} onWeekChange={setStatWeek} />
+      </div>
+
       {cap && (
         <div className="mb-4 rounded-lg bg-card px-4 py-3">
           <div className="flex flex-wrap gap-4">
@@ -227,6 +234,8 @@ export function NativeRosterTab({ leagueId, active, teams, myTeam, format }: Pro
         slots={settings?.slots}
         myTeamId={myTeam?.id}
         onTradeFor={openTradeFor}
+        statView={statView}
+        statWeek={statWeek}
       />
 
       {/* Single-user model: whoever's signed in manages every team, and the

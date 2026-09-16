@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"time"
@@ -36,37 +37,82 @@ type rosterEntryResp struct {
 	// Chronological (oldest first) real fantasy points for the trailing up
 	// to 4 weeks with imported stats — see weeklyTrend.
 	Trend []float64 `json:"trend,omitempty"`
-	// ProjFptsPPR is the same nfl_projections figure GetLeagueFreeAgents
-	// already surfaces — nil when no projection exists for this player/season.
-	// Only consumer today is the mobile Roster card face (the desktop table
-	// shows the league's own per-category columns instead).
+	// Fpts is the league's own scoring total for whichever statView is
+	// currently selected (see relevantPlayerStats) — nil when there's no
+	// data for that player in this view (e.g. bye week, no projection row).
+	Fpts *float64 `json:"fpts"`
+	// ProjFptsPPR is a fixed full-season (regular_season_weeks-worth)
+	// straight-PPR projection, independent of the selected statView — a
+	// stable reference figure, not the view-scoped number (see Fpts).
 	ProjFptsPPR *float64          `json:"proj_fpts_ppr"`
 	Notes       []situationalNote `json:"notes,omitempty"`
 }
 
-// playerStatEntry is one projected season-total stat category, restricted to
-// whatever this league's own scoring actually weights — "relevant" meaning
-// it impacts this league's scoring, not just "exists."
+// playerStatEntry is one stat category's value in whichever statView the
+// caller asked for, restricted to whatever this league's own scoring
+// actually weights — "relevant" meaning it impacts this league's scoring,
+// not just "exists."
 type playerStatEntry struct {
 	Stat  string  `json:"stat"`
 	Value float64 `json:"value"`
 }
 
-// relevantPlayerStats returns season-total projected stats for the given
-// players, one entry per stat category the league's scoring weights
-// nonzero, in leaguesettings.ScoringEditableStats order (so every player's
-// array lines up under the same column headers). Rates come straight from
-// nfl_projections; ProjectionToCanonicalTotals (the same helper draft-values
-// and rollover scoring use) turns per-game rates into season totals.
-func (h *Handler) relevantPlayerStats(ctx context.Context, leagueID int64, season int, gsisIDs []string) (map[string][]playerStatEntry, error) {
-	out := map[string][]playerStatEntry{}
+// statView selects which stat window relevantPlayerStats computes:
+//   - "week"   — one specific past week's real stats (nfl_player_stats)
+//   - "season" — real season-to-date totals (nfl_player_stats, summed)
+//   - "rest"   — projected totals for however many games are left in the
+//     league's regular season (regular_season_weeks minus the last
+//     imported week)
+//   - "next4"  — projected totals for up to the next 4 games
+//
+// "week"/"season" are real results; "rest"/"next4" are projections — kept
+// as two clearly distinct kinds rather than one continuum, since mixing a
+// real number and a projected one under the same label would be misleading.
+type statView struct {
+	kind string
+	week int // only meaningful when kind == "week"
+}
+
+func parseStatView(q url.Values) statView {
+	switch q.Get("view") {
+	case "week":
+		w, _ := strconv.Atoi(q.Get("week"))
+		if w <= 0 {
+			w = 1
+		}
+		return statView{kind: "week", week: w}
+	case "rest":
+		return statView{kind: "rest"}
+	case "next4":
+		return statView{kind: "next4"}
+	default:
+		return statView{kind: "season"}
+	}
+}
+
+// relevantPlayerStats returns, for the given players and statView, one
+// entry per stat category the league's scoring weights nonzero (in
+// leaguesettings.ScoringEditableStats order, so every player's array lines
+// up under the same column headers), plus a single view-scoped fantasy
+// total per player (fpts) computed from the same totals before the
+// category filter — the number a "Pts" column should show alongside those
+// categories, since it needs to move with the view too.
+//
+// "week"/"season" read real stats via nflstats; "rest"/"next4" read
+// nfl_projections' per-game rates and scale them by however many games are
+// actually left (see statView), via the same ProjectionToCanonicalTotals
+// helper draft-values and rollover scoring already use for real season
+// totals — just with a games count that isn't hardcoded to 17 anymore.
+func (h *Handler) relevantPlayerStats(ctx context.Context, leagueID int64, season int, gsisIDs []string, view statView) (map[string][]playerStatEntry, map[string]float64, error) {
+	stats := map[string][]playerStatEntry{}
+	fpts := map[string]float64{}
 	if len(gsisIDs) == 0 {
-		return out, nil
+		return stats, fpts, nil
 	}
 
 	mods, ok := leaguesettings.NewNativeSource(h.db, leagueID).ScoringMods(ctx)
 	if !ok {
-		return out, nil
+		return stats, fpts, nil
 	}
 	var relevant []scoring.CanonicalStat
 	for _, s := range leaguesettings.ScoringEditableStats {
@@ -75,40 +121,87 @@ func (h *Handler) relevantPlayerStats(ctx context.Context, leagueID int64, seaso
 		}
 	}
 	if len(relevant) == 0 {
-		return out, nil
+		return stats, fpts, nil
 	}
 
-	rows, err := h.db.Query(ctx, `
-		SELECT gsis_id, proj_games,
-		       proj_pass_yds_pg, proj_pass_td_pg, proj_rush_yds_pg, proj_rush_td_pg,
-		       proj_rec_pg, proj_rec_yds_pg, proj_rec_td_pg, proj_fg_made_pg, proj_pat_made_pg
-		FROM nfl_projections
-		WHERE gsis_id = ANY($1) AND target_season = $2
-	`, gsisIDs, season)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var gsisID string
-		var games int
-		var rates scoring.ProjectionRates
-		if err := rows.Scan(
-			&gsisID, &games,
-			&rates.PassYdsPG, &rates.PassTdPG, &rates.RushYdsPG, &rates.RushTdPG,
-			&rates.RecPG, &rates.RecYdsPG, &rates.RecTdPG, &rates.FgMadePG, &rates.PatMadePG,
-		); err != nil {
-			return nil, err
+	var totalsByPlayer map[string]map[scoring.CanonicalStat]float64
+	switch view.kind {
+	case "week":
+		t, err := nflstats.LoadWeekStats(ctx, h.db, season, view.week, gsisIDs)
+		if err != nil {
+			return nil, nil, err
 		}
-		totals := scoring.ProjectionToCanonicalTotals(rates, float64(games))
+		totalsByPlayer = t
+
+	case "season":
+		seasonStats, err := nflstats.LoadSeasonStats(ctx, h.db, season, gsisIDs)
+		if err != nil {
+			return nil, nil, err
+		}
+		totalsByPlayer = make(map[string]map[scoring.CanonicalStat]float64, len(seasonStats))
+		for gsisID, ps := range seasonStats {
+			totalsByPlayer[gsisID] = ps.Values
+		}
+
+	case "rest", "next4":
+		lastWeek, err := nflstats.LastCompletedWeek(ctx, h.db, season)
+		if err != nil {
+			return nil, nil, err
+		}
+		var regularSeasonWeeks int
+		if err := h.db.QueryRow(ctx,
+			"SELECT regular_season_weeks FROM league_settings WHERE league_id = $1", leagueID,
+		).Scan(&regularSeasonWeeks); err != nil {
+			return nil, nil, err
+		}
+		remaining := regularSeasonWeeks - lastWeek
+		if remaining < 0 {
+			remaining = 0
+		}
+		games := remaining
+		if view.kind == "next4" && games > 4 {
+			games = 4
+		}
+
+		rows, err := h.db.Query(ctx, `
+			SELECT gsis_id,
+			       proj_pass_yds_pg, proj_pass_td_pg, proj_rush_yds_pg, proj_rush_td_pg,
+			       proj_rec_pg, proj_rec_yds_pg, proj_rec_td_pg, proj_fg_made_pg, proj_pat_made_pg
+			FROM nfl_projections
+			WHERE gsis_id = ANY($1) AND target_season = $2
+		`, gsisIDs, season)
+		if err != nil {
+			return nil, nil, err
+		}
+		totalsByPlayer = map[string]map[scoring.CanonicalStat]float64{}
+		for rows.Next() {
+			var gsisID string
+			var rates scoring.ProjectionRates
+			if err := rows.Scan(
+				&gsisID,
+				&rates.PassYdsPG, &rates.PassTdPG, &rates.RushYdsPG, &rates.RushTdPG,
+				&rates.RecPG, &rates.RecYdsPG, &rates.RecTdPG, &rates.FgMadePG, &rates.PatMadePG,
+			); err != nil {
+				rows.Close()
+				return nil, nil, err
+			}
+			totalsByPlayer[gsisID] = scoring.ProjectionToCanonicalTotals(rates, float64(games))
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	for gsisID, totals := range totalsByPlayer {
 		entries := make([]playerStatEntry, 0, len(relevant))
 		for _, s := range relevant {
 			entries = append(entries, playerStatEntry{Stat: string(s), Value: totals[s]})
 		}
-		out[gsisID] = entries
+		stats[gsisID] = entries
+		fpts[gsisID] = scoring.ScoreWithModifiers(totals, mods)
 	}
-	return out, rows.Err()
+	return stats, fpts, nil
 }
 
 // weeklyTrend returns each player's real fantasy points (this league's own
@@ -177,6 +270,7 @@ func (h *Handler) GetLeagueRosters(w http.ResponseWriter, r *http.Request) {
 	}
 
 	season := h.leagueSeasonInt(r, leagueID)
+	view := parseStatView(r.URL.Query())
 	rows, err := h.db.Query(r.Context(), `
 		SELECT
 			lr.gsis_id, p.name, COALESCE(p.position, ''), COALESCE(p.team, ''), COALESCE(p.headshot_url, ''),
@@ -214,7 +308,7 @@ func (h *Handler) GetLeagueRosters(w http.ResponseWriter, r *http.Request) {
 	}
 	rows.Close()
 
-	statsByPlayer, err := h.relevantPlayerStats(r.Context(), leagueID, season, gsisIDs)
+	statsByPlayer, fptsByPlayer, err := h.relevantPlayerStats(r.Context(), leagueID, season, gsisIDs, view)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -233,6 +327,9 @@ func (h *Handler) GetLeagueRosters(w http.ResponseWriter, r *http.Request) {
 		roster[i].Stats = statsByPlayer[roster[i].GsisID]
 		roster[i].Trend = trendByPlayer[roster[i].GsisID]
 		roster[i].Notes = notesByPlayer[roster[i].GsisID]
+		if fpts, ok := fptsByPlayer[roster[i].GsisID]; ok {
+			roster[i].Fpts = &fpts
+		}
 	}
 
 	respondJSON(w, http.StatusOK, roster)
@@ -698,15 +795,18 @@ func (h *Handler) DropLeagueRoster(w http.ResponseWriter, r *http.Request) {
 
 // freeAgentResp is one player not currently rostered in a native league.
 type freeAgentResp struct {
-	GsisID      string            `json:"gsis_id"`
-	Name        string            `json:"name"`
-	Position    string            `json:"position"`
-	Team        string            `json:"team"`
-	HeadshotURL string            `json:"headshot_url,omitempty"`
-	ProjFptsPPR *float64          `json:"proj_fpts_ppr"`
-	Stats       []playerStatEntry `json:"stats,omitempty"`
-	Trend       []float64         `json:"trend,omitempty"`
-	Notes       []situationalNote `json:"notes,omitempty"`
+	GsisID      string   `json:"gsis_id"`
+	Name        string   `json:"name"`
+	Position    string   `json:"position"`
+	Team        string   `json:"team"`
+	HeadshotURL string   `json:"headshot_url,omitempty"`
+	ProjFptsPPR *float64 `json:"proj_fpts_ppr"`
+	// Fpts is the league's own scoring total for whichever statView is
+	// currently selected — see rosterEntryResp.Fpts.
+	Fpts  *float64          `json:"fpts"`
+	Stats []playerStatEntry `json:"stats,omitempty"`
+	Trend []float64         `json:"trend,omitempty"`
+	Notes []situationalNote `json:"notes,omitempty"`
 }
 
 // GetLeagueFreeAgents returns players in a native league with no roster row —
@@ -728,6 +828,7 @@ func (h *Handler) GetLeagueFreeAgents(w http.ResponseWriter, r *http.Request) {
 			season = v
 		}
 	}
+	view := parseStatView(q)
 	position := q.Get("position")
 	search := q.Get("search")
 	limit := 50
@@ -774,7 +875,7 @@ func (h *Handler) GetLeagueFreeAgents(w http.ResponseWriter, r *http.Request) {
 	}
 	rows.Close()
 
-	statsByPlayer, err := h.relevantPlayerStats(r.Context(), leagueID, season, gsisIDs)
+	statsByPlayer, fptsByPlayer, err := h.relevantPlayerStats(r.Context(), leagueID, season, gsisIDs, view)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -793,6 +894,9 @@ func (h *Handler) GetLeagueFreeAgents(w http.ResponseWriter, r *http.Request) {
 		agents[i].Stats = statsByPlayer[agents[i].GsisID]
 		agents[i].Trend = trendByPlayer[agents[i].GsisID]
 		agents[i].Notes = notesByPlayer[agents[i].GsisID]
+		if fpts, ok := fptsByPlayer[agents[i].GsisID]; ok {
+			agents[i].Fpts = &fpts
+		}
 	}
 
 	respondJSON(w, http.StatusOK, agents)
