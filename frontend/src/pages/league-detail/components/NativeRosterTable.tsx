@@ -7,10 +7,10 @@ import { updateLeagueRoster, dropLeagueRoster, type RosterEntry, type PlayerStat
 import { keys } from '@/api/queryKeys'
 import { contractYearsLabel } from '@/lib/utils'
 import { SLOT_DISPLAY_ORDER, BENCH_SLOTS, DISPLAY_HIDDEN_SLOTS, isSlotEligible } from '../lib/nativeSlots'
-import { SCORING_STATS, SCORING_LABELS, type ScoringStat } from '../hooks/useDraftSettings'
+import { DISPLAY_STATS, DISPLAY_LABELS, type DisplayStat } from '../lib/statColumns'
 import { L4Sparkline } from './L4Sparkline'
 
-function statValue(stats: PlayerStat[] | undefined, stat: ScoringStat): number | undefined {
+function statValue(stats: PlayerStat[] | undefined, stat: DisplayStat): number | undefined {
   return stats?.find((s) => s.stat === stat)?.value
 }
 
@@ -241,7 +241,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit, onPlay
   const statColumns = useMemo(() => {
     const present = new Set<string>()
     for (const r of roster) for (const s of r.stats ?? []) present.add(s.stat)
-    return SCORING_STATS.filter((s) => present.has(s))
+    return DISPLAY_STATS.filter((s) => present.has(s))
   }, [roster])
   // slot, player, contract, actions (4 fixed) + one per stat + the L4 wks trend column
   const totalCols = 4 + statColumns.length + 1
@@ -520,7 +520,7 @@ export function NativeRosterTable({ leagueId, roster, slots = {}, onEdit, onPlay
               <TableHead>Slot</TableHead>
               <TableHead>Player</TableHead>
               {statColumns.map((s) => (
-                <TableHead key={s} className="text-right">{SCORING_LABELS[s]}</TableHead>
+                <TableHead key={s} className="text-right">{DISPLAY_LABELS[s]}</TableHead>
               ))}
               <TableHead className="text-center">L4 wks</TableHead>
               <TableHead className="text-right">Contract</TableHead>

@@ -49,12 +49,28 @@ type rosterEntryResp struct {
 }
 
 // playerStatEntry is one stat category's value in whichever statView the
-// caller asked for, restricted to whatever this league's own scoring
-// actually weights — "relevant" meaning it impacts this league's scoring,
-// not just "exists."
+// caller asked for — either a category this league's own scoring actually
+// weights ("relevant" meaning it impacts scoring, not just "exists"), or one
+// of informationalStats, always included for context regardless of weight.
 type playerStatEntry struct {
 	Stat  string  `json:"stat"`
 	Value float64 `json:"value"`
+}
+
+// informationalStats are context categories on a full stat line — passing
+// interceptions, rushing attempts, targets, return TDs, two-point
+// conversions, lost fumbles — that this app has no scoring-config UI for at
+// all (unlike leaguesettings.ScoringEditableStats' 9 keys, nothing ever
+// writes a nonzero weight for these into a league's scoring JSON), so
+// relevantPlayerStats always includes them rather than gating them behind a
+// weight check that could never pass.
+var informationalStats = []scoring.CanonicalStat{
+	scoring.StatPassInt,
+	scoring.StatRushAtt,
+	scoring.StatTargets,
+	scoring.StatReturnTD,
+	scoring.StatTwoPt,
+	scoring.StatFumblesLost,
 }
 
 // statView selects which stat window relevantPlayerStats computes:
@@ -120,9 +136,15 @@ func (h *Handler) relevantPlayerStats(ctx context.Context, leagueID int64, seaso
 			relevant = append(relevant, s)
 		}
 	}
-	if len(relevant) == 0 {
-		return stats, fpts, nil
-	}
+	// Always shown alongside whatever's actually scored — context stats
+	// (interceptions, rush attempts, targets, return TDs, two-point
+	// conversions, lost fumbles) this app has no scoring-config UI for at
+	// all (every native league's real scoring is seeded from exactly
+	// ScoringEditableStats' 9 keys — see CreateLeague.tsx), so gating them
+	// behind "mods[s] != 0" would mean they could never appear for any
+	// league. They contribute nothing to fpts below regardless, since
+	// ScoreWithModifiers only sums stats actually present in mods.
+	relevant = append(relevant, informationalStats...)
 
 	var totalsByPlayer map[string]map[scoring.CanonicalStat]float64
 	switch view.kind {

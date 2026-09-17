@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getLeagueRosters, getLeagueFreeAgents, type Team, type PlayerStat } from '../../api/client'
 import { keys } from '../../api/queryKeys'
 import { PlayerDetailPanel } from '@/pages/player-detail/PlayerDetailPanel'
-import { SCORING_STATS, SCORING_LABELS, type ScoringStat } from './hooks/useDraftSettings'
+import { DISPLAY_STATS, DISPLAY_LABELS, type DisplayStat } from './lib/statColumns'
 import { L4Sparkline } from './components/L4Sparkline'
 import { StatViewToggle } from './components/StatViewToggle'
 import { useStatView } from './hooks/useStatView'
@@ -21,7 +21,7 @@ interface Props {
   teams: Team[]
 }
 
-function statValue(stats: PlayerStat[] | undefined, stat: ScoringStat): number | undefined {
+function statValue(stats: PlayerStat[] | undefined, stat: DisplayStat): number | undefined {
   return stats?.find((s) => s.stat === stat)?.value
 }
 
@@ -38,7 +38,10 @@ function statValue(stats: PlayerStat[] | undefined, stat: ScoringStat): number |
  * actually weights (nonzero) come back from the API at all (see
  * relevantPlayerStats in league_rosters.go), so "relevant" here means
  * "impacts this league's scoring," not just "exists." Column set and order
- * follow SCORING_STATS, same vocabulary the draft-settings panel edits.
+ * follow DISPLAY_STATS — the scored categories plus a fixed set of
+ * always-shown informational ones (interceptions, attempts, targets,
+ * return TDs, two-point conversions, lost fumbles) this app has no
+ * scoring-config UI for at all (see league_rosters.go's informationalStats).
  *
  * Free Agents/Rostered is a filled tray, not chips — per the design review's
  * codified rule (open item 8), a tray switches which dataset you're looking
@@ -91,7 +94,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
   const statColumns = useMemo(() => {
     const present = new Set<string>()
     for (const p of rows) for (const s of p.stats ?? []) present.add(s.stat)
-    return SCORING_STATS.filter((s) => present.has(s))
+    return DISPLAY_STATS.filter((s) => present.has(s))
   }, [rows])
 
   return (
@@ -153,7 +156,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                   const expanded: MobileStatField[] = [
                     { label: 'Team', value: p.team || '—' },
                     { label: 'Pos', value: p.position },
-                    ...statColumns.map((s) => ({ label: SCORING_LABELS[s], value: statValue(p.stats, s)?.toFixed(1) ?? '—' })),
+                    ...statColumns.map((s) => ({ label: DISPLAY_LABELS[s], value: statValue(p.stats, s)?.toFixed(1) ?? '—' })),
                   ]
                   return (
                     <MobileStatCard
@@ -181,7 +184,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                     { label: 'Rostered By', value: teamName(p.team_id) },
                     { label: 'Salary', value: `$${p.salary}` },
                     { label: 'Years', value: p.years_total != null ? `${p.years_used}/${p.years_total}` : '—' },
-                    ...statColumns.map((s) => ({ label: SCORING_LABELS[s], value: statValue(p.stats, s)?.toFixed(1) ?? '—' })),
+                    ...statColumns.map((s) => ({ label: DISPLAY_LABELS[s], value: statValue(p.stats, s)?.toFixed(1) ?? '—' })),
                   ]
                   return (
                     <MobileStatCard
@@ -212,7 +215,7 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
                 <TableHead>Team</TableHead>
                 <TableHead>Pos</TableHead>
                 {statColumns.map((s) => (
-                  <TableHead key={s} className="text-right">{SCORING_LABELS[s]}</TableHead>
+                  <TableHead key={s} className="text-right">{DISPLAY_LABELS[s]}</TableHead>
                 ))}
                 <TableHead className="text-center">L4 wks</TableHead>
                 {view === 'free-agents' ? (
