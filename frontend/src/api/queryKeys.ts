@@ -25,6 +25,13 @@ export const keys = {
   freeAgentsView: (id: number, position: string, search: string, view: StatView, week?: number) =>
     ['league', id, 'free-agents', position, search, view, week] as const,
   leagueSettings: (id: number) => ['league', id, 'settings'] as const,
+  // Native NBA leagues — parallel key set, not merged with the NFL ones above.
+  leagueRostersNBA: (id: number) => ['league', id, 'rosters-nba'] as const,
+  freeAgentsNBA: (id: number, position: string, search = '') =>
+    ['league', id, 'free-agents-nba', position, search] as const,
+  scoreboardNBA: (id: number, week?: number) =>
+    week != null ? ['league', id, 'scoreboard-nba', week] as const : ['league', id, 'scoreboard-nba'] as const,
+  standingsNBA: (id: number) => ['league', id, 'standings-nba'] as const,
   leaguePicks: (id: number, season?: number) =>
     season != null ? ['league', id, 'picks', season] as const : ['league', id, 'picks'] as const,
   leagueTransactions: (id: number) => ['league', id, 'transactions'] as const,

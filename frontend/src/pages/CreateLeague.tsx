@@ -8,9 +8,23 @@ import {
   SLOT_POSITIONS, SLOT_LABELS, SCORING_STATS, SCORING_LABELS, FALLBACK_SETTINGS,
   type SlotPosition, type ScoringStat,
 } from './league-detail/hooks/useDraftSettings'
-import { createLeague, type CreateLeagueRequest } from '../api/client'
+import {
+  createLeague, type CreateLeagueRequest,
+  NBA_SLOT_POSITIONS, NBA_SLOT_LABELS, NBA_CATEGORIES, NBA_CATEGORY_LABELS,
+  type NBASlotPosition, type NBACategory,
+} from '../api/client'
 import { keys } from '../api/queryKeys'
 import { PROJECTION_SEASON } from '../lib/constants'
+
+type Sport = 'nfl' | 'nba'
+
+const DEFAULT_NBA_SLOTS: Record<NBASlotPosition, number> = { G: 2, F: 2, C: 1, UTIL: 2, BN: 3, IR: 1 }
+// Inclusion flags (1 = counted, 0 = not), not point weights — a native NBA
+// league's scoring is category/roto, not per-stat points. All 9 standard
+// categories on by default.
+const DEFAULT_NBA_SCORING: Record<NBACategory, number> = Object.fromEntries(
+  NBA_CATEGORIES.map((c) => [c, 1])
+) as Record<NBACategory, number>
 
 const FORMATS: { value: CreateLeagueRequest['format']; label: string; blurb: string }[] = [
   { value: 'dynasty', label: 'Dynasty', blurb: 'Rosters carry forward every season. Rookie picks are tradable assets.' },
@@ -94,6 +108,7 @@ export default function CreateLeague() {
   const qc = useQueryClient()
 
   const [name, setName] = useState('')
+  const [sport, setSport] = useState<Sport>('nfl')
   const [season, setSeason] = useState(String(PROJECTION_SEASON))
   const [format, setFormat] = useState<CreateLeagueRequest['format']>('dynasty')
   const [budget, setBudget] = useState(FALLBACK_SETTINGS.budget)
@@ -106,6 +121,8 @@ export default function CreateLeague() {
   // still use DEF elsewhere (the draft-values settings panel).
   const [slots, setSlots] = useState<Record<SlotPosition, number>>({ ...FALLBACK_SETTINGS.slots, DEF: 0 })
   const [scoring, setScoring] = useState<Record<ScoringStat, number>>({ ...FALLBACK_SETTINGS.scoring })
+  const [nbaSlots, setNBASlots] = useState<Record<NBASlotPosition, number>>({ ...DEFAULT_NBA_SLOTS })
+  const [nbaScoring, setNBAScoring] = useState<Record<NBACategory, number>>({ ...DEFAULT_NBA_SCORING })
 
   const setTeamCount = (n: number) => {
     setNumTeams(n)
@@ -127,10 +144,10 @@ export default function CreateLeague() {
     if (!canSubmit) return
     mutation.mutate({
       name: name.trim(),
-      sport: 'nfl',
+      sport,
       season: season.trim(),
       format,
-      settings: { budget, slots, scoring },
+      settings: sport === 'nba' ? { budget, slots: nbaSlots, scoring: nbaScoring } : { budget, slots, scoring },
       teams: teamNames.map((n) => ({ name: n.trim() })),
     })
   }
@@ -139,12 +156,27 @@ export default function CreateLeague() {
     <div className="max-w-2xl">
       <h1 className="font-display text-2xl font-bold text-foreground">New league</h1>
       <p className="mt-1.5 text-sm text-muted-foreground">
-        A native league — no Yahoo account required. Roster slots and scoring drive the draft
-        board and auction values, same as a synced league. NFL only for now; projections don't
-        cover other sports yet.
+        A native league — no Yahoo account required.{' '}
+        {sport === 'nfl'
+          ? 'Roster slots and scoring drive the draft board and auction values, same as a synced league.'
+          : 'Category (roto) scoring — points, rebounds, assists, steals, blocks, turnovers, 3PM, FG%, FT%. No draft board/auction values yet (NFL only for now).'}
       </p>
 
       <div className="mt-8 flex flex-col gap-8">
+        {/* Sport */}
+        <section>
+          <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Sport
+          </span>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {(['nfl', 'nba'] as const).map((s) => (
+              <FilterChip key={s} active={sport === s} onClick={() => setSport(s)}>
+                {s.toUpperCase()}
+              </FilterChip>
+            ))}
+          </div>
+        </section>
+
         {/* Name / season */}
         <section className="flex flex-wrap items-end gap-4">
           <label className="flex flex-1 min-w-[220px] flex-col gap-1">
@@ -205,40 +237,84 @@ export default function CreateLeague() {
           <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Starting lineup
           </span>
-          <div className="mt-2 flex flex-wrap gap-3">
-            {SLOT_POSITIONS.filter((pos) => pos !== 'DEF').map((pos) => (
-              <NumberField
-                key={pos}
-                label={SLOT_LABELS[pos]}
-                value={slots[pos]}
-                max={20}
-                width="w-14"
-                onChange={(v) => setSlots({ ...slots, [pos]: v })}
-              />
-            ))}
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            No DEF slot — nflverse doesn't track team defenses as individually
-            rostered players, so a native league can't roster one yet.
-          </p>
+          {sport === 'nfl' ? (
+            <>
+              <div className="mt-2 flex flex-wrap gap-3">
+                {SLOT_POSITIONS.filter((pos) => pos !== 'DEF').map((pos) => (
+                  <NumberField
+                    key={pos}
+                    label={SLOT_LABELS[pos]}
+                    value={slots[pos]}
+                    max={20}
+                    width="w-14"
+                    onChange={(v) => setSlots({ ...slots, [pos]: v })}
+                  />
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                No DEF slot — nflverse doesn't track team defenses as individually
+                rostered players, so a native league can't roster one yet.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="mt-2 flex flex-wrap gap-3">
+                {NBA_SLOT_POSITIONS.map((pos) => (
+                  <NumberField
+                    key={pos}
+                    label={NBA_SLOT_LABELS[pos]}
+                    value={nbaSlots[pos]}
+                    max={20}
+                    width="w-14"
+                    onChange={(v) => setNBASlots({ ...nbaSlots, [pos]: v })}
+                  />
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                G/F/C only — ESPN's own NBA position data has no point-guard-vs-shooting-guard
+                (or small-vs-power-forward) split to key a narrower slot off of.
+              </p>
+            </>
+          )}
         </section>
 
         {/* Scoring */}
         <section>
           <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Pointing system
+            {sport === 'nfl' ? 'Pointing system' : 'Scoring categories'}
           </span>
-          <div className="mt-2 flex flex-wrap gap-3">
-            {SCORING_STATS.map((stat) => (
-              <DecimalField
-                key={stat}
-                label={SCORING_LABELS[stat]}
-                value={scoring[stat]}
-                step={stat.endsWith('_yds') ? 0.01 : 0.5}
-                onChange={(v) => setScoring({ ...scoring, [stat]: v })}
-              />
-            ))}
-          </div>
+          {sport === 'nfl' ? (
+            <div className="mt-2 flex flex-wrap gap-3">
+              {SCORING_STATS.map((stat) => (
+                <DecimalField
+                  key={stat}
+                  label={SCORING_LABELS[stat]}
+                  value={scoring[stat]}
+                  step={stat.endsWith('_yds') ? 0.01 : 0.5}
+                  onChange={(v) => setScoring({ ...scoring, [stat]: v })}
+                />
+              ))}
+            </div>
+          ) : (
+            <>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {NBA_CATEGORIES.map((cat) => (
+                  <FilterChip
+                    key={cat}
+                    active={nbaScoring[cat] !== 0}
+                    onClick={() => setNBAScoring({ ...nbaScoring, [cat]: nbaScoring[cat] !== 0 ? 0 : 1 })}
+                  >
+                    {NBA_CATEGORY_LABELS[cat]}
+                  </FilterChip>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Category (roto) scoring — a matchup is won by whichever team wins more of these
+                categories for the week, not a single point total. Toggle a category off to
+                exclude it from every week's matchup.
+              </p>
+            </>
+          )}
         </section>
 
         {mutation.error && (

@@ -13,6 +13,10 @@ import { NativeRosterTab } from './NativeRosterTab'
 import { NativeFreeAgencyTab } from './NativeFreeAgencyTab'
 import { NativeStandingsTab } from './NativeStandingsTab'
 import { NativeScoreboardTab } from './NativeScoreboardTab'
+import { NativeRosterTabNBA } from './NativeRosterTabNBA'
+import { NativePlayersTabNBA } from './NativePlayersTabNBA'
+import { NativeStandingsTabNBA } from './NativeStandingsTabNBA'
+import { NativeScoreboardTabNBA } from './NativeScoreboardTabNBA'
 import { DraftSection } from './DraftSection'
 import { MessagesTab } from './MessagesTab'
 import { ActivityRail } from './components/ActivityRail'
@@ -47,7 +51,12 @@ export default function LeagueDetail() {
 
   const myTeam = teams.find((t) => t.user_id)
   const isNative = league?.source === 'native'
-  const { data: feed } = useLeagueFeed(leagueId, isNative)
+  // Native NBA leagues are a parallel vertical from native NFL — category
+  // scoring, no contracts/cap/draft/free-agency/messages yet (see
+  // .claude/plans) — so they get their own simpler tab set below, not the
+  // NFL tab components with a sport prop threaded through.
+  const isNativeNBA = isNative && league?.sport === 'nba'
+  const { data: feed } = useLeagueFeed(leagueId, isNative && !isNativeNBA)
 
   // Native leagues have no separate My Team tab — Roster covers both "my
   // team" and "every team" in one page (a team switcher, defaulting to your
@@ -103,10 +112,12 @@ export default function LeagueDetail() {
           {isNative && <TabsTrigger value="roster">Roster</TabsTrigger>}
           <TabsTrigger value="scoreboard">Scoreboard</TabsTrigger>
           <TabsTrigger value="players">Players</TabsTrigger>
-          {isNative && <TabsTrigger value="free-agency">Free Agency</TabsTrigger>}
-          {/* Draft covers draft values (NFL) + keepers (or picks, for native). */}
-          <TabsTrigger value="draft">Draft</TabsTrigger>
-          {isNative && (
+          {isNative && !isNativeNBA && <TabsTrigger value="free-agency">Free Agency</TabsTrigger>}
+          {/* Draft/Messages aren't built for native NBA leagues yet (see
+              .claude/plans) — Draft covers draft values (NFL) + keepers (or
+              picks, for native NFL). */}
+          {!isNativeNBA && <TabsTrigger value="draft">Draft</TabsTrigger>}
+          {isNative && !isNativeNBA && (
             <TabsTrigger value="messages">
               Messages{feed && feed.unread_count > 0 ? ` (${feed.unread_count})` : ''}
             </TabsTrigger>
@@ -120,7 +131,9 @@ export default function LeagueDetail() {
         )}
 
         <TabsContent value="standings">
-          {isNative ? (
+          {isNativeNBA ? (
+            <NativeStandingsTabNBA leagueId={leagueId} active={visibleTab === 'standings'} myTeamId={myTeam?.id} />
+          ) : isNative ? (
             <div className="lg:grid lg:grid-cols-[1fr_320px] lg:items-start lg:gap-6">
               <NativeStandingsTab leagueId={leagueId} active={visibleTab === 'standings'} myTeamId={myTeam?.id} />
               <div className="mt-6 lg:mt-0">
@@ -134,18 +147,24 @@ export default function LeagueDetail() {
 
         {isNative && (
           <TabsContent value="roster">
-            <NativeRosterTab
-              leagueId={leagueId}
-              active={visibleTab === 'roster'}
-              teams={teams}
-              myTeam={myTeam}
-              format={league.format}
-            />
+            {isNativeNBA ? (
+              <NativeRosterTabNBA leagueId={leagueId} active={visibleTab === 'roster'} teams={teams} myTeam={myTeam} />
+            ) : (
+              <NativeRosterTab
+                leagueId={leagueId}
+                active={visibleTab === 'roster'}
+                teams={teams}
+                myTeam={myTeam}
+                format={league.format}
+              />
+            )}
           </TabsContent>
         )}
 
         <TabsContent value="scoreboard">
-          {isNative ? (
+          {isNativeNBA ? (
+            <NativeScoreboardTabNBA leagueId={leagueId} active={visibleTab === 'scoreboard'} />
+          ) : isNative ? (
             <NativeScoreboardTab leagueId={leagueId} active={visibleTab === 'scoreboard'} />
           ) : (
             <ScoreboardTab leagueId={leagueId} active={visibleTab === 'scoreboard'} yahooKeyToId={yahooKeyToId} />
@@ -153,32 +172,36 @@ export default function LeagueDetail() {
         </TabsContent>
 
         <TabsContent value="players">
-          {isNative ? (
+          {isNativeNBA ? (
+            <NativePlayersTabNBA leagueId={leagueId} active={visibleTab === 'players'} teams={teams} />
+          ) : isNative ? (
             <NativePlayersTab leagueId={leagueId} active={visibleTab === 'players'} teams={teams} />
           ) : (
             <PlayersTab leagueId={leagueId} active={visibleTab === 'players'} sport={league.sport} />
           )}
         </TabsContent>
 
-        {isNative && (
+        {isNative && !isNativeNBA && (
           <TabsContent value="free-agency">
             <NativeFreeAgencyTab leagueId={leagueId} active={visibleTab === 'free-agency'} teams={teams} myTeam={myTeam} />
           </TabsContent>
         )}
 
-        <TabsContent value="draft">
-          <DraftSection
-            leagueId={leagueId}
-            active={visibleTab === 'draft'}
-            sport={league.sport}
-            season={league.season}
-            teams={teams}
-            myTeam={myTeam}
-            isNative={isNative}
-          />
-        </TabsContent>
+        {!isNativeNBA && (
+          <TabsContent value="draft">
+            <DraftSection
+              leagueId={leagueId}
+              active={visibleTab === 'draft'}
+              sport={league.sport}
+              season={league.season}
+              teams={teams}
+              myTeam={myTeam}
+              isNative={isNative}
+            />
+          </TabsContent>
+        )}
 
-        {isNative && (
+        {isNative && !isNativeNBA && (
           <TabsContent value="messages">
             <MessagesTab
               leagueId={leagueId}

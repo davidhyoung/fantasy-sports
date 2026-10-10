@@ -112,6 +112,18 @@ func main() {
 			r.Put("/{id}/rosters/{gsisId}", h.UpdateLeagueRoster)
 			r.Delete("/{id}/rosters/{gsisId}", h.DropLeagueRoster)
 			r.Get("/{id}/free-agents", h.GetLeagueFreeAgents)
+			// Native NBA leagues — parallel to the NFL routes above, not
+			// unified with them (different player identity/stat source).
+			// No contracts/cap/draft/FA routes yet (deferred, see .claude/plans).
+			r.Get("/{id}/rosters-nba", h.GetLeagueRostersNBA)
+			r.Post("/{id}/rosters-nba", h.AssignLeagueRosterNBA)
+			r.Put("/{id}/rosters-nba/{espnId}", h.UpdateLeagueRosterNBA)
+			r.Delete("/{id}/rosters-nba/{espnId}", h.DropLeagueRosterNBA)
+			r.Get("/{id}/free-agents-nba", h.GetLeagueFreeAgentsNBA)
+			r.Post("/{id}/schedule-nba/generate", h.GenerateLeagueScheduleNBA)
+			r.Post("/{id}/scoreboard-nba/score", h.ScoreLeagueWeekNBA)
+			r.Get("/{id}/scoreboard-nba", h.GetLeagueScoreboardNBA)
+			r.Get("/{id}/standings-nba", h.GetLeagueStandingsNBA)
 			r.Get("/{id}/teams/{teamId}/cap", h.GetTeamCap)
 			r.Get("/{id}/picks", h.ListLeagueDraftPicks)
 			r.Post("/{id}/picks/generate", h.GenerateLeagueDraftPicks)

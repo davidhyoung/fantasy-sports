@@ -422,6 +422,143 @@ export const getLeagueFreeAgents = (
   return request<FreeAgent[]>(`/leagues/${leagueId}/free-agents?${params.toString()}`)
 }
 
+// --- Native NBA leagues ---
+// Parallel to the native NFL stack above, not unified with it — a different
+// player identity (espn_id, not gsis_id) and a category/roto scoring model
+// instead of NFL's per-stat point weights. No contracts/cap/draft/FA yet
+// (deferred — see .claude/plans). See league_rosters_nba.go/schedule_nba.go/
+// scoring_nba.go.
+
+export const NBA_CATEGORIES = [
+  'points', 'rebounds', 'assists', 'steals', 'blocks', 'turnovers', 'three_pm', 'fg_pct', 'ft_pct',
+] as const
+export type NBACategory = (typeof NBA_CATEGORIES)[number]
+
+export const NBA_CATEGORY_LABELS: Record<NBACategory, string> = {
+  points: 'PTS', rebounds: 'REB', assists: 'AST', steals: 'STL', blocks: 'BLK',
+  turnovers: 'TO', three_pm: '3PM', fg_pct: 'FG%', ft_pct: 'FT%',
+}
+
+export const NBA_SLOT_POSITIONS = ['G', 'F', 'C', 'UTIL', 'BN', 'IR'] as const
+export type NBASlotPosition = (typeof NBA_SLOT_POSITIONS)[number]
+export const NBA_SLOT_LABELS: Record<NBASlotPosition, string> = {
+  G: 'G', F: 'F', C: 'C', UTIL: 'UTIL', BN: 'BENCH', IR: 'IR',
+}
+
+export interface NBACategoryEntry {
+  category: NBACategory
+  value: number
+}
+
+export interface NBARosterEntry {
+  espn_id: string
+  name: string
+  position: string
+  team: string
+  headshot_url?: string
+  team_id: number
+  slot: string
+  acquired_via: string
+  acquired_at: string
+  stats?: NBACategoryEntry[]
+}
+
+export interface NBAFreeAgent {
+  espn_id: string
+  name: string
+  position: string
+  team: string
+  headshot_url?: string
+  stats?: NBACategoryEntry[]
+}
+
+export const getLeagueRostersNBA = (leagueId: number) =>
+  request<NBARosterEntry[]>(`/leagues/${leagueId}/rosters-nba`)
+
+export const assignLeagueRosterNBA = (
+  leagueId: number,
+  data: { espn_id: string; team_id: number; slot?: string; acquired_via: string }
+) =>
+  request<{ status: string }>(`/leagues/${leagueId}/rosters-nba`, { method: 'POST', body: JSON.stringify(data) })
+
+export const updateLeagueRosterNBA = (
+  leagueId: number,
+  espnId: string,
+  patch: { team_id?: number; slot?: string }
+) =>
+  request<{ status: string }>(`/leagues/${leagueId}/rosters-nba/${encodeURIComponent(espnId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  })
+
+export const dropLeagueRosterNBA = (leagueId: number, espnId: string) =>
+  request<{ status: string }>(`/leagues/${leagueId}/rosters-nba/${encodeURIComponent(espnId)}`, { method: 'DELETE' })
+
+export const getLeagueFreeAgentsNBA = (leagueId: number, position = '', limit = 100, offset = 0, search = '') => {
+  const params = new URLSearchParams()
+  if (position) params.set('position', position)
+  params.set('limit', String(limit))
+  if (offset > 0) params.set('offset', String(offset))
+  if (search) params.set('search', search)
+  return request<NBAFreeAgent[]>(`/leagues/${leagueId}/free-agents-nba?${params.toString()}`)
+}
+
+export const generateLeagueScheduleNBA = (leagueId: number, seasonStartDate: string, season?: number, weeks?: number) =>
+  request<{ status: string; season: number; weeks: number; matchups: number }>(
+    `/leagues/${leagueId}/schedule-nba/generate`,
+    { method: 'POST', body: JSON.stringify({ season, weeks, season_start_date: seasonStartDate }) }
+  )
+
+export const scoreLeagueWeekNBA = (leagueId: number, week: number, season?: number) => {
+  const params = new URLSearchParams({ week: String(week) })
+  if (season) params.set('season', String(season))
+  return request<{ status: string; week: number; season: number; matchups: number }>(
+    `/leagues/${leagueId}/scoreboard-nba/score?${params.toString()}`, { method: 'POST' }
+  )
+}
+
+export interface NBACategoryResult extends NBACategoryEntry {
+  won: boolean
+}
+
+export interface NBAMatchupTeam {
+  team_id: number
+  name: string
+  categories?: NBACategoryResult[]
+  categories_won: number
+}
+
+export interface NBAMatchup {
+  week: number
+  status: 'preevent' | 'postevent'
+  is_playoffs: string
+  teams: NBAMatchupTeam[]
+}
+
+export interface NBAScoreboard {
+  week: number
+  matchups: NBAMatchup[]
+}
+
+export const getLeagueScoreboardNBA = (leagueId: number, week?: number) =>
+  request<NBAScoreboard>(`/leagues/${leagueId}/scoreboard-nba${week ? `?week=${week}` : ''}`)
+
+export interface NBAStanding {
+  team_id: number
+  name: string
+  rank: number
+  wins: number
+  losses: number
+  ties: number
+  percentage: string
+  category_wins: number
+  category_losses: number
+  last5: string[]
+}
+
+export const getLeagueStandingsNBA = (leagueId: number) =>
+  request<NBAStanding[]>(`/leagues/${leagueId}/standings-nba`)
+
 // --- Free agency (native leagues only) ---
 // Teams offer contracts, the player signs the best one — no FAAB, the
 // salary cap is the only currency. See free_agency.go.
