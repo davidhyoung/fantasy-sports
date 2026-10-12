@@ -137,7 +137,7 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
   // pool regardless of which view the user happens to be browsing.
   const { data: freeAgents, isFetching: loadingFA } = useQuery({
     queryKey: keys.freeAgentsNBAView(leagueId, '', '', period),
-    queryFn: () => getLeagueFreeAgentsNBA(leagueId, '', 200, 0, '', period),
+    queryFn: () => getLeagueFreeAgentsNBA(leagueId, '', 500, 0, '', period),
     enabled: active,
   })
   const { data: roster, isFetching: loadingRoster } = useQuery({

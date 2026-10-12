@@ -300,6 +300,12 @@ func (h *Handler) GetLeagueFreeAgentsNBA(w http.ResponseWriter, r *http.Request)
 		FROM nba_players p
 		LEFT JOIN league_rosters_nba lr ON lr.league_id = $1 AND lr.espn_id = p.espn_id
 		WHERE lr.espn_id IS NULL
+		  -- Excludes historical stat-stub rows (cmd/import-nba inserts a
+		  -- position-less stub for any box-score player not on a currently
+		  -- tracked roster) — a free agent should be someone actually
+		  -- eligible to roster today, not a decades-old player ESPN's
+		  -- scoreboard happened to mention.
+		  AND p.position IS NOT NULL AND p.position != ''
 		  AND ($2 = '' OR p.position = $2)
 		  AND ($3 = '' OR p.name ILIKE '%' || $3 || '%')
 		ORDER BY p.name
