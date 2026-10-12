@@ -6,7 +6,7 @@ import { PlayerCell, ClickableRow, HeaderRow, SortableHead, useTableSort, ZScore
 import { FilterChip } from '@/components/ui/filter-chip'
 import { Input } from '@/components/ui/input'
 import {
-  getLeagueRostersNBA, getLeagueFreeAgentsNBA, NBA_CATEGORY_LABELS,
+  getLeagueRostersNBA, getLeagueFreeAgentsNBA, getLeagueSettings, NBA_CATEGORY_LABELS,
   NBA_STAT_PERIODS, NBA_STAT_PERIOD_LABELS, type NBACategory, type NBAStatPeriod,
   type NBARosterEntry, type NBAFreeAgent, type Team,
 } from '@/api/client'
@@ -33,6 +33,31 @@ interface Props {
 
 function statValue(row: PlayerRow, cat: NBACategory) {
   return row.stats?.find((s) => s.category === cat)?.value ?? 0
+}
+
+/** Rough, deliberately simple value index (counting categories, turnovers
+ *  subtracted, no z-scoring) used only to pick out the "rostered player"
+ *  pool below — not the final ranking, which is the z-score sum computed
+ *  from the baseline that pool produces. */
+function roughValue(row: PlayerRow) {
+  return statValue(row, 'points') + statValue(row, 'rebounds') + statValue(row, 'assists')
+    + statValue(row, 'steals') + statValue(row, 'blocks') + statValue(row, 'three_pm')
+    - statValue(row, 'turnovers')
+}
+
+/**
+ * The top `rosterPoolSize` players by roughValue — "average" should mean
+ * the average *rostered* player, not an entire pool padded with 200+ free
+ * agents nobody would actually roster, which would drag the baseline down
+ * and make an ordinary rostered player look like a false outlier.
+ * `rosterPoolSize` is the league's real roster math (num_teams × every
+ * roster slot, BN/IR included — anyone a team would actually carry, not
+ * just starters) — falls back to the full pool when settings haven't
+ * loaded yet or the pool is already smaller than that count.
+ */
+function rosteredPlayerPool(rows: PlayerRow[], rosterPoolSize: number): PlayerRow[] {
+  if (rosterPoolSize <= 0 || rows.length <= rosterPoolSize) return rows
+  return [...rows].sort((a, b) => roughValue(b) - roughValue(a)).slice(0, rosterPoolSize)
 }
 
 interface CategoryStat { cat: NBACategory; mean: number; stdev: number }
@@ -107,19 +132,29 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
   const [detailPeriod, setDetailPeriod] = useState<NBAStatPeriod>('season')
   const { sortCol, sortDir, handleSort } = useTableSort('rank', 'asc', ['rank', 'player', 'team', 'pos', 'rostered_by'])
 
-  const faEnabled = active && (view === 'free-agents' || view === 'all')
-  const rosterEnabled = active && (view === 'rostered' || view === 'all')
-
+  // Both lists are always fetched (not gated by `view`) because the
+  // "average rostered player" baseline below needs the full league-wide
+  // pool regardless of which view the user happens to be browsing.
   const { data: freeAgents, isFetching: loadingFA } = useQuery({
     queryKey: keys.freeAgentsNBAView(leagueId, '', '', period),
     queryFn: () => getLeagueFreeAgentsNBA(leagueId, '', 200, 0, '', period),
-    enabled: faEnabled,
+    enabled: active,
   })
   const { data: roster, isFetching: loadingRoster } = useQuery({
     queryKey: keys.leagueRostersNBAView(leagueId, period),
     queryFn: () => getLeagueRostersNBA(leagueId, period),
-    enabled: rosterEnabled,
+    enabled: active,
   })
+  const { data: settings } = useQuery({
+    queryKey: keys.leagueSettings(leagueId),
+    queryFn: () => getLeagueSettings(leagueId),
+    enabled: active,
+  })
+  // Every roster slot (BN/IR included — a real rostered player, not just a
+  // starter) × num_teams.
+  const rosterPoolSize = settings
+    ? settings.num_teams * Object.values(settings.slots).reduce((sum, n) => sum + n, 0)
+    : 0
 
   const teamName = (id: number) => teams.find((t) => t.id === id)?.name ?? `Team ${id}`
   const togglePosition = (p: string) => {
@@ -131,18 +166,22 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
   }
   const matchesPosition = (position: string) => positions.size === 0 || positions.has(position)
 
-  const loading = view === 'free-agents' ? loadingFA : view === 'rostered' ? loadingRoster : loadingFA || loadingRoster
+  const loading = loadingFA || loadingRoster
   // Free agents and rostered players are mutually exclusive sets by
   // definition (free-agents-nba is nba_players minus league_rosters_nba),
-  // so "All" is a plain concatenation — no dedup needed.
+  // so concatenating them is never a dedup concern.
+  const allRows: PlayerRow[] = useMemo(() => [...(roster ?? []), ...(freeAgents ?? [])], [roster, freeAgents])
   const baseRows: PlayerRow[] = useMemo(() =>
     view === 'free-agents' ? (freeAgents ?? [])
     : view === 'rostered' ? (roster ?? [])
-    : [...(roster ?? []), ...(freeAgents ?? [])],
-    [view, freeAgents, roster]
+    : allRows,
+    [view, freeAgents, roster, allRows]
   )
   const showRosteredBy = view === 'rostered' || view === 'all'
-  const catStats = useMemo(() => computeCategoryStats(baseRows), [baseRows])
+  // Baseline is always the league-wide rostered-player pool (see
+  // rosteredPlayerPool), independent of `view` — switching to the Free
+  // Agents tab shouldn't change what "average" means.
+  const catStats = useMemo(() => computeCategoryStats(rosteredPlayerPool(allRows, rosterPoolSize)), [allRows, rosterPoolSize])
   const ranks = useMemo(() => computeRanks(baseRows, catStats), [baseRows, catStats])
 
   const search_ = search.trim().toLowerCase()
