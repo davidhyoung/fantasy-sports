@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { Table, TableHeader, TableBody, TableCell } from '@/components/ui/table'
-import { PlayerCell, ClickableRow, HeaderRow, SortableHead, useTableSort } from '@/components/ui/table-helpers'
+import { PlayerCell, ClickableRow, HeaderRow, SortableHead, useTableSort, ZScoreCell } from '@/components/ui/table-helpers'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { Input } from '@/components/ui/input'
 import {
@@ -35,33 +35,43 @@ function statValue(row: PlayerRow, cat: NBACategory) {
   return row.stats?.find((s) => s.category === cat)?.value ?? 0
 }
 
-/**
- * Population mean/stdev z-score per category, summed into one score —
- * same "overall_score = weighted z-sum" shape the NFL z-score ranker
- * (analysis.go) established, simplified here (no CV×scarcity weighting,
- * just an equal-weight sum) since this is a client-side convenience rank
- * over whichever pool/period is currently on screen, not a persisted
- * league-wide ranking. Turnovers is the one category where lower is
- * better, so its z-score is negated before summing. Computed over the
- * view's full pool (pre position-filter, pre-search) so the rank number
- * stays stable while the user narrows what's visible.
- */
-function computeRanks(rows: PlayerRow[]): Map<string, number> {
-  const stats = CATEGORIES.map((cat) => {
+interface CategoryStat { cat: NBACategory; mean: number; stdev: number }
+
+/** Population mean/stdev per category over the given pool. */
+function computeCategoryStats(rows: PlayerRow[]): CategoryStat[] {
+  return CATEGORIES.map((cat) => {
     const values = rows.map((r) => statValue(r, cat))
     const mean = values.reduce((a, b) => a + b, 0) / (values.length || 1)
     const variance = values.reduce((a, v) => a + (v - mean) ** 2, 0) / (values.length || 1)
     return { cat, mean, stdev: Math.sqrt(variance) }
   })
+}
 
-  const scored = rows.map((r) => {
-    const total = stats.reduce((sum, { cat, mean, stdev }) => {
-      if (stdev === 0) return sum
-      const z = (statValue(r, cat) - mean) / stdev
-      return sum + (cat === 'turnovers' ? -z : z)
-    }, 0)
-    return { espnId: r.espn_id, total }
-  })
+/** A category's z-score for one player, direction-corrected so "positive"
+ *  always means "good for fantasy" — turnovers is the one category where a
+ *  lower raw value is better, so its z-score is negated here (both for the
+ *  cell color below and the rank sum this feeds). */
+function fantasyZScore(row: PlayerRow, cat: NBACategory, catStats: CategoryStat[]): number {
+  const s = catStats.find((c) => c.cat === cat)
+  if (!s || s.stdev === 0) return 0
+  const z = (statValue(row, cat) - s.mean) / s.stdev
+  return cat === 'turnovers' ? -z : z
+}
+
+/**
+ * Equal-weight z-score sum per player, same "overall_score = weighted
+ * z-sum" shape the NFL z-score ranker (analysis.go) established, simplified
+ * here (no CV×scarcity weighting) since this is a client-side convenience
+ * rank over whichever pool/period is currently on screen, not a persisted
+ * league-wide ranking. Computed over the view's full pool (pre
+ * position-filter, pre-search) so the rank number stays stable while the
+ * user narrows what's visible.
+ */
+function computeRanks(rows: PlayerRow[], catStats: CategoryStat[]): Map<string, number> {
+  const scored = rows.map((r) => ({
+    espnId: r.espn_id,
+    total: CATEGORIES.reduce((sum, cat) => sum + fantasyZScore(r, cat, catStats), 0),
+  }))
   scored.sort((a, b) => b.total - a.total)
 
   const ranks = new Map<string, number>()
@@ -132,7 +142,8 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
     [view, freeAgents, roster]
   )
   const showRosteredBy = view === 'rostered' || view === 'all'
-  const ranks = useMemo(() => computeRanks(baseRows), [baseRows])
+  const catStats = useMemo(() => computeCategoryStats(baseRows), [baseRows])
+  const ranks = useMemo(() => computeRanks(baseRows, catStats), [baseRows, catStats])
 
   const search_ = search.trim().toLowerCase()
   const filteredRows = baseRows.filter((p) => {
@@ -248,9 +259,11 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
                     const isPct = cat === 'fg_pct' || cat === 'ft_pct'
                     const isAvg = period === 'season_avg' || period === 'last_season_avg'
                     return (
-                      <TableCell key={cat} className="text-right font-mono tabular-nums">
-                        {v != null ? v.toFixed(isPct ? 3 : isAvg ? 1 : 0) : '—'}
-                      </TableCell>
+                      <ZScoreCell
+                        key={cat}
+                        value={v != null ? v.toFixed(isPct ? 3 : isAvg ? 1 : 0) : '—'}
+                        zScore={v != null ? fantasyZScore(p, cat, catStats) : 0}
+                      />
                     )
                   })}
                   {showRosteredBy && (
