@@ -1272,6 +1272,36 @@ export const setDraftPrepPlayer = (
     body: JSON.stringify(body),
   })
 
+// --- NBA draft prep ---
+// Simplified relative to the NFL board above (no custom_rank/tier,
+// planned_cost, my_value) — native NBA leagues have no auction dollars or
+// tiering system yet, so there's nothing for a cost or tier field to mean.
+
+export interface DraftPrepEntryNBA {
+  espn_id: string
+  interest: InterestLevel | null
+  note: string
+}
+
+export interface DraftPrepResponseNBA {
+  season: number
+  players: DraftPrepEntryNBA[]
+}
+
+export const getDraftPrepNBA = (leagueId: number, season: number) =>
+  request<DraftPrepResponseNBA>(`/leagues/${leagueId}/draft-prep-nba?season=${season}`)
+
+export const setDraftPrepPlayerNBA = (
+  leagueId: number,
+  season: number,
+  espnId: string,
+  body: { interest: InterestLevel | null; note: string },
+) =>
+  request<DraftPrepEntryNBA>(`/leagues/${leagueId}/draft-prep-nba/${espnId}?season=${season}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+
 /** Replaces the whole board order — position in the array becomes the rank. */
 export const reorderDraftPrep = (leagueId: number, season: number, gsisIds: string[]) =>
   request<{ ranked: number }>(`/leagues/${leagueId}/draft-prep/order?season=${season}`, {

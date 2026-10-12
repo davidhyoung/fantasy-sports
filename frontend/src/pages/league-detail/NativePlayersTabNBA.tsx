@@ -7,11 +7,15 @@ import { FilterChip } from '@/components/ui/filter-chip'
 import { Input } from '@/components/ui/input'
 import {
   getLeagueRostersNBA, getLeagueFreeAgentsNBA, getLeagueSettings, NBA_CATEGORY_LABELS,
-  NBA_STAT_PERIODS, NBA_STAT_PERIOD_LABELS, type NBACategory, type NBAStatPeriod,
-  type NBARosterEntry, type NBAFreeAgent, type Team,
+  NBA_STAT_PERIODS, NBA_STAT_PERIOD_LABELS, type NBACategory, type NBAStatPeriod, type Team,
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 import { NBAPlayerDetailPanel } from './components/NBAPlayerDetailPanel'
+import {
+  NBA_RANK_CATEGORIES as CATEGORIES, nbaStatValue as statValue, nbaRosteredPlayerPool as rosteredPlayerPool,
+  nbaComputeCategoryStats as computeCategoryStats, nbaFantasyZScore as fantasyZScore, nbaComputeRanks as computeRanks,
+  type NBAPlayerRow as PlayerRow,
+} from './lib/nbaRanking'
 
 const POSITIONS = ['G', 'F', 'C']
 type ViewOption = 'free-agents' | 'rostered' | 'all'
@@ -20,88 +24,11 @@ const VIEW_OPTIONS: { value: ViewOption; label: string }[] = [
   { value: 'rostered', label: 'Rostered' },
   { value: 'all', label: 'All' },
 ]
-const CATEGORIES = Object.keys(NBA_CATEGORY_LABELS) as NBACategory[]
-// A free agent has no team_id; normalizing it onto both shapes lets "All"
-// concatenate them into one typed, uniformly-rendered row list.
-type PlayerRow = (NBARosterEntry | (NBAFreeAgent & { team_id?: undefined })) & { team_id?: number }
 
 interface Props {
   leagueId: number
   active: boolean
   teams: Team[]
-}
-
-function statValue(row: PlayerRow, cat: NBACategory) {
-  return row.stats?.find((s) => s.category === cat)?.value ?? 0
-}
-
-/** Rough, deliberately simple value index (counting categories, turnovers
- *  subtracted, no z-scoring) used only to pick out the "rostered player"
- *  pool below — not the final ranking, which is the z-score sum computed
- *  from the baseline that pool produces. */
-function roughValue(row: PlayerRow) {
-  return statValue(row, 'points') + statValue(row, 'rebounds') + statValue(row, 'assists')
-    + statValue(row, 'steals') + statValue(row, 'blocks') + statValue(row, 'three_pm')
-    - statValue(row, 'turnovers')
-}
-
-/**
- * The top `rosterPoolSize` players by roughValue — "average" should mean
- * the average *rostered* player, not an entire pool padded with 200+ free
- * agents nobody would actually roster, which would drag the baseline down
- * and make an ordinary rostered player look like a false outlier.
- * `rosterPoolSize` is the league's real roster math (num_teams × every
- * roster slot, BN/IR included — anyone a team would actually carry, not
- * just starters) — falls back to the full pool when settings haven't
- * loaded yet or the pool is already smaller than that count.
- */
-function rosteredPlayerPool(rows: PlayerRow[], rosterPoolSize: number): PlayerRow[] {
-  if (rosterPoolSize <= 0 || rows.length <= rosterPoolSize) return rows
-  return [...rows].sort((a, b) => roughValue(b) - roughValue(a)).slice(0, rosterPoolSize)
-}
-
-interface CategoryStat { cat: NBACategory; mean: number; stdev: number }
-
-/** Population mean/stdev per category over the given pool. */
-function computeCategoryStats(rows: PlayerRow[]): CategoryStat[] {
-  return CATEGORIES.map((cat) => {
-    const values = rows.map((r) => statValue(r, cat))
-    const mean = values.reduce((a, b) => a + b, 0) / (values.length || 1)
-    const variance = values.reduce((a, v) => a + (v - mean) ** 2, 0) / (values.length || 1)
-    return { cat, mean, stdev: Math.sqrt(variance) }
-  })
-}
-
-/** A category's z-score for one player, direction-corrected so "positive"
- *  always means "good for fantasy" — turnovers is the one category where a
- *  lower raw value is better, so its z-score is negated here (both for the
- *  cell color below and the rank sum this feeds). */
-function fantasyZScore(row: PlayerRow, cat: NBACategory, catStats: CategoryStat[]): number {
-  const s = catStats.find((c) => c.cat === cat)
-  if (!s || s.stdev === 0) return 0
-  const z = (statValue(row, cat) - s.mean) / s.stdev
-  return cat === 'turnovers' ? -z : z
-}
-
-/**
- * Equal-weight z-score sum per player, same "overall_score = weighted
- * z-sum" shape the NFL z-score ranker (analysis.go) established, simplified
- * here (no CV×scarcity weighting) since this is a client-side convenience
- * rank over whichever pool/period is currently on screen, not a persisted
- * league-wide ranking. Computed over the view's full pool (pre
- * position-filter, pre-search) so the rank number stays stable while the
- * user narrows what's visible.
- */
-function computeRanks(rows: PlayerRow[], catStats: CategoryStat[]): Map<string, number> {
-  const scored = rows.map((r) => ({
-    espnId: r.espn_id,
-    total: CATEGORIES.reduce((sum, cat) => sum + fantasyZScore(r, cat, catStats), 0),
-  }))
-  scored.sort((a, b) => b.total - a.total)
-
-  const ranks = new Map<string, number>()
-  scored.forEach((s, i) => ranks.set(s.espnId, i + 1))
-  return ranks
 }
 
 function rowSearchText(row: PlayerRow, rosteredByLabel: string) {

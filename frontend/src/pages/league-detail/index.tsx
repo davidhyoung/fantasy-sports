@@ -17,6 +17,7 @@ import { NativeRosterTabNBA } from './NativeRosterTabNBA'
 import { NativePlayersTabNBA } from './NativePlayersTabNBA'
 import { NativeStandingsTabNBA } from './NativeStandingsTabNBA'
 import { NativeScoreboardTabNBA } from './NativeScoreboardTabNBA'
+import { NativeDraftPrepTabNBA } from './NativeDraftPrepTabNBA'
 import { DraftSection } from './DraftSection'
 import { MessagesTab } from './MessagesTab'
 import { ActivityRail } from './components/ActivityRail'
@@ -113,9 +114,10 @@ export default function LeagueDetail() {
           <TabsTrigger value="scoreboard">Scoreboard</TabsTrigger>
           <TabsTrigger value="players">Players</TabsTrigger>
           {isNative && !isNativeNBA && <TabsTrigger value="free-agency">Free Agency</TabsTrigger>}
-          {/* Draft/Messages aren't built for native NBA leagues yet (see
-              .claude/plans) — Draft covers draft values (NFL) + keepers (or
-              picks, for native NFL). */}
+          {/* Native NBA leagues have no draft room/auction yet (see
+              .claude/plans) — Draft Prep is a personal pre-draft board only,
+              not the NFL Draft tab's values/keepers pair. */}
+          {isNativeNBA && <TabsTrigger value="draft-prep">Draft Prep</TabsTrigger>}
           {!isNativeNBA && <TabsTrigger value="draft">Draft</TabsTrigger>}
           {isNative && !isNativeNBA && (
             <TabsTrigger value="messages">
@@ -184,6 +186,16 @@ export default function LeagueDetail() {
         {isNative && !isNativeNBA && (
           <TabsContent value="free-agency">
             <NativeFreeAgencyTab leagueId={leagueId} active={visibleTab === 'free-agency'} teams={teams} myTeam={myTeam} />
+          </TabsContent>
+        )}
+
+        {isNativeNBA && (
+          <TabsContent value="draft-prep">
+            <NativeDraftPrepTabNBA
+              leagueId={leagueId}
+              active={visibleTab === 'draft-prep'}
+              season={parseInt(league.season, 10) || new Date().getFullYear()}
+            />
           </TabsContent>
         )}
 
