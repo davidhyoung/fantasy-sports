@@ -4,10 +4,22 @@ import { Loader2 } from 'lucide-react'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
 import { PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
 import { FilterChip } from '@/components/ui/filter-chip'
-import { getLeagueRostersNBA, getLeagueFreeAgentsNBA, NBA_CATEGORY_LABELS, type Team } from '@/api/client'
+import {
+  getLeagueRostersNBA, getLeagueFreeAgentsNBA, NBA_CATEGORY_LABELS,
+  NBA_STAT_PERIODS, NBA_STAT_PERIOD_LABELS, type NBAStatPeriod, type NBARosterEntry, type NBAFreeAgent, type Team,
+} from '@/api/client'
 import { keys } from '@/api/queryKeys'
 
 const POSITIONS = ['G', 'F', 'C']
+type ViewOption = 'free-agents' | 'rostered' | 'all'
+const VIEW_OPTIONS: { value: ViewOption; label: string }[] = [
+  { value: 'free-agents', label: 'Free Agents' },
+  { value: 'rostered', label: 'Rostered' },
+  { value: 'all', label: 'All' },
+]
+// A free agent has no team_id; normalizing it onto both shapes lets "All"
+// concatenate them into one typed, uniformly-rendered row list.
+type PlayerRow = (NBARosterEntry | (NBAFreeAgent & { team_id?: undefined })) & { team_id?: number }
 
 interface Props {
   leagueId: number
@@ -16,26 +28,31 @@ interface Props {
 }
 
 /**
- * Players tab for a native NBA league — Free Agents/Rostered toggle, same
- * "filled tray, not chips" convention as the NFL version. Category columns
- * are fixed (all 9 roto categories — no per-league "relevant" filtering,
- * unlike the NFL side's scored-stats-only columns, since a native NBA
- * league's scoring.json controls week-to-week category inclusion, not
+ * Players tab for a native NBA league — Free Agents/Rostered/All toggle,
+ * same "filled tray, not chips" convention as the NFL version, plus a
+ * timeframe picker (see NBA_STAT_PERIODS) that drives both queries. Category
+ * columns are fixed (all 9 roto categories — no per-league "relevant"
+ * filtering, unlike the NFL side's scored-stats-only columns, since a native
+ * NBA league's scoring.json controls week-to-week category inclusion, not
  * whether a category has any meaning to show at all).
  */
 export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
-  const [view, setView] = useState<'free-agents' | 'rostered'>('free-agents')
+  const [view, setView] = useState<ViewOption>('free-agents')
+  const [period, setPeriod] = useState<NBAStatPeriod>('season')
   const [positions, setPositions] = useState<Set<string>>(new Set())
 
+  const faEnabled = active && (view === 'free-agents' || view === 'all')
+  const rosterEnabled = active && (view === 'rostered' || view === 'all')
+
   const { data: freeAgents, isFetching: loadingFA } = useQuery({
-    queryKey: keys.freeAgentsNBA(leagueId, ''),
-    queryFn: () => getLeagueFreeAgentsNBA(leagueId, '', 200),
-    enabled: active && view === 'free-agents',
+    queryKey: keys.freeAgentsNBAView(leagueId, '', '', period),
+    queryFn: () => getLeagueFreeAgentsNBA(leagueId, '', 200, 0, '', period),
+    enabled: faEnabled,
   })
   const { data: roster, isFetching: loadingRoster } = useQuery({
-    queryKey: keys.leagueRostersNBA(leagueId),
-    queryFn: () => getLeagueRostersNBA(leagueId),
-    enabled: active && view === 'rostered',
+    queryKey: keys.leagueRostersNBAView(leagueId, period),
+    queryFn: () => getLeagueRostersNBA(leagueId, period),
+    enabled: rosterEnabled,
   })
 
   if (!active) return null
@@ -50,14 +67,22 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
   }
   const matchesPosition = (position: string) => positions.size === 0 || positions.has(position)
 
-  const loading = view === 'free-agents' ? loadingFA : loadingRoster
-  const rows = view === 'free-agents' ? (freeAgents ?? []).filter((p) => matchesPosition(p.position)) : (roster ?? []).filter((p) => matchesPosition(p.position))
+  const loading = view === 'free-agents' ? loadingFA : view === 'rostered' ? loadingRoster : loadingFA || loadingRoster
+  // Free agents and rostered players are mutually exclusive sets by
+  // definition (free-agents-nba is nba_players minus league_rosters_nba),
+  // so "All" is a plain concatenation — no dedup needed.
+  const baseRows: PlayerRow[] =
+    view === 'free-agents' ? (freeAgents ?? [])
+    : view === 'rostered' ? (roster ?? [])
+    : [...(roster ?? []), ...(freeAgents ?? [])]
+  const rows = baseRows.filter((p) => matchesPosition(p.position))
+  const showRosteredBy = view === 'rostered' || view === 'all'
 
   return (
     <>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="flex w-fit flex-none rounded-lg bg-muted overflow-hidden">
-          {([{ value: 'free-agents' as const, label: 'Free Agents' }, { value: 'rostered' as const, label: 'Rostered' }]).map((s) => (
+          {VIEW_OPTIONS.map((s) => (
             <button
               key={s.value}
               onClick={() => setView(s.value)}
@@ -66,6 +91,19 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
               }`}
             >
               {s.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex w-fit flex-none rounded-lg bg-muted overflow-hidden">
+          {NBA_STAT_PERIODS.map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`px-3 py-1.5 font-display text-xs font-semibold whitespace-nowrap ${
+                period === p ? 'bg-foreground text-background' : 'bg-card text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {NBA_STAT_PERIOD_LABELS[p]}
             </button>
           ))}
         </div>
@@ -80,7 +118,7 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
       {loading ? (
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       ) : rows.length === 0 ? (
-        <p className="text-muted-foreground">{view === 'free-agents' ? 'No free agents match this filter.' : 'No players rostered yet.'}</p>
+        <p className="text-muted-foreground">{view === 'free-agents' ? 'No free agents match this filter.' : view === 'rostered' ? 'No players rostered yet.' : 'No players match this filter.'}</p>
       ) : (
         <div className="rounded-lg bg-card overflow-x-auto max-w-[calc(100vw-3rem)]">
           <Table>
@@ -92,7 +130,7 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
                 {Object.values(NBA_CATEGORY_LABELS).map((label) => (
                   <TableHead key={label} className="text-right">{label}</TableHead>
                 ))}
-                {view === 'rostered' && <TableHead>Rostered By</TableHead>}
+                {showRosteredBy && <TableHead>Rostered By</TableHead>}
               </HeaderRow>
             </TableHeader>
             <TableBody>
@@ -103,14 +141,17 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
                   <TableCell className="text-muted-foreground">{p.position}</TableCell>
                   {Object.keys(NBA_CATEGORY_LABELS).map((cat) => {
                     const v = p.stats?.find((s) => s.category === cat)?.value
+                    const isPct = cat === 'fg_pct' || cat === 'ft_pct'
                     return (
                       <TableCell key={cat} className="text-right font-mono tabular-nums">
-                        {v != null ? (cat === 'fg_pct' || cat === 'ft_pct' ? v.toFixed(3) : v) : '—'}
+                        {v != null ? v.toFixed(isPct ? 3 : period === 'season_avg' ? 1 : 0) : '—'}
                       </TableCell>
                     )
                   })}
-                  {view === 'rostered' && 'team_id' in p && (
-                    <TableCell className="text-muted-foreground">{teamName((p as { team_id: number }).team_id)}</TableCell>
+                  {showRosteredBy && (
+                    <TableCell className="text-muted-foreground">
+                      {p.team_id != null ? teamName(p.team_id) : 'Free Agent'}
+                    </TableCell>
                   )}
                 </ClickableRow>
               ))}

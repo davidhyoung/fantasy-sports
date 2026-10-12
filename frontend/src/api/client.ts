@@ -450,6 +450,21 @@ export interface NBACategoryEntry {
   value: number
 }
 
+// The Players/Roster tab timeframe picker's vocabulary — see
+// parseNBAStatPeriod (backend) for exactly what each resolves to.
+export const NBA_STAT_PERIODS = ['last_season', 'season', 'season_avg', 'last4weeks', 'lastweek'] as const
+export type NBAStatPeriod = (typeof NBA_STAT_PERIODS)[number]
+export const NBA_STAT_PERIOD_LABELS: Record<NBAStatPeriod, string> = {
+  last_season: 'Last Season', season: 'Season Total', season_avg: 'Season Avg',
+  last4weeks: 'Last 4 Weeks', lastweek: 'Last Week',
+}
+
+function nbaStatPeriodParams(period: NBAStatPeriod) {
+  const params = new URLSearchParams()
+  params.set('period', period)
+  return params
+}
+
 export interface NBARosterEntry {
   espn_id: string
   name: string
@@ -472,8 +487,8 @@ export interface NBAFreeAgent {
   stats?: NBACategoryEntry[]
 }
 
-export const getLeagueRostersNBA = (leagueId: number) =>
-  request<NBARosterEntry[]>(`/leagues/${leagueId}/rosters-nba`)
+export const getLeagueRostersNBA = (leagueId: number, period: NBAStatPeriod = 'season') =>
+  request<NBARosterEntry[]>(`/leagues/${leagueId}/rosters-nba?${nbaStatPeriodParams(period).toString()}`)
 
 export const assignLeagueRosterNBA = (
   leagueId: number,
@@ -494,8 +509,10 @@ export const updateLeagueRosterNBA = (
 export const dropLeagueRosterNBA = (leagueId: number, espnId: string) =>
   request<{ status: string }>(`/leagues/${leagueId}/rosters-nba/${encodeURIComponent(espnId)}`, { method: 'DELETE' })
 
-export const getLeagueFreeAgentsNBA = (leagueId: number, position = '', limit = 100, offset = 0, search = '') => {
-  const params = new URLSearchParams()
+export const getLeagueFreeAgentsNBA = (
+  leagueId: number, position = '', limit = 100, offset = 0, search = '', period: NBAStatPeriod = 'season'
+) => {
+  const params = nbaStatPeriodParams(period)
   if (position) params.set('position', position)
   params.set('limit', String(limit))
   if (offset > 0) params.set('offset', String(offset))

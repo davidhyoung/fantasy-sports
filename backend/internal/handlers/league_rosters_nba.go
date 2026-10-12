@@ -86,11 +86,31 @@ func nbaRatio(made, att float64) float64 {
 	return made / att
 }
 
-// nbaSeasonCategoryStats returns season-to-date aggregated category totals
-// for the given players, restricted to whichever categories this league's
-// scoring actually includes (nonzero in league_settings.scoring) — same
-// "relevant" filtering convention relevantPlayerStats established for NFL.
-func (h *Handler) nbaSeasonCategoryStats(ctx context.Context, leagueID int64, season int, espnIDs []string) (map[string][]nbaCategoryEntry, error) {
+// validNBAStatPeriods is the Players/Roster tab timeframe picker's
+// vocabulary. "season"/"season_avg" share the current-season total query,
+// differing only in whether counting categories get divided by games
+// played; "last_season" swaps in season-1; "last4weeks"/"lastweek" stay
+// within the current season but add a trailing game_date cutoff. fg_pct/
+// ft_pct are always a ratio of aggregated makes/attempts, never averaged,
+// so "_avg" has no effect on them.
+var validNBAStatPeriods = map[string]bool{
+	"season": true, "season_avg": true, "last_season": true, "last4weeks": true, "lastweek": true,
+}
+
+func parseNBAStatPeriod(r *http.Request) string {
+	p := r.URL.Query().Get("period")
+	if validNBAStatPeriods[p] {
+		return p
+	}
+	return "season"
+}
+
+// nbaCategoryStats returns aggregated category totals for the given players
+// over the requested period, restricted to whichever categories this
+// league's scoring actually includes (nonzero in league_settings.scoring) —
+// same "relevant" filtering convention relevantPlayerStats established for
+// NFL.
+func (h *Handler) nbaCategoryStats(ctx context.Context, leagueID int64, season int, period string, espnIDs []string) (map[string][]nbaCategoryEntry, error) {
 	out := map[string][]nbaCategoryEntry{}
 	if len(espnIDs) == 0 {
 		return out, nil
@@ -116,17 +136,33 @@ func (h *Handler) nbaSeasonCategoryStats(ctx context.Context, leagueID int64, se
 		return out, nil
 	}
 
-	rows, err := h.db.Query(ctx, `
+	statSeason := season
+	if period == "last_season" {
+		statSeason = season - 1
+	}
+
+	query := `
 		SELECT espn_id,
 		       COALESCE(SUM(points),0), COALESCE(SUM(rebounds),0), COALESCE(SUM(assists),0),
 		       COALESCE(SUM(steals),0), COALESCE(SUM(blocks),0), COALESCE(SUM(turnovers),0),
 		       COALESCE(SUM(fg3_made),0),
 		       COALESCE(SUM(fg_made),0), COALESCE(SUM(fg_att),0),
-		       COALESCE(SUM(ft_made),0), COALESCE(SUM(ft_att),0)
+		       COALESCE(SUM(ft_made),0), COALESCE(SUM(ft_att),0),
+		       COUNT(*)
 		FROM nba_player_stats
-		WHERE espn_id = ANY($1) AND season = $2
-		GROUP BY espn_id
-	`, espnIDs, season)
+		WHERE espn_id = ANY($1) AND season = $2`
+	args := []any{espnIDs, statSeason}
+	switch period {
+	case "last4weeks":
+		query += " AND game_date >= $3"
+		args = append(args, time.Now().AddDate(0, 0, -28))
+	case "lastweek":
+		query += " AND game_date >= $3"
+		args = append(args, time.Now().AddDate(0, 0, -7))
+	}
+	query += " GROUP BY espn_id"
+
+	rows, err := h.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -135,12 +171,17 @@ func (h *Handler) nbaSeasonCategoryStats(ctx context.Context, leagueID int64, se
 	for rows.Next() {
 		var espnID string
 		var pts, reb, ast, stl, blk, tov, fg3m, fgm, fga, ftm, fta float64
-		if err := rows.Scan(&espnID, &pts, &reb, &ast, &stl, &blk, &tov, &fg3m, &fgm, &fga, &ftm, &fta); err != nil {
+		var games int
+		if err := rows.Scan(&espnID, &pts, &reb, &ast, &stl, &blk, &tov, &fg3m, &fgm, &fga, &ftm, &fta, &games); err != nil {
 			return nil, err
 		}
+		divisor := 1.0
+		if period == "season_avg" && games > 0 {
+			divisor = float64(games)
+		}
 		totals := map[string]float64{
-			"points": pts, "rebounds": reb, "assists": ast, "steals": stl, "blocks": blk,
-			"turnovers": tov, "three_pm": fg3m,
+			"points": pts / divisor, "rebounds": reb / divisor, "assists": ast / divisor, "steals": stl / divisor, "blocks": blk / divisor,
+			"turnovers": tov / divisor, "three_pm": fg3m / divisor,
 			"fg_pct": nbaRatio(fgm, fga), "ft_pct": nbaRatio(ftm, fta),
 		}
 		entries := make([]nbaCategoryEntry, 0, len(relevant))
@@ -154,7 +195,7 @@ func (h *Handler) nbaSeasonCategoryStats(ctx context.Context, leagueID int64, se
 
 // GetLeagueRostersNBA returns every rostered player in a native NBA league.
 //
-// GET /api/leagues/{id}/rosters-nba
+// GET /api/leagues/{id}/rosters-nba?period=
 func (h *Handler) GetLeagueRostersNBA(w http.ResponseWriter, r *http.Request) {
 	leagueID, err := parseID(r, "id")
 	if err != nil {
@@ -162,6 +203,7 @@ func (h *Handler) GetLeagueRostersNBA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	season := h.leagueSeasonInt(r, leagueID)
+	period := parseNBAStatPeriod(r)
 
 	rows, err := h.db.Query(r.Context(), `
 		SELECT lr.espn_id, p.name, COALESCE(p.position, ''), COALESCE(p.team, ''), COALESCE(p.headshot_url, ''),
@@ -191,7 +233,7 @@ func (h *Handler) GetLeagueRostersNBA(w http.ResponseWriter, r *http.Request) {
 	}
 	rows.Close()
 
-	statsByPlayer, err := h.nbaSeasonCategoryStats(r.Context(), leagueID, season, espnIDs)
+	statsByPlayer, err := h.nbaCategoryStats(r.Context(), leagueID, season, period, espnIDs)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -206,7 +248,7 @@ func (h *Handler) GetLeagueRostersNBA(w http.ResponseWriter, r *http.Request) {
 // GetLeagueFreeAgentsNBA returns players in a native NBA league with no
 // roster row — nba_players minus league_rosters_nba.
 //
-// GET /api/leagues/{id}/free-agents-nba?position=&limit=&offset=&search=
+// GET /api/leagues/{id}/free-agents-nba?position=&limit=&offset=&search=&period=
 func (h *Handler) GetLeagueFreeAgentsNBA(w http.ResponseWriter, r *http.Request) {
 	leagueID, err := parseID(r, "id")
 	if err != nil {
@@ -214,6 +256,7 @@ func (h *Handler) GetLeagueFreeAgentsNBA(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	season := h.leagueSeasonInt(r, leagueID)
+	period := parseNBAStatPeriod(r)
 
 	q := r.URL.Query()
 	position := q.Get("position")
@@ -260,7 +303,7 @@ func (h *Handler) GetLeagueFreeAgentsNBA(w http.ResponseWriter, r *http.Request)
 	}
 	rows.Close()
 
-	statsByPlayer, err := h.nbaSeasonCategoryStats(r.Context(), leagueID, season, espnIDs)
+	statsByPlayer, err := h.nbaCategoryStats(r.Context(), leagueID, season, period, espnIDs)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
