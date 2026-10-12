@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Table, TableHeader, TableBody, TableHead, TableCell, TableRow } from '@/components/ui/table'
 import { HeaderRow, PlayerCell, TeamAvatar } from '@/components/ui/table-helpers'
@@ -26,7 +27,11 @@ interface Props {
  */
 export function NativeRosterTabNBA({ leagueId, active, teams, myTeam }: Props) {
   const qc = useQueryClient()
-  const [teamId, setTeamId] = useState<number>(myTeam?.id ?? teams[0]?.id ?? 0)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const teamParam = Number(searchParams.get('team'))
+  const teamId = teams.some((t) => t.id === teamParam) ? teamParam : (myTeam?.id ?? teams[0]?.id ?? 0)
+  const selectTeam = (id: number) =>
+    setSearchParams((prev) => { prev.set('team', String(id)); return prev }, { replace: true })
   const [search, setSearch] = useState('')
 
   const { data: roster } = useQuery({
@@ -67,7 +72,7 @@ export function NativeRosterTabNBA({ leagueId, active, teams, myTeam }: Props) {
     <>
       <div className="mb-4 flex items-center gap-2">
         {selectedTeam && <TeamAvatar name={selectedTeam.name} />}
-        <SelectControl value={teamId} onChange={(e) => setTeamId(Number(e.target.value))}>
+        <SelectControl value={teamId} onChange={(e) => selectTeam(Number(e.target.value))}>
           {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </SelectControl>
       </div>
