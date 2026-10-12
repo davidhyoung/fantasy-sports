@@ -558,6 +558,28 @@ export interface NBAPlayerDetail {
   /** Historical player-seasons (same position) whose per-game stat line
    *  most resembles this player's own best-sample season, closest first. */
   comps: NBAPlayerComp[]
+  /** Comp-based next-season projection — null when there isn't enough data
+   *  to build one at all (no position, no seasons). See backend
+   *  nbaPlayerProjection for the method. */
+  projection: NBAProjection | null
+}
+
+export interface NBAProjectionComp {
+  espn_id: string
+  name: string
+  match_season: number
+  next_season: number
+  similarity: number
+  match_stats: NBACategoryEntry[]
+  next_stats: NBACategoryEntry[]
+}
+
+export interface NBAProjection {
+  base_season: number
+  target_season: number
+  stats: NBACategoryEntry[]
+  comp_count: number
+  comps: NBAProjectionComp[]
 }
 
 export const getNBAPlayer = (espnId: string, period: NBAStatPeriod = 'season', leagueId?: number) => {

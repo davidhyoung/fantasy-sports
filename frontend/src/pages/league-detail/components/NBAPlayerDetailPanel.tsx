@@ -98,6 +98,32 @@ export function NBAPlayerDetailPanel({ espnId, leagueId, period, onPeriodChange,
         </div>
       </div>
 
+      {data.projection && data.projection.comp_count > 0 && (
+        <div>
+          <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {data.projection.target_season} Projection
+          </span>
+          <p className="text-xs text-muted-foreground mt-1 mb-2">
+            Comp-based, grown from {data.name}'s {data.projection.base_season} per-game rate using {data.projection.comp_count} comp{data.projection.comp_count === 1 ? '' : 's'}.
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {data.projection.stats.map((s) => {
+              const isPct = s.category === 'fg_pct' || s.category === 'ft_pct'
+              return (
+                <div key={s.category} className="rounded-lg bg-highlight-light border border-highlight-border p-3 text-center">
+                  <div className="font-mono text-lg tabular-nums text-highlight-foreground">
+                    {s.value.toFixed(isPct ? 3 : 1)}
+                  </div>
+                  <div className="font-display text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mt-0.5">
+                    {NBA_CATEGORY_LABELS[s.category]}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {data.seasons.length > 0 && (
         <div>
           <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">

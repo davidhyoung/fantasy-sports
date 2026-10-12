@@ -25,6 +25,7 @@ type nbaPlayerDetailResp struct {
 	Stats        []nbaCategoryEntry    `json:"stats"`
 	Seasons      []nbaPlayerSeasonResp `json:"seasons"`
 	Comps        []nbaPlayerCompResp   `json:"comps"`
+	Projection   *nbaProjectionResp    `json:"projection"`
 }
 
 type nbaPlayerSeasonResp struct {
@@ -302,6 +303,13 @@ func (h *Handler) GetNBAPlayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.Comps = comps
+
+	projection, err := h.nbaPlayerProjection(r.Context(), espnID, p.Position, p.BirthDate, seasons)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	p.Projection = projection
 
 	respondJSON(w, http.StatusOK, p)
 }
