@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react'
 import { SidePanel } from '@/components/ui/side-panel'
 import { MobileSheet } from '@/components/ui/mobile-sheet'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { PlayerAvatar, HeaderRow } from '@/components/ui/table-helpers'
+import { PlayerAvatar, HeaderRow, ClickableRow } from '@/components/ui/table-helpers'
 import {
   getNBAPlayer, NBA_CATEGORY_LABELS, NBA_STAT_PERIODS, NBA_STAT_PERIOD_LABELS,
   type NBAStatPeriod, type NBACategory,
@@ -20,6 +20,9 @@ interface Props {
   period: NBAStatPeriod
   onPeriodChange: (p: NBAStatPeriod) => void
   onClose: () => void
+  /** Jumps the panel to a different player — wired to each comp row's name
+   *  so the comparison chain stays explorable in place. */
+  onSelectPlayer: (espnId: string) => void
 }
 
 function fmtHeight(inches: number) {
@@ -36,7 +39,7 @@ function fmtHeight(inches: number) {
  * for a footer action bar to do. The period picker here is independent of
  * whichever table opened it, so switching it doesn't disturb the caller.
  */
-export function NBAPlayerDetailPanel({ espnId, leagueId, period, onPeriodChange, onClose }: Props) {
+export function NBAPlayerDetailPanel({ espnId, leagueId, period, onPeriodChange, onClose, onSelectPlayer }: Props) {
   const open = espnId != null
 
   const { data } = useQuery({
@@ -128,6 +131,51 @@ export function NBAPlayerDetailPanel({ espnId, leagueId, period, onPeriodChange,
                       )
                     })}
                   </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {data.comps.length > 0 && (
+        <div>
+          <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Historical Comparisons
+          </span>
+          <p className="text-xs text-muted-foreground mt-1 mb-2">
+            Closest statistical matches ({data.position}s, per-game), from {data.name}'s best-sample season.
+          </p>
+          <div className="rounded-lg bg-card overflow-x-auto">
+            <Table>
+              <TableHeader style={{ top: 0 }}>
+                <HeaderRow>
+                  <TableHead>Player</TableHead>
+                  <TableHead>Season</TableHead>
+                  <TableHead>Team</TableHead>
+                  <TableHead className="text-right">GP</TableHead>
+                  {SEASON_CATEGORIES.map((cat) => (
+                    <TableHead key={cat} className="text-right">{NBA_CATEGORY_LABELS[cat]}</TableHead>
+                  ))}
+                </HeaderRow>
+              </TableHeader>
+              <TableBody>
+                {data.comps.map((c) => (
+                  <ClickableRow key={`${c.espn_id}-${c.season}`} className="cursor-pointer" onClick={() => onSelectPlayer(c.espn_id)}>
+                    <TableCell className="font-medium text-foreground">{c.name}</TableCell>
+                    <TableCell className="font-mono tabular-nums text-muted-foreground">{c.season}</TableCell>
+                    <TableCell className="text-muted-foreground">{c.team || '—'}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{c.games}</TableCell>
+                    {SEASON_CATEGORIES.map((cat) => {
+                      const v = c.stats.find((e) => e.category === cat)?.value
+                      const isPct = cat === 'fg_pct' || cat === 'ft_pct'
+                      return (
+                        <TableCell key={cat} className="text-right font-mono tabular-nums">
+                          {v != null ? v.toFixed(isPct ? 3 : 1) : '—'}
+                        </TableCell>
+                      )
+                    })}
+                  </ClickableRow>
                 ))}
               </TableBody>
             </Table>

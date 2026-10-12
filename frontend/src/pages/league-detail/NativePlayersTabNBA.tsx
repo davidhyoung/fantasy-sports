@@ -323,6 +323,7 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
         period={detailPeriod}
         onPeriodChange={setDetailPeriod}
         onClose={() => setViewingPlayer(null)}
+        onSelectPlayer={setViewingPlayer}
       />
     </>
   )

@@ -530,6 +530,15 @@ export interface NBAPlayerSeason {
   stats: NBACategoryEntry[]
 }
 
+export interface NBAPlayerComp {
+  espn_id: string
+  name: string
+  season: number
+  team: string
+  games: number
+  stats: NBACategoryEntry[]
+}
+
 export interface NBAPlayerDetail {
   espn_id: string
   name: string
@@ -546,6 +555,9 @@ export interface NBAPlayerDetail {
   /** One row per real season this player has any stats for, newest first —
    *  per-game averages, independent of whichever `period` was requested. */
   seasons: NBAPlayerSeason[]
+  /** Historical player-seasons (same position) whose per-game stat line
+   *  most resembles this player's own best-sample season, closest first. */
+  comps: NBAPlayerComp[]
 }
 
 export const getNBAPlayer = (espnId: string, period: NBAStatPeriod = 'season', leagueId?: number) => {
