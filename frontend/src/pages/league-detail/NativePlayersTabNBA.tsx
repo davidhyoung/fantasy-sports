@@ -1,14 +1,17 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
-import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
-import { PlayerCell, ClickableRow, HeaderRow } from '@/components/ui/table-helpers'
+import { Table, TableHeader, TableBody, TableCell } from '@/components/ui/table'
+import { PlayerCell, ClickableRow, HeaderRow, SortableHead, useTableSort } from '@/components/ui/table-helpers'
 import { FilterChip } from '@/components/ui/filter-chip'
+import { Input } from '@/components/ui/input'
 import {
   getLeagueRostersNBA, getLeagueFreeAgentsNBA, NBA_CATEGORY_LABELS,
-  NBA_STAT_PERIODS, NBA_STAT_PERIOD_LABELS, type NBAStatPeriod, type NBARosterEntry, type NBAFreeAgent, type Team,
+  NBA_STAT_PERIODS, NBA_STAT_PERIOD_LABELS, type NBACategory, type NBAStatPeriod,
+  type NBARosterEntry, type NBAFreeAgent, type Team,
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
+import { NBAPlayerDetailPanel } from './components/NBAPlayerDetailPanel'
 
 const POSITIONS = ['G', 'F', 'C']
 type ViewOption = 'free-agents' | 'rostered' | 'all'
@@ -17,6 +20,7 @@ const VIEW_OPTIONS: { value: ViewOption; label: string }[] = [
   { value: 'rostered', label: 'Rostered' },
   { value: 'all', label: 'All' },
 ]
+const CATEGORIES = Object.keys(NBA_CATEGORY_LABELS) as NBACategory[]
 // A free agent has no team_id; normalizing it onto both shapes lets "All"
 // concatenate them into one typed, uniformly-rendered row list.
 type PlayerRow = (NBARosterEntry | (NBAFreeAgent & { team_id?: undefined })) & { team_id?: number }
@@ -27,19 +31,71 @@ interface Props {
   teams: Team[]
 }
 
+function statValue(row: PlayerRow, cat: NBACategory) {
+  return row.stats?.find((s) => s.category === cat)?.value ?? 0
+}
+
+/**
+ * Population mean/stdev z-score per category, summed into one score —
+ * same "overall_score = weighted z-sum" shape the NFL z-score ranker
+ * (analysis.go) established, simplified here (no CV×scarcity weighting,
+ * just an equal-weight sum) since this is a client-side convenience rank
+ * over whichever pool/period is currently on screen, not a persisted
+ * league-wide ranking. Turnovers is the one category where lower is
+ * better, so its z-score is negated before summing. Computed over the
+ * view's full pool (pre position-filter, pre-search) so the rank number
+ * stays stable while the user narrows what's visible.
+ */
+function computeRanks(rows: PlayerRow[]): Map<string, number> {
+  const stats = CATEGORIES.map((cat) => {
+    const values = rows.map((r) => statValue(r, cat))
+    const mean = values.reduce((a, b) => a + b, 0) / (values.length || 1)
+    const variance = values.reduce((a, v) => a + (v - mean) ** 2, 0) / (values.length || 1)
+    return { cat, mean, stdev: Math.sqrt(variance) }
+  })
+
+  const scored = rows.map((r) => {
+    const total = stats.reduce((sum, { cat, mean, stdev }) => {
+      if (stdev === 0) return sum
+      const z = (statValue(r, cat) - mean) / stdev
+      return sum + (cat === 'turnovers' ? -z : z)
+    }, 0)
+    return { espnId: r.espn_id, total }
+  })
+  scored.sort((a, b) => b.total - a.total)
+
+  const ranks = new Map<string, number>()
+  scored.forEach((s, i) => ranks.set(s.espnId, i + 1))
+  return ranks
+}
+
+function rowSearchText(row: PlayerRow, rosteredByLabel: string) {
+  const statText = CATEGORIES.map((cat) => {
+    const v = row.stats?.find((s) => s.category === cat)?.value
+    if (v == null) return ''
+    return cat === 'fg_pct' || cat === 'ft_pct' ? v.toFixed(3) : String(v)
+  }).join(' ')
+  return [row.name, row.team, row.position, rosteredByLabel, statText].join(' ').toLowerCase()
+}
+
 /**
  * Players tab for a native NBA league — Free Agents/Rostered/All toggle,
  * same "filled tray, not chips" convention as the NFL version, plus a
- * timeframe picker (see NBA_STAT_PERIODS) that drives both queries. Category
- * columns are fixed (all 9 roto categories — no per-league "relevant"
- * filtering, unlike the NFL side's scored-stats-only columns, since a native
- * NBA league's scoring.json controls week-to-week category inclusion, not
- * whether a category has any meaning to show at all).
+ * timeframe picker (see NBA_STAT_PERIODS), a cross-attribute search box, a
+ * client-computed Rank column (see computeRanks, default sort), and sortable
+ * columns throughout. Category columns are fixed (all 9 roto categories —
+ * no per-league "relevant" filtering, unlike the NFL side's scored-stats-only
+ * columns, since a native NBA league's scoring.json controls week-to-week
+ * category inclusion, not whether a category has any meaning to show at all).
  */
 export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
   const [view, setView] = useState<ViewOption>('free-agents')
   const [period, setPeriod] = useState<NBAStatPeriod>('season')
   const [positions, setPositions] = useState<Set<string>>(new Set())
+  const [search, setSearch] = useState('')
+  const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
+  const [detailPeriod, setDetailPeriod] = useState<NBAStatPeriod>('season')
+  const { sortCol, sortDir, handleSort } = useTableSort('rank', 'asc', ['rank', 'player', 'team', 'pos', 'rostered_by'])
 
   const faEnabled = active && (view === 'free-agents' || view === 'all')
   const rosterEnabled = active && (view === 'rostered' || view === 'all')
@@ -55,8 +111,6 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
     enabled: rosterEnabled,
   })
 
-  if (!active) return null
-
   const teamName = (id: number) => teams.find((t) => t.id === id)?.name ?? `Team ${id}`
   const togglePosition = (p: string) => {
     setPositions((prev) => {
@@ -71,12 +125,46 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
   // Free agents and rostered players are mutually exclusive sets by
   // definition (free-agents-nba is nba_players minus league_rosters_nba),
   // so "All" is a plain concatenation — no dedup needed.
-  const baseRows: PlayerRow[] =
+  const baseRows: PlayerRow[] = useMemo(() =>
     view === 'free-agents' ? (freeAgents ?? [])
     : view === 'rostered' ? (roster ?? [])
-    : [...(roster ?? []), ...(freeAgents ?? [])]
-  const rows = baseRows.filter((p) => matchesPosition(p.position))
+    : [...(roster ?? []), ...(freeAgents ?? [])],
+    [view, freeAgents, roster]
+  )
   const showRosteredBy = view === 'rostered' || view === 'all'
+  const ranks = useMemo(() => computeRanks(baseRows), [baseRows])
+
+  const search_ = search.trim().toLowerCase()
+  const filteredRows = baseRows.filter((p) => {
+    if (!matchesPosition(p.position)) return false
+    if (!search_) return true
+    const rosteredByLabel = showRosteredBy ? (p.team_id != null ? teamName(p.team_id) : 'Free Agent') : ''
+    return rowSearchText(p, rosteredByLabel).includes(search_)
+  })
+
+  const rows = useMemo(() => {
+    const dirMul = sortDir === 'asc' ? 1 : -1
+    return [...filteredRows].sort((a, b) => {
+      let cmp: number
+      switch (sortCol) {
+        case 'rank': cmp = (ranks.get(a.espn_id) ?? Infinity) - (ranks.get(b.espn_id) ?? Infinity); break
+        case 'player': cmp = a.name.localeCompare(b.name); break
+        case 'team': cmp = (a.team || '').localeCompare(b.team || ''); break
+        case 'pos': cmp = (a.position || '').localeCompare(b.position || ''); break
+        case 'rostered_by': {
+          const an = a.team_id != null ? teamName(a.team_id) : 'Free Agent'
+          const bn = b.team_id != null ? teamName(b.team_id) : 'Free Agent'
+          cmp = an.localeCompare(bn)
+          break
+        }
+        default: cmp = statValue(a, sortCol as NBACategory) - statValue(b, sortCol as NBACategory)
+      }
+      return cmp * dirMul
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredRows, sortCol, sortDir, ranks])
+
+  if (!active) return null
 
   return (
     <>
@@ -112,39 +200,56 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
             <FilterChip key={p} active={positions.has(p)} onClick={() => togglePosition(p)}>{p}</FilterChip>
           ))}
         </div>
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search players…"
+          className="w-48"
+        />
         {!loading && <span className="text-xs text-muted-foreground ml-1">{rows.length} players</span>}
       </div>
 
       {loading ? (
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       ) : rows.length === 0 ? (
-        <p className="text-muted-foreground">{view === 'free-agents' ? 'No free agents match this filter.' : view === 'rostered' ? 'No players rostered yet.' : 'No players match this filter.'}</p>
+        <p className="text-muted-foreground">{search_ ? 'No players match this search.' : view === 'free-agents' ? 'No free agents match this filter.' : view === 'rostered' ? 'No players rostered yet.' : 'No players match this filter.'}</p>
       ) : (
         <div className="rounded-lg bg-card overflow-x-auto max-w-[calc(100vw-3rem)]">
           <Table>
             <TableHeader style={{ top: 0 }}>
               <HeaderRow>
-                <TableHead>Player</TableHead>
-                <TableHead>Team</TableHead>
-                <TableHead>Pos</TableHead>
-                {Object.values(NBA_CATEGORY_LABELS).map((label) => (
-                  <TableHead key={label} className="text-right">{label}</TableHead>
+                <SortableHead col="rank" current={sortCol} dir={sortDir} onSort={handleSort}>Rank</SortableHead>
+                <SortableHead col="player" current={sortCol} dir={sortDir} onSort={handleSort}>Player</SortableHead>
+                <SortableHead col="team" current={sortCol} dir={sortDir} onSort={handleSort}>Team</SortableHead>
+                <SortableHead col="pos" current={sortCol} dir={sortDir} onSort={handleSort}>Pos</SortableHead>
+                {CATEGORIES.map((cat) => (
+                  <SortableHead key={cat} col={cat} current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">
+                    {NBA_CATEGORY_LABELS[cat]}
+                  </SortableHead>
                 ))}
-                {showRosteredBy && <TableHead>Rostered By</TableHead>}
+                {showRosteredBy && (
+                  <SortableHead col="rostered_by" current={sortCol} dir={sortDir} onSort={handleSort}>Rostered By</SortableHead>
+                )}
               </HeaderRow>
             </TableHeader>
             <TableBody>
               {rows.map((p) => (
                 <ClickableRow key={p.espn_id}>
-                  <PlayerCell name={p.name} imageUrl={p.headshot_url} />
+                  <TableCell className="font-mono tabular-nums text-muted-foreground">{ranks.get(p.espn_id) ?? '—'}</TableCell>
+                  <PlayerCell
+                    name={p.name}
+                    imageUrl={p.headshot_url}
+                    onClick={() => { setDetailPeriod(period); setViewingPlayer(p.espn_id) }}
+                  />
                   <TableCell className="text-muted-foreground">{p.team || '—'}</TableCell>
                   <TableCell className="text-muted-foreground">{p.position}</TableCell>
-                  {Object.keys(NBA_CATEGORY_LABELS).map((cat) => {
+                  {CATEGORIES.map((cat) => {
                     const v = p.stats?.find((s) => s.category === cat)?.value
                     const isPct = cat === 'fg_pct' || cat === 'ft_pct'
+                    const isAvg = period === 'season_avg' || period === 'last_season_avg'
                     return (
                       <TableCell key={cat} className="text-right font-mono tabular-nums">
-                        {v != null ? v.toFixed(isPct ? 3 : period === 'season_avg' ? 1 : 0) : '—'}
+                        {v != null ? v.toFixed(isPct ? 3 : isAvg ? 1 : 0) : '—'}
                       </TableCell>
                     )
                   })}
@@ -159,6 +264,14 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
           </Table>
         </div>
       )}
+
+      <NBAPlayerDetailPanel
+        espnId={viewingPlayer}
+        leagueId={leagueId}
+        period={detailPeriod}
+        onPeriodChange={setDetailPeriod}
+        onClose={() => setViewingPlayer(null)}
+      />
     </>
   )
 }

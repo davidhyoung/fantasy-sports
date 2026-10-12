@@ -89,12 +89,14 @@ func nbaRatio(made, att float64) float64 {
 // validNBAStatPeriods is the Players/Roster tab timeframe picker's
 // vocabulary. "season"/"season_avg" share the current-season total query,
 // differing only in whether counting categories get divided by games
-// played; "last_season" swaps in season-1; "last4weeks"/"lastweek" stay
-// within the current season but add a trailing game_date cutoff. fg_pct/
-// ft_pct are always a ratio of aggregated makes/attempts, never averaged,
-// so "_avg" has no effect on them.
+// played; "last_season"/"last_season_avg" are the same pair one season back
+// (season-1); "last4weeks"/"lastweek" stay within the current season but add
+// a trailing game_date cutoff. fg_pct/ft_pct are always a ratio of
+// aggregated makes/attempts, never averaged, so "_avg" has no effect on
+// them.
 var validNBAStatPeriods = map[string]bool{
-	"season": true, "season_avg": true, "last_season": true, "last4weeks": true, "lastweek": true,
+	"season": true, "season_avg": true, "last_season": true, "last_season_avg": true,
+	"last4weeks": true, "lastweek": true,
 }
 
 func parseNBAStatPeriod(r *http.Request) string {
@@ -105,39 +107,18 @@ func parseNBAStatPeriod(r *http.Request) string {
 	return "season"
 }
 
-// nbaCategoryStats returns aggregated category totals for the given players
-// over the requested period, restricted to whichever categories this
-// league's scoring actually includes (nonzero in league_settings.scoring) —
-// same "relevant" filtering convention relevantPlayerStats established for
-// NFL.
-func (h *Handler) nbaCategoryStats(ctx context.Context, leagueID int64, season int, period string, espnIDs []string) (map[string][]nbaCategoryEntry, error) {
-	out := map[string][]nbaCategoryEntry{}
+// nbaRawCategoryTotals returns every canonical category's aggregated total
+// for the given players over the requested period, unfiltered by any
+// league's scoring settings — the shared core both nbaCategoryStats
+// (league-scoped) and the standalone player-detail endpoint build on.
+func (h *Handler) nbaRawCategoryTotals(ctx context.Context, season int, period string, espnIDs []string) (map[string]map[string]float64, error) {
+	out := map[string]map[string]float64{}
 	if len(espnIDs) == 0 {
 		return out, nil
 	}
 
-	var scoringRaw []byte
-	if err := h.db.QueryRow(ctx,
-		"SELECT scoring FROM league_settings WHERE league_id = $1", leagueID,
-	).Scan(&scoringRaw); err != nil {
-		return out, nil
-	}
-	var included map[string]float64
-	if err := json.Unmarshal(scoringRaw, &included); err != nil {
-		return out, nil
-	}
-	var relevant []string
-	for _, c := range nbaCategories {
-		if included[c] != 0 {
-			relevant = append(relevant, c)
-		}
-	}
-	if len(relevant) == 0 {
-		return out, nil
-	}
-
 	statSeason := season
-	if period == "last_season" {
+	if period == "last_season" || period == "last_season_avg" {
 		statSeason = season - 1
 	}
 
@@ -176,21 +157,61 @@ func (h *Handler) nbaCategoryStats(ctx context.Context, leagueID int64, season i
 			return nil, err
 		}
 		divisor := 1.0
-		if period == "season_avg" && games > 0 {
+		if (period == "season_avg" || period == "last_season_avg") && games > 0 {
 			divisor = float64(games)
 		}
-		totals := map[string]float64{
+		out[espnID] = map[string]float64{
 			"points": pts / divisor, "rebounds": reb / divisor, "assists": ast / divisor, "steals": stl / divisor, "blocks": blk / divisor,
 			"turnovers": tov / divisor, "three_pm": fg3m / divisor,
 			"fg_pct": nbaRatio(fgm, fga), "ft_pct": nbaRatio(ftm, fta),
 		}
+	}
+	return out, rows.Err()
+}
+
+// nbaCategoryStats returns aggregated category totals for the given players
+// over the requested period, restricted to whichever categories this
+// league's scoring actually includes (nonzero in league_settings.scoring) —
+// same "relevant" filtering convention relevantPlayerStats established for
+// NFL.
+func (h *Handler) nbaCategoryStats(ctx context.Context, leagueID int64, season int, period string, espnIDs []string) (map[string][]nbaCategoryEntry, error) {
+	out := map[string][]nbaCategoryEntry{}
+	if len(espnIDs) == 0 {
+		return out, nil
+	}
+
+	var scoringRaw []byte
+	if err := h.db.QueryRow(ctx,
+		"SELECT scoring FROM league_settings WHERE league_id = $1", leagueID,
+	).Scan(&scoringRaw); err != nil {
+		return out, nil
+	}
+	var included map[string]float64
+	if err := json.Unmarshal(scoringRaw, &included); err != nil {
+		return out, nil
+	}
+	var relevant []string
+	for _, c := range nbaCategories {
+		if included[c] != 0 {
+			relevant = append(relevant, c)
+		}
+	}
+	if len(relevant) == 0 {
+		return out, nil
+	}
+
+	totalsByPlayer, err := h.nbaRawCategoryTotals(ctx, season, period, espnIDs)
+	if err != nil {
+		return nil, err
+	}
+	for espnID, totals := range totalsByPlayer {
 		entries := make([]nbaCategoryEntry, 0, len(relevant))
 		for _, c := range relevant {
 			entries = append(entries, nbaCategoryEntry{Category: c, Value: totals[c]})
 		}
 		out[espnID] = entries
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // GetLeagueRostersNBA returns every rostered player in a native NBA league.

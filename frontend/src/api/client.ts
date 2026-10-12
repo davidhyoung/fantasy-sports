@@ -452,10 +452,13 @@ export interface NBACategoryEntry {
 
 // The Players/Roster tab timeframe picker's vocabulary — see
 // parseNBAStatPeriod (backend) for exactly what each resolves to.
-export const NBA_STAT_PERIODS = ['last_season', 'season', 'season_avg', 'last4weeks', 'lastweek'] as const
+export const NBA_STAT_PERIODS = [
+  'last_season', 'last_season_avg', 'season', 'season_avg', 'last4weeks', 'lastweek',
+] as const
 export type NBAStatPeriod = (typeof NBA_STAT_PERIODS)[number]
 export const NBA_STAT_PERIOD_LABELS: Record<NBAStatPeriod, string> = {
-  last_season: 'Last Season', season: 'Season Total', season_avg: 'Season Avg',
+  last_season: 'Last Season', last_season_avg: 'Last Season Avg',
+  season: 'Season Total', season_avg: 'Season Avg',
   last4weeks: 'Last 4 Weeks', lastweek: 'Last Week',
 }
 
@@ -518,6 +521,27 @@ export const getLeagueFreeAgentsNBA = (
   if (offset > 0) params.set('offset', String(offset))
   if (search) params.set('search', search)
   return request<NBAFreeAgent[]>(`/leagues/${leagueId}/free-agents-nba?${params.toString()}`)
+}
+
+export interface NBAPlayerDetail {
+  espn_id: string
+  name: string
+  position: string
+  team: string
+  headshot_url?: string
+  birth_date: string
+  height: number
+  weight: number
+  college: string
+  years_exp: number
+  jersey_number: number
+  stats: NBACategoryEntry[]
+}
+
+export const getNBAPlayer = (espnId: string, period: NBAStatPeriod = 'season', leagueId?: number) => {
+  const params = nbaStatPeriodParams(period)
+  if (leagueId != null) params.set('league_id', String(leagueId))
+  return request<NBAPlayerDetail>(`/nba/players/${encodeURIComponent(espnId)}?${params.toString()}`)
 }
 
 export const generateLeagueScheduleNBA = (leagueId: number, seasonStartDate: string, season?: number, weeks?: number) =>

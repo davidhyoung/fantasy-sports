@@ -212,6 +212,11 @@ func main() {
 		r.Get("/{gsisId}", h.GetNFLPlayer)
 	})
 
+	// Public — NBA player detail (metadata + aggregated category stats)
+	r.Route("/api/nba/players", func(r chi.Router) {
+		r.Get("/{espnId}", h.GetNBAPlayer)
+	})
+
 	// Protected API routes not nested under a resource prefix
 	r.Group(func(r chi.Router) {
 		r.Use(appmiddleware.RequireAuth(pool, store))
