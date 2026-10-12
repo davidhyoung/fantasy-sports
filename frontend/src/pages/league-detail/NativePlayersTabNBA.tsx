@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { Table, TableHeader, TableBody, TableCell } from '@/components/ui/table'
-import { PlayerCell, ClickableRow, HeaderRow, SortableHead, useTableSort, ZScoreCell } from '@/components/ui/table-helpers'
-import { FilterChip } from '@/components/ui/filter-chip'
+import { PlayerCell, ClickableRow, HeaderRow, SortableHead, useTableSort, ZScoreCell, type SortDir } from '@/components/ui/table-helpers'
+import { FilterChip, SelectControl } from '@/components/ui/filter-chip'
 import { Input } from '@/components/ui/input'
 import {
   getLeagueRostersNBA, getLeagueFreeAgentsNBA, getLeagueSettings, NBA_CATEGORY_LABELS,
@@ -31,6 +31,40 @@ interface Props {
   teams: Team[]
 }
 
+interface SavedFilters {
+  view: ViewOption
+  period: NBAStatPeriod
+  positions: string[]
+  search: string
+  sortCol: string
+  sortDir: SortDir
+}
+
+const filtersStorageKey = (leagueId: number) => `fs.players-nba.${leagueId}.filters`
+
+/** Per-viewer convenience only (which filters/sort you left the Players tab
+ *  on) — never shared, never read by the server, so localStorage is the
+ *  right persistence layer rather than a URL param or a backend write.
+ *  Wrapped in try/catch since a private window or blocked site data can
+ *  throw on access. */
+function loadFilters(leagueId: number): Partial<SavedFilters> {
+  try {
+    const raw = localStorage.getItem(filtersStorageKey(leagueId))
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveFilters(leagueId: number, filters: SavedFilters) {
+  try {
+    localStorage.setItem(filtersStorageKey(leagueId), JSON.stringify(filters))
+  } catch {
+    // Private window, blocked site data, quota — losing the remembered
+    // filters is a minor inconvenience, not worth surfacing an error for.
+  }
+}
+
 function rowSearchText(row: PlayerRow, rosteredByLabel: string) {
   const statText = CATEGORIES.map((cat) => {
     const v = row.stats?.find((s) => s.category === cat)?.value
@@ -51,13 +85,24 @@ function rowSearchText(row: PlayerRow, rosteredByLabel: string) {
  * category inclusion, not whether a category has any meaning to show at all).
  */
 export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
-  const [view, setView] = useState<ViewOption>('free-agents')
-  const [period, setPeriod] = useState<NBAStatPeriod>('season')
-  const [positions, setPositions] = useState<Set<string>>(new Set())
-  const [search, setSearch] = useState('')
+  // Read once on mount (leagueId is stable for the component's lifetime) —
+  // every filter below seeds from whatever was last saved for this league.
+  const saved = useMemo(() => loadFilters(leagueId), [leagueId])
+  const [view, setView] = useState<ViewOption>(saved.view ?? 'free-agents')
+  const [period, setPeriod] = useState<NBAStatPeriod>(saved.period ?? 'season')
+  const [positions, setPositions] = useState<Set<string>>(new Set(saved.positions ?? []))
+  const [search, setSearch] = useState(saved.search ?? '')
   const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
   const [detailPeriod, setDetailPeriod] = useState<NBAStatPeriod>('season')
-  const { sortCol, sortDir, handleSort } = useTableSort('rank', 'asc', ['rank', 'player', 'team', 'pos', 'rostered_by'])
+  const { sortCol, sortDir, handleSort } = useTableSort(
+    saved.sortCol ?? 'rank', saved.sortDir ?? 'asc', ['rank', 'player', 'team', 'pos', 'rostered_by']
+  )
+
+  // Persisted per league (see loadFilters) — not the detail panel's own
+  // period, which is a separate, per-player choice.
+  useEffect(() => {
+    saveFilters(leagueId, { view, period, positions: [...positions], search, sortCol, sortDir })
+  }, [leagueId, view, period, positions, search, sortCol, sortDir])
 
   // Both lists are always fetched (not gated by `view`) because the
   // "average rostered player" baseline below needs the full league-wide
@@ -146,32 +191,12 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
   return (
     <>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="flex w-fit flex-none rounded-lg bg-muted overflow-hidden">
-          {VIEW_OPTIONS.map((s) => (
-            <button
-              key={s.value}
-              onClick={() => setView(s.value)}
-              className={`px-3 py-1.5 font-display text-xs font-semibold whitespace-nowrap ${
-                view === s.value ? 'bg-foreground text-background' : 'bg-card text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex w-fit flex-none rounded-lg bg-muted overflow-hidden">
-          {NBA_STAT_PERIODS.map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`px-3 py-1.5 font-display text-xs font-semibold whitespace-nowrap ${
-                period === p ? 'bg-foreground text-background' : 'bg-card text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              {NBA_STAT_PERIOD_LABELS[p]}
-            </button>
-          ))}
-        </div>
+        <SelectControl value={view} onChange={(e) => setView(e.target.value as ViewOption)}>
+          {VIEW_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </SelectControl>
+        <SelectControl value={period} onChange={(e) => setPeriod(e.target.value as NBAStatPeriod)}>
+          {NBA_STAT_PERIODS.map((p) => <option key={p} value={p}>{NBA_STAT_PERIOD_LABELS[p]}</option>)}
+        </SelectControl>
         <div className="flex flex-none gap-1.5">
           {POSITIONS.map((p) => (
             <FilterChip key={p} active={positions.has(p)} onClick={() => togglePosition(p)}>{p}</FilterChip>
