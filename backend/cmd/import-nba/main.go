@@ -99,8 +99,16 @@ func importRosters(ctx context.Context, pool *pgxpool.Pool) error {
 		for _, a := range roster.Athletes {
 			var dob *time.Time
 			if a.DateOfBirth != "" {
-				if t, err := time.Parse(time.RFC3339, a.DateOfBirth); err == nil {
-					dob = &t
+				// ESPN's dateOfBirth omits seconds (e.g. "2004-10-06T07:00Z"),
+				// which fails strict time.RFC3339 parsing — every DOB
+				// silently failed to parse until this fallback layout was
+				// added, leaving birth_date NULL for 100% of imported
+				// players despite ESPN actually returning it.
+				for _, layout := range []string{time.RFC3339, "2006-01-02T15:04Z"} {
+					if t, err := time.Parse(layout, a.DateOfBirth); err == nil {
+						dob = &t
+						break
+					}
 				}
 			}
 			_, err := pool.Exec(ctx, `

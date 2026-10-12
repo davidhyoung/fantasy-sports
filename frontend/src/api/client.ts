@@ -536,6 +536,8 @@ export interface NBAPlayerComp {
   season: number
   team: string
   games: number
+  /** Age at the matched season, 0 = unknown. */
+  age: number
   stats: NBACategoryEntry[]
 }
 

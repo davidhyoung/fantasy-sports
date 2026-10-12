@@ -170,7 +170,8 @@ export function NBAPlayerDetailPanel({ espnId, leagueId, period, onPeriodChange,
             Historical Comparisons
           </span>
           <p className="text-xs text-muted-foreground mt-1 mb-2">
-            Closest statistical matches ({data.position}s, per-game), from {data.name}'s best-sample season.
+            Closest matches ({data.position}s) by statline, physical profile (height/weight), and career stage
+            (young/prime/post-prime) — from {data.name}'s best-sample season.
           </p>
           <div className="rounded-lg bg-card overflow-x-auto">
             <Table>
@@ -179,6 +180,7 @@ export function NBAPlayerDetailPanel({ espnId, leagueId, period, onPeriodChange,
                   <TableHead>Player</TableHead>
                   <TableHead>Season</TableHead>
                   <TableHead>Team</TableHead>
+                  <TableHead className="text-right">Age</TableHead>
                   <TableHead className="text-right">GP</TableHead>
                   {SEASON_CATEGORIES.map((cat) => (
                     <TableHead key={cat} className="text-right">{NBA_CATEGORY_LABELS[cat]}</TableHead>
@@ -191,6 +193,7 @@ export function NBAPlayerDetailPanel({ espnId, leagueId, period, onPeriodChange,
                     <TableCell className="font-medium text-foreground">{c.name}</TableCell>
                     <TableCell className="font-mono tabular-nums text-muted-foreground">{c.season}</TableCell>
                     <TableCell className="text-muted-foreground">{c.team || '—'}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{c.age || '—'}</TableCell>
                     <TableCell className="text-right font-mono tabular-nums">{c.games}</TableCell>
                     {SEASON_CATEGORIES.map((cat) => {
                       const v = c.stats.find((e) => e.category === cat)?.value
