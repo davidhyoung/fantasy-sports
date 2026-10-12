@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { MobileSheet } from '@/components/ui/mobile-sheet'
@@ -6,7 +7,15 @@ import Formula, { C } from './components/Formula'
 import Note from './components/Note'
 import Pipeline from './components/Pipeline'
 
-const TOC = [
+interface TocItem {
+  href: string
+  label: string
+  stage?: boolean
+  sub?: boolean
+  cross?: boolean
+}
+
+const NFL_TOC: TocItem[] = [
   { href: '#grades', label: '01 · Grades', stage: true },
   { href: '#projections', label: '02 · Projections', stage: true },
   { href: '#profiles', label: 'Season profiles', sub: true },
@@ -22,11 +31,24 @@ const TOC = [
   { href: '#glossary', label: 'Glossary' },
 ]
 
-function Toc() {
+const NBA_TOC: TocItem[] = [
+  { href: '#nba-scoring', label: '01 · Category Scoring', stage: true },
+  { href: '#nba-data', label: '02 · Data Pipeline', stage: true },
+  { href: '#nba-periods', label: 'Stat periods', sub: true },
+  { href: '#nba-ranking', label: '03 · Ranking', stage: true },
+  { href: '#nba-comps', label: '04 · Historical Comparisons', stage: true },
+  { href: '#nba-projection', label: '05 · Projection', stage: true },
+  { href: '#nba-dimensions', label: 'Dimension groups', sub: true },
+  { href: '#nba-growth', label: 'Growth & fallback', sub: true },
+  { href: '#nba-limitations', label: 'Limitations', sub: true },
+  { href: '#nba-glossary', label: 'Glossary' },
+]
+
+function Toc({ toc }: { toc: TocItem[] }) {
   return (
     <nav className="hidden lg:block">
       <div className="sticky top-[calc(var(--nav-height)+1.5rem)] flex flex-col gap-0.5 max-h-[calc(100vh-var(--nav-height)-3rem)] overflow-y-auto pr-2">
-        {TOC.map((item) => (
+        {toc.map((item) => (
           <a
             key={item.href}
             href={item.href}
@@ -55,7 +77,7 @@ function Toc() {
  * browser's native `#hash` anchor behavior) and auto-collapses the list, since
  * once you've navigated there's nothing left to pick from it.
  */
-function MobileToc() {
+function MobileToc({ toc }: { toc: TocItem[] }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="lg:hidden">
@@ -67,7 +89,7 @@ function MobileToc() {
       </button>
       <MobileSheet open={open} onClose={() => setOpen(false)} title="Contents">
         <ul>
-          {TOC.map((item) => (
+          {toc.map((item) => (
             <li key={item.href} className="border-b border-border last:border-0">
               <a
                 href={item.href}
@@ -122,12 +144,9 @@ function Sub({ id, children }: { id: string; children: React.ReactNode }) {
   )
 }
 
-export default function Wiki() {
+function NFLWikiBody() {
   return (
-    <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-10">
-      <Toc />
-
-      <div className="min-w-0 lg:max-w-2xl space-y-16">
+    <div className="min-w-0 lg:max-w-2xl space-y-16">
         {/* ── Overview ── */}
         <div>
           <p className="font-display text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -137,7 +156,7 @@ export default function Wiki() {
             Signal <span className="text-primary">&amp;</span> Noise
           </h1>
           <div className="mt-3">
-            <MobileToc />
+            <MobileToc toc={NFL_TOC} />
           </div>
           <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
             Every number in this app — a grade, a projection, a rank, a dollar sign on
@@ -964,6 +983,354 @@ export default function Wiki() {
             are spelled out there in full.
           </p>
         </section>
+    </div>
+  )
+}
+
+function NBAWikiBody() {
+  return (
+    <div className="min-w-0 lg:max-w-2xl space-y-16">
+      {/* ── Overview ── */}
+      <div>
+        <p className="font-display text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Native NBA leagues, end to end
+        </p>
+        <h1 className="font-display text-[28px] font-bold text-foreground mt-1">
+          Box Score <span className="text-primary">&amp;</span> Comp
+        </h1>
+        <div className="mt-3">
+          <MobileToc toc={NBA_TOC} />
+        </div>
+        <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
+          Native NBA leagues are a parallel build to the NFL side, not a unification of
+          it — different player identity (ESPN's own athlete ID, no crosswalk column),
+          category/roto scoring instead of per-stat points, and a much younger stat
+          engine. This page walks what exists today: where the box scores come from,
+          how a roster's "average" is defined, and the two comp-based features —
+          Historical Comparisons and the season Projection — built on top of it.
+        </p>
+        <Note kind="caveat" title="Still backfilling">
+          <p>
+            Real NBA box scores go back to 1946, but ESPN's hidden API only reliably
+            indexes box scores from the 1996-97 season forward — spot-checks before
+            that return sparse or missing games even on normal game days. The
+            1996–present backfill is a long-running background job; comps and
+            projections both quietly improve as it fills in, rather than needing a
+            re-run.
+          </p>
+        </Note>
+      </div>
+
+      {/* ── 01 Category Scoring ── */}
+      <section id="nba-scoring" className="scroll-mt-24">
+        <StageHead
+          num="01"
+          title="Category Scoring"
+          kicker="league_settings.scoring means something different for NBA than NFL — an inclusion map, not point weights."
+        />
+        <div className="space-y-3 text-sm leading-relaxed text-foreground">
+          <p>
+            A native NFL league's <code className="font-mono text-[13px]">scoring</code>{' '}
+            JSONB holds per-stat point values. A native NBA league's holds a flat{' '}
+            <code className="font-mono text-[13px]">{'{category: 1}'}</code> inclusion
+            map over the nine standard roto categories — which ones count toward
+            standings, not how many points each is worth. Same column, sport-dependent
+            meaning.
+          </p>
+        </div>
+        <Sub id="nba-categories">The nine categories</Sub>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Points, rebounds, assists, steals, blocks, turnovers, 3-pointers made, FG%,
+          FT% — all on by default. FG% and FT% are always a ratio of a team or
+          player's <em>aggregated</em> makes and attempts, never an average of
+          per-game percentages (averaging percentages silently overweights low-volume
+          games — a 1-for-1 night counts the same as a 10-for-10 one).
+        </p>
+        <Sub id="nba-slots">Roster slots</Sub>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          G / F / C / UTIL / BN / IR — flatter than the NFL side's PG/SG split, because
+          that's all ESPN's own position taxonomy gives: ESPN only ever reports
+          Guard/Forward/Center for a player, confirmed against real roster data, so
+          there's no finer signal to key a narrower slot off of.
+        </p>
+      </section>
+
+      {/* ── 02 Data Pipeline ── */}
+      <section id="nba-data" className="scroll-mt-24">
+        <StageHead
+          num="02"
+          title="Data Pipeline"
+          kicker="ESPN's unofficial site API is the only source — for both roster metadata and real stats."
+        />
+        <p className="text-sm leading-relaxed text-foreground">
+          <code className="font-mono text-[13px]">internal/services/espnnba</code> wraps
+          ESPN's hidden <code className="font-mono text-[13px]">site.api.espn.com</code>{' '}
+          endpoints (scoreboard, box score summary, team rosters) — the same
+          undocumented-API pattern the live NFL score poller uses.{' '}
+          <code className="font-mono text-[13px]">cmd/import-nba</code> has two
+          independent steps:
+        </p>
+        <Formula>
+          -rosters{'  '}<C># syncs nba_players from all 30 teams' current rosters</C>{'\n'}
+          -stats -from -to{'  '}<C># backfills nba_player_stats, one row per real game</C>
+        </Formula>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Player identity is ESPN's own athlete ID used directly as the primary key —
+          unlike <code className="font-mono text-[13px]">nfl_players</code>, there's no
+          nflverse-equivalent bulk NBA source to crosswalk against, so there's nothing
+          to crosswalk. A box score can reference a player the roster sync hasn't seen
+          yet (a call-up, a preseason squad, or — now — a decades-old retired player
+          encountered while backfilling history); rather than drop their stats on a
+          foreign-key constraint, the stats importer stubs in a minimal{' '}
+          <code className="font-mono text-[13px]">nba_players</code> row (ID, name,
+          team — no position). The Players tab's free-agent query filters these stubs
+          out explicitly (<code className="font-mono text-[13px]">position IS NOT
+          NULL</code>) — a free agent should be someone actually eligible to roster
+          today, not a name ESPN's scoreboard happened to mention.
+        </p>
+
+        <Sub id="nba-periods">Stat periods</Sub>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Every stats-bearing endpoint (Roster tab, Players tab, player detail) takes
+          the same <code className="font-mono text-[13px]">?period=</code> vocabulary:
+        </p>
+        <div className="overflow-x-auto rounded-lg border border-border mt-3">
+          <Table>
+            <TableHeader style={{ position: 'static' }}>
+              <TableRow>
+                <TableHead>Period</TableHead>
+                <TableHead>Resolves to</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[
+                ['season', 'Current season, totals'],
+                ['season_avg', 'Current season, ÷ games played'],
+                ['last_season', 'Prior season (season − 1), totals'],
+                ['last_season_avg', 'Prior season, ÷ games played'],
+                ['last4weeks', 'Current season, trailing 28 days of games'],
+                ['lastweek', 'Current season, trailing 7 days of games'],
+              ].map(([period, meaning]) => (
+                <TableRow key={period}>
+                  <TableCell className="font-mono text-[13px]">{period}</TableCell>
+                  <TableCell className="text-muted-foreground">{meaning}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+          FG%/FT% stay a ratio of aggregated makes/attempts regardless of period —{' '}
+          <code className="font-mono text-[13px]">_avg</code> only changes whether
+          counting categories get divided by games played.
+        </p>
+      </section>
+
+      {/* ── 03 Ranking ── */}
+      <section id="nba-ranking" className="scroll-mt-24">
+        <StageHead
+          num="03"
+          title="Ranking"
+          kicker="A client-computed convenience rank for the Players tab — not a persisted, league-wide system like the NFL side's VORP."
+        />
+        <p className="text-sm leading-relaxed text-foreground">
+          Equal-weight z-score sum across whichever categories the league scores,
+          turnovers negated (lower is better, so a high-turnover player should pull the
+          total <em>down</em>, not up) — the same "overall_score = weighted z-sum"
+          shape the NFL z-score ranker uses, without the CV×scarcity weighting.
+        </p>
+        <Formula>
+          z(cat) = (value − mean) / stdev{'\n'}
+          score  = Σ z(cat){'  '}<C>// turnovers: −z instead of +z</C>
+        </Formula>
+        <Sub id="nba-baseline">"Average" means the average rostered player</Sub>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          The mean/stdev baseline is <em>not</em> the full pool shown in whichever tab
+          is active (that could be 450+ free agents, mostly bench-caliber) — it's the
+          top <code className="font-mono text-[13px]">num_teams × total roster
+          slots</code> players (every slot, bench and IR included) by a simple
+          unweighted value index, computed once from the league-wide player pool and
+          reused across Free Agents / Rostered / All so switching tabs doesn't change
+          what "average" means. A strong starter should read as a real outlier against
+          that bar; against a pool padded with 400 scrubs, almost everyone would.
+        </p>
+      </section>
+
+      {/* ── 04 Historical Comparisons ── */}
+      <section id="nba-comps" className="scroll-mt-24">
+        <StageHead
+          num="04"
+          title="Historical Comparisons"
+          kicker="Who does this player's season statistically resemble, across all of NBA history we have data for?"
+        />
+        <p className="text-sm leading-relaxed text-foreground">
+          Euclidean distance over z-scored per-game categories, restricted to the same
+          ESPN position bucket (a point guard's comps should be other guards) and a
+          minimum 20-game sample. Unlike the ranking above, turnovers is{' '}
+          <strong>not</strong> inverted here — this measures statistical resemblance,
+          not fantasy value, so a high-turnover playmaker should read as similar to
+          another high-turnover playmaker, not penalized for it.
+        </p>
+        <p className="text-sm leading-relaxed text-muted-foreground mt-3">
+          The target's own <em>best-sample</em> season (most games played, so a
+          two-game cameo doesn't define them) is compared against every other
+          qualifying player-season at that position; the five closest by distance are
+          shown, each one click-through to its own detail view — a comp's comps are
+          just as explorable as the original player's.
+        </p>
+      </section>
+
+      {/* ── 05 Projection ── */}
+      <section id="nba-projection" className="scroll-mt-24">
+        <StageHead
+          num="05"
+          title="Projection"
+          kicker="A scoped NBA analog of the NFL comp-based projection system — computed on demand, not an offline batch pipeline."
+        />
+        <p className="text-sm leading-relaxed text-foreground">
+          Same core idea as the NFL engine (see the Football tab): find historical
+          players whose situation resembles the target's, then grow the target's own
+          rate forward by what those comps actually did the following season. Computed
+          live per request rather than as a persisted{' '}
+          <code className="font-mono text-[13px]">nba_projections</code> table — there's
+          no NBA grades system or backtest harness yet to justify the batch-pipeline
+          machinery the NFL side has.
+        </p>
+
+        <Sub id="nba-dimensions">Dimension groups</Sub>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Comps are matched on three weighted groups, each averaged to a single z-score
+          before distance — so adding categories to the statline group doesn't dilute
+          its weight relative to the single-value age group:
+        </p>
+        <div className="overflow-x-auto rounded-lg border border-border mt-3">
+          <Table>
+            <TableHeader style={{ position: 'static' }}>
+              <TableRow>
+                <TableHead>Group</TableHead>
+                <TableHead>What</TableHead>
+                <TableHead className="text-right">Weight</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[
+                ['Statline', 'The nine per-game categories', '2.0'],
+                ['Trajectory', 'This season minus prior season, per category', '1.0'],
+                ['Age', 'Season − birth year', '1.0'],
+              ].map(([group, what, weight]) => (
+                <TableRow key={group}>
+                  <TableCell className="font-mono text-[13px]">{group}</TableCell>
+                  <TableCell className="text-muted-foreground">{what}</TableCell>
+                  <TableCell className="text-right font-mono tabular-nums">{weight}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        <Formula>
+          distance = sqrt( Σ w_g × (target_g − comp_g)² / Σ w_g ){'\n'}
+          similarity = 1 / (1 + distance)
+        </Formula>
+
+        <Sub id="nba-growth">Growth, and the flat-repeat fallback</Sub>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Only comps with an <em>observable next season</em> (≥20 games, same position
+          pool) are eligible — growth needs something to measure. For each one:
+        </p>
+        <Formula>
+          counting cats: growth = clamp(next / match, 0.3, 2.5){'\n'}
+          FG% / FT%:     growth = clamp(next − match, −0.3, 0.3){'  '}<C># additive, not a ratio</C>{'\n'}
+          weight_i       = similarity_i² / Σ similarity²{'\n'}
+          projected      = base × Σ weight_i × growth_i
+        </Formula>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          The growth base is the player's most recent season — unless it's under 10
+          games (an early-season small sample), in which case their own best-sample
+          season is used instead, same guard the comp matcher applies.
+        </p>
+
+        <Sub id="nba-limitations">Limitations vs. the NFL system</Sub>
+        <Note kind="caveat" title="Dropped comps, not zero-growth washouts">
+          <p>
+            NFL's engine scores a comp with no qualifying next season as{' '}
+            <em>zero growth</em> — a deliberate anti-survivorship-bias choice, since the
+            data really does extend far enough to know they washed out. NBA's historical
+            backfill is still in progress, so a missing next-season row here usually just
+            means "not imported yet," not "left the league." Scoring it as a washout
+            would be actively wrong, so those comps are dropped instead. If every comp
+            for a player drops out, the projection falls back to flatly repeating their
+            current rate (growth = 1.0) rather than returning nothing.
+          </p>
+        </Note>
+        <Note kind="open" title="Not built yet">
+          <p>
+            No Bayesian shrinkage on rate stats, no grade dimension (no NBA player-grade
+            system exists), no separate rookie/draft-slot path (a rookie with zero prior
+            NBA seasons currently gets no projection at all), no backtest or autotune
+            harness, no P10/P50/P90 outcome distribution, no level calibration. All five
+            are real gaps the NFL system closes — see its own section for what each one
+            buys.
+          </p>
+        </Note>
+      </section>
+
+      {/* ── Glossary ── */}
+      <section id="nba-glossary" className="scroll-mt-24 pb-8">
+        <h2 className="font-display text-xl font-bold text-foreground mb-4">Glossary</h2>
+        <dl className="space-y-3">
+          {[
+            ['Comp', 'A statistically similar historical player-season, matched by z-scored distance — the unit of evidence for both Historical Comparisons and Projection.'],
+            ['Roto / category scoring', 'Standings are won per-category (most points, most rebounds, fewest turnovers…), not by a single point total.'],
+            ['Stub player', 'A position-less nba_players row created by the stats importer for a box-score player not on any currently tracked roster — excluded from free agency.'],
+            ['Base season', 'The season a projection grows forward from — the player\'s most recent season, or their best-sample season if the most recent is under 10 games.'],
+            ['z-score', '(value − mean) / stdev — how many standard deviations from average, comparable across very different categories.'],
+          ].map(([term, def]) => (
+            <div key={term}>
+              <dt className="font-mono text-sm font-semibold text-primary">{term}</dt>
+              <dd className="text-sm text-muted-foreground mt-0.5">{def}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <p className="mt-10 pt-6 border-t border-border text-xs text-muted-foreground">
+          Sources: <span className="font-mono">backend/internal/handlers/league_rosters_nba.go</span>,{' '}
+          <span className="font-mono">nba_players.go</span>,{' '}
+          <span className="font-mono">nba_projections.go</span>. This page summarizes
+          the current build — it's a younger, actively-growing system, and will keep
+          changing shape as the historical backfill completes and gaps above get closed.
+        </p>
+      </section>
+    </div>
+  )
+}
+
+export default function Wiki() {
+  const [params, setParams] = useSearchParams()
+  const sport = params.get('sport') === 'nba' ? 'nba' : 'nfl'
+  const setSport = (s: 'nfl' | 'nba') =>
+    setParams((prev) => { prev.set('sport', s); return prev }, { replace: true })
+
+  return (
+    <div className="max-w-6xl mx-auto">
+      <div className="flex w-fit flex-none rounded-lg bg-muted overflow-hidden mb-8">
+        {([
+          { value: 'nfl' as const, label: '🏈 Football' },
+          { value: 'nba' as const, label: '🏀 Basketball' },
+        ]).map((s) => (
+          <button
+            key={s.value}
+            onClick={() => setSport(s.value)}
+            className={`px-4 py-2 font-display text-xs font-semibold whitespace-nowrap ${
+              sport === s.value ? 'bg-foreground text-background' : 'bg-card text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-10">
+        <Toc toc={sport === 'nfl' ? NFL_TOC : NBA_TOC} />
+        {sport === 'nfl' ? <NFLWikiBody /> : <NBAWikiBody />}
       </div>
     </div>
   )
