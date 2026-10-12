@@ -523,6 +523,13 @@ export const getLeagueFreeAgentsNBA = (
   return request<NBAFreeAgent[]>(`/leagues/${leagueId}/free-agents-nba?${params.toString()}`)
 }
 
+export interface NBAPlayerSeason {
+  season: number
+  team: string
+  games: number
+  stats: NBACategoryEntry[]
+}
+
 export interface NBAPlayerDetail {
   espn_id: string
   name: string
@@ -536,6 +543,9 @@ export interface NBAPlayerDetail {
   years_exp: number
   jersey_number: number
   stats: NBACategoryEntry[]
+  /** One row per real season this player has any stats for, newest first —
+   *  per-game averages, independent of whichever `period` was requested. */
+  seasons: NBAPlayerSeason[]
 }
 
 export const getNBAPlayer = (espnId: string, period: NBAStatPeriod = 'season', leagueId?: number) => {

@@ -2,9 +2,15 @@ import { useQuery } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { SidePanel } from '@/components/ui/side-panel'
 import { MobileSheet } from '@/components/ui/mobile-sheet'
-import { PlayerAvatar } from '@/components/ui/table-helpers'
-import { getNBAPlayer, NBA_CATEGORY_LABELS, NBA_STAT_PERIODS, NBA_STAT_PERIOD_LABELS, type NBAStatPeriod } from '@/api/client'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { PlayerAvatar, HeaderRow } from '@/components/ui/table-helpers'
+import {
+  getNBAPlayer, NBA_CATEGORY_LABELS, NBA_STAT_PERIODS, NBA_STAT_PERIOD_LABELS,
+  type NBAStatPeriod, type NBACategory,
+} from '@/api/client'
 import { keys } from '@/api/queryKeys'
+
+const SEASON_CATEGORIES = Object.keys(NBA_CATEGORY_LABELS) as NBACategory[]
 
 interface Props {
   /** The player to show, or null when closed — same "no open-with-no-player
@@ -88,6 +94,46 @@ export function NBAPlayerDetailPanel({ espnId, leagueId, period, onPeriodChange,
           })}
         </div>
       </div>
+
+      {data.seasons.length > 0 && (
+        <div>
+          <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Season by Season
+          </span>
+          <div className="mt-2 rounded-lg bg-card overflow-x-auto">
+            <Table>
+              <TableHeader style={{ top: 0 }}>
+                <HeaderRow>
+                  <TableHead>Season</TableHead>
+                  <TableHead>Team</TableHead>
+                  <TableHead className="text-right">GP</TableHead>
+                  {SEASON_CATEGORIES.map((cat) => (
+                    <TableHead key={cat} className="text-right">{NBA_CATEGORY_LABELS[cat]}</TableHead>
+                  ))}
+                </HeaderRow>
+              </TableHeader>
+              <TableBody>
+                {data.seasons.map((s) => (
+                  <TableRow key={s.season}>
+                    <TableCell className="font-mono tabular-nums text-foreground">{s.season}</TableCell>
+                    <TableCell className="text-muted-foreground">{s.team || '—'}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{s.games}</TableCell>
+                    {SEASON_CATEGORIES.map((cat) => {
+                      const v = s.stats.find((e) => e.category === cat)?.value
+                      const isPct = cat === 'fg_pct' || cat === 'ft_pct'
+                      return (
+                        <TableCell key={cat} className="text-right font-mono tabular-nums">
+                          {v != null ? v.toFixed(isPct ? 3 : 1) : '—'}
+                        </TableCell>
+                      )
+                    })}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
     </div>
   )
 
