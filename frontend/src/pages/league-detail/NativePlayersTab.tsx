@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
 import { PlayerCell, ClickableRow, HeaderRow, PlayerAvatar } from '@/components/ui/table-helpers'
 import { MobileStatCard, type MobileStatField } from '@/components/ui/mobile-stat-card'
-import { FilterChip } from '@/components/ui/filter-chip'
+import { FilterChip, SelectControl } from '@/components/ui/filter-chip'
 import { useQuery } from '@tanstack/react-query'
 import { getLeagueRosters, getLeagueFreeAgents, type Team, type PlayerStat } from '../../api/client'
 import { keys } from '../../api/queryKeys'
@@ -103,22 +103,10 @@ export function NativePlayersTab({ leagueId, active, teams }: Props) {
        *  tray convention) instead of wrapping — a wrapped filter row eats
        *  vertical space a 390px screen doesn't have to spare. */}
       <div className="flex items-center gap-3 mb-4 flex-nowrap overflow-x-auto md:flex-wrap md:overflow-visible">
-        <div className="flex w-fit flex-none rounded-lg bg-muted overflow-hidden">
-          {([
-            { value: 'free-agents' as const, label: 'Free Agents' },
-            { value: 'rostered' as const, label: 'Rostered' },
-          ]).map((s) => (
-            <button
-              key={s.value}
-              onClick={() => setView(s.value)}
-              className={`px-3 py-1.5 font-display text-xs font-semibold whitespace-nowrap ${
-                view === s.value ? 'bg-foreground text-background' : 'bg-card text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
+        <SelectControl value={view} onChange={(e) => setView(e.target.value as 'free-agents' | 'rostered')}>
+          <option value="free-agents">Free Agents</option>
+          <option value="rostered">Rostered</option>
+        </SelectControl>
         <div className="flex flex-none gap-1.5">
           {POSITIONS.map((p) => (
             <FilterChip key={p} active={positions.has(p)} onClick={() => togglePosition(p)}>

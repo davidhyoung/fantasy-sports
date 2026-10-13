@@ -1,3 +1,4 @@
+import { SelectControl } from '@/components/ui/filter-chip'
 import type { StatView } from '../hooks/useStatView'
 
 interface Props {
@@ -28,19 +29,13 @@ const OPTIONS: { value: StatView; label: string }[] = [
 export function StatViewToggle({ view, week, onViewChange, onWeekChange }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex w-fit flex-none rounded-lg bg-muted overflow-hidden">
+      <SelectControl value={view} onChange={(e) => onViewChange(e.target.value as StatView)}>
         {OPTIONS.map((o) => (
-          <button
-            key={o.value}
-            onClick={() => onViewChange(o.value)}
-            className={`px-3 py-1.5 font-display text-xs font-semibold whitespace-nowrap ${
-              view === o.value ? 'bg-foreground text-background' : 'bg-card text-muted-foreground hover:bg-muted'
-            }`}
-          >
+          <option key={o.value} value={o.value}>
             {o.value === 'week' && view === 'week' ? `Week ${week}` : o.label}
-          </button>
+          </option>
         ))}
-      </div>
+      </SelectControl>
       {view === 'week' && (
         <div className="flex items-center gap-1">
           <button

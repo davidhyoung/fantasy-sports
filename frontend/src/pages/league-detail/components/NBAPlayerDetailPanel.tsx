@@ -4,6 +4,7 @@ import { SidePanel } from '@/components/ui/side-panel'
 import { MobileSheet } from '@/components/ui/mobile-sheet'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { PlayerAvatar, HeaderRow, ClickableRow } from '@/components/ui/table-helpers'
+import { SelectControl } from '@/components/ui/filter-chip'
 import {
   getNBAPlayer, NBA_CATEGORY_LABELS, NBA_STAT_PERIODS, NBA_STAT_PERIOD_LABELS,
   type NBAStatPeriod, type NBACategory,
@@ -67,18 +68,10 @@ export function NBAPlayerDetailPanel({ espnId, leagueId, period, onPeriodChange,
       </div>
 
       <div>
-        <div className="flex w-fit flex-none rounded-lg bg-muted overflow-hidden mb-3">
-          {NBA_STAT_PERIODS.map((p) => (
-            <button
-              key={p}
-              onClick={() => onPeriodChange(p)}
-              className={`px-2.5 py-1 font-display text-[11px] font-semibold whitespace-nowrap ${
-                period === p ? 'bg-foreground text-background' : 'bg-card text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              {NBA_STAT_PERIOD_LABELS[p]}
-            </button>
-          ))}
+        <div className="mb-3">
+          <SelectControl value={period} onChange={(e) => onPeriodChange(e.target.value as NBAStatPeriod)}>
+            {NBA_STAT_PERIODS.map((p) => <option key={p} value={p}>{NBA_STAT_PERIOD_LABELS[p]}</option>)}
+          </SelectControl>
         </div>
         <div className="grid grid-cols-3 gap-2">
           {data.stats.map((s) => {

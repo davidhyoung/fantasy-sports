@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
 import { PlayerCell, ClickableRow, HeaderRow, SortableHead, useTableSort, ZScoreCell } from '@/components/ui/table-helpers'
-import { FilterChip } from '@/components/ui/filter-chip'
+import { FilterChip, SelectControl } from '@/components/ui/filter-chip'
 import { Input } from '@/components/ui/input'
 import { INTEREST_LEVELS, interestIconClass, interestRowClass } from '@/pages/draft-prep/lib/interest'
 import {
@@ -169,32 +169,12 @@ export function NativeDraftPrepTabNBA({ leagueId, active, season }: Props) {
   return (
     <>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="flex w-fit flex-none rounded-lg bg-muted overflow-hidden">
-          {NBA_STAT_PERIODS.map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`px-3 py-1.5 font-display text-xs font-semibold whitespace-nowrap ${
-                period === p ? 'bg-foreground text-background' : 'bg-card text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              {NBA_STAT_PERIOD_LABELS[p]}
-            </button>
-          ))}
-        </div>
-        <div className="flex w-fit flex-none rounded-lg bg-muted overflow-hidden">
-          {STAT_MODES.map((m) => (
-            <button
-              key={m.value}
-              onClick={() => setStatMode(m.value)}
-              className={`px-3 py-1.5 font-display text-xs font-semibold whitespace-nowrap ${
-                statMode === m.value ? 'bg-foreground text-background' : 'bg-card text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
+        <SelectControl value={period} onChange={(e) => setPeriod(e.target.value as NBAStatPeriod)}>
+          {NBA_STAT_PERIODS.map((p) => <option key={p} value={p}>{NBA_STAT_PERIOD_LABELS[p]}</option>)}
+        </SelectControl>
+        <SelectControl value={statMode} onChange={(e) => setStatMode(e.target.value as StatMode)}>
+          {STAT_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+        </SelectControl>
         <div className="flex flex-none gap-1.5">
           {POSITIONS.map((p) => (
             <FilterChip key={p} active={positions.has(p)} onClick={() => togglePosition(p)}>{p}</FilterChip>
