@@ -20,11 +20,20 @@ import {
 } from './lib/nbaRanking'
 
 const POSITIONS = ['G', 'F', 'C']
+type StatMode = 'stats' | 'zscores'
+const STAT_MODES: { value: StatMode; label: string }[] = [
+  { value: 'stats', label: 'Stats' },
+  { value: 'zscores', label: 'Z-Scores' },
+]
 
 interface Props {
   leagueId: number
   active: boolean
   season: number
+}
+
+function formatZScore(z: number) {
+  return (z >= 0 ? '+' : '') + z.toFixed(2)
 }
 
 const EMPTY_PREP: DraftPrepEntryNBA = { espn_id: '', interest: null, note: '' }
@@ -51,6 +60,7 @@ function rowSearchText(row: PlayerRow, note: string) {
 export function NativeDraftPrepTabNBA({ leagueId, active, season }: Props) {
   const qc = useQueryClient()
   const [period, setPeriod] = useState<NBAStatPeriod>('season')
+  const [statMode, setStatMode] = useState<StatMode>('stats')
   const [positions, setPositions] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
   const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
@@ -139,12 +149,19 @@ export function NativeDraftPrepTabNBA({ leagueId, active, season }: Props) {
         case 'player': cmp = a.name.localeCompare(b.name); break
         case 'team': cmp = (a.team || '').localeCompare(b.team || ''); break
         case 'pos': cmp = (a.position || '').localeCompare(b.position || ''); break
-        default: cmp = statValue(a, sortCol as NBACategory) - statValue(b, sortCol as NBACategory)
+        default:
+          // In z-score mode, sort by the z-score actually shown — for
+          // turnovers that's the fantasy-direction-corrected (negated)
+          // value, so "higher" always means "better" consistently across
+          // every column, including the one where a lower raw number wins.
+          cmp = statMode === 'zscores'
+            ? fantasyZScore(a, sortCol as NBACategory, catStats) - fantasyZScore(b, sortCol as NBACategory, catStats)
+            : statValue(a, sortCol as NBACategory) - statValue(b, sortCol as NBACategory)
       }
       return cmp * dirMul
       // eslint-disable-next-line react-hooks/exhaustive-deps
     })
-  }, [filteredRows, sortCol, sortDir, ranks])
+  }, [filteredRows, sortCol, sortDir, ranks, statMode, catStats])
 
   if (!active) return null
   const loading = loadingFA
@@ -162,6 +179,19 @@ export function NativeDraftPrepTabNBA({ leagueId, active, season }: Props) {
               }`}
             >
               {NBA_STAT_PERIOD_LABELS[p]}
+            </button>
+          ))}
+        </div>
+        <div className="flex w-fit flex-none rounded-lg bg-muted overflow-hidden">
+          {STAT_MODES.map((m) => (
+            <button
+              key={m.value}
+              onClick={() => setStatMode(m.value)}
+              className={`px-3 py-1.5 font-display text-xs font-semibold whitespace-nowrap ${
+                statMode === m.value ? 'bg-foreground text-background' : 'bg-card text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {m.label}
             </button>
           ))}
         </div>
@@ -236,15 +266,13 @@ export function NativeDraftPrepTabNBA({ leagueId, active, season }: Props) {
                     <TableCell className="text-muted-foreground">{p.position}</TableCell>
                     {CATEGORIES.map((cat) => {
                       const v = p.stats?.find((s) => s.category === cat)?.value
+                      const z = v != null ? fantasyZScore(p, cat, catStats) : 0
                       const isPct = cat === 'fg_pct' || cat === 'ft_pct'
                       const isAvg = period === 'season_avg' || period === 'last_season_avg'
-                      return (
-                        <ZScoreCell
-                          key={cat}
-                          value={v != null ? v.toFixed(isPct ? 3 : isAvg ? 1 : 0) : '—'}
-                          zScore={v != null ? fantasyZScore(p, cat, catStats) : 0}
-                        />
-                      )
+                      const value = v == null ? '—'
+                        : statMode === 'zscores' ? formatZScore(z)
+                        : v.toFixed(isPct ? 3 : isAvg ? 1 : 0)
+                      return <ZScoreCell key={cat} value={value} zScore={z} />
                     })}
                     <TableCell>
                       <Input
