@@ -68,13 +68,10 @@ func importNBASalaries(ctx context.Context, pool *pgxpool.Pool, path string, lea
 		return err
 	}
 
-	var matched, unmatchedPlayer, unmatchedTeam, noRosterRow, skipped int
+	var matched, unmatchedPlayer, unmatchedTeam, noSalary int
 	for _, r := range inputRows {
-		if r.Salary == nil {
-			skipped++ // no recorded salary (e.g. a mid-season waiver add with no cost on file)
-			continue
-		}
-		if _, ok := teams[strings.ToLower(strings.TrimSpace(r.FantasyTeam))]; !ok {
+		teamID, ok := teams[strings.ToLower(strings.TrimSpace(r.FantasyTeam))]
+		if !ok {
 			log.Printf("  skipping %q: unknown fantasy team %q in league %d", r.PlayerName, r.FantasyTeam, leagueID)
 			unmatchedTeam++
 			continue
@@ -85,22 +82,28 @@ func importNBASalaries(ctx context.Context, pool *pgxpool.Pool, path string, lea
 			unmatchedPlayer++
 			continue
 		}
-		tag, err := pool.Exec(ctx, `
-			UPDATE league_rosters_nba SET salary = $1
-			WHERE league_id = $2 AND season = $3 AND espn_id = $4
-		`, *r.Salary, leagueID, season, espnID)
+		if r.Salary == nil {
+			noSalary++ // still a valid last-season roster holder, just no recorded cost
+		} else {
+			matched++
+		}
+		// Upsert the whole roster row, not just salary — a season this
+		// historical may not have any league_rosters_nba rows at all yet
+		// (e.g. a freshly created league). slot/acquired_via are nominal for
+		// a past season being backfilled purely as a keeper-cost input, not
+		// an active roster state, so they default to BN/draft.
+		_, err := pool.Exec(ctx, `
+			INSERT INTO league_rosters_nba (league_id, team_id, espn_id, slot, acquired_via, salary, season)
+			VALUES ($1, $2, $3, 'BN', 'draft', $4, $5)
+			ON CONFLICT (league_id, season, espn_id) DO UPDATE SET
+				team_id = EXCLUDED.team_id, salary = EXCLUDED.salary
+		`, leagueID, teamID, espnID, r.Salary, season)
 		if err != nil {
-			log.Printf("  update salary for %q: %v", r.PlayerName, err)
+			log.Printf("  upsert roster row for %q: %v", r.PlayerName, err)
 			continue
 		}
-		if tag.RowsAffected() == 0 {
-			log.Printf("  skipping %q: no league_rosters_nba row at league=%d season=%d", r.PlayerName, leagueID, season)
-			noRosterRow++
-			continue
-		}
-		matched++
 	}
-	log.Printf("  imported %d/%d salary rows: %d unmatched player, %d unmatched team, %d no roster row, %d skipped (no salary)",
-		matched, len(inputRows), unmatchedPlayer, unmatchedTeam, noRosterRow, skipped)
+	log.Printf("  imported %d/%d rows (%d with a recorded salary, %d without): %d unmatched player, %d unmatched team",
+		matched+noSalary, len(inputRows), matched, noSalary, unmatchedPlayer, unmatchedTeam)
 	return nil
 }
