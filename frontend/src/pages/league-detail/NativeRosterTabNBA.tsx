@@ -7,7 +7,7 @@ import { SelectControl } from '@/components/ui/filter-chip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  getLeagueRostersNBA, getLeagueRosterSeasonsNBA, nbaSeasonLabel, getLeagueFreeAgentsNBA, assignLeagueRosterNBA, updateLeagueRosterNBA, dropLeagueRosterNBA,
+  getLeagueSettings, getLeagueRostersNBA, getLeagueRosterSeasonsNBA, nbaSeasonLabel, getLeagueFreeAgentsNBA, assignLeagueRosterNBA, updateLeagueRosterNBA, dropLeagueRosterNBA,
   NBA_SLOT_POSITIONS, NBA_SLOT_LABELS, NBA_CATEGORY_LABELS, type NBASlotPosition, type Team,
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
@@ -46,6 +46,12 @@ export function NativeRosterTabNBA({ leagueId, active, teams, myTeam }: Props) {
   const selectSeason = (s: number) =>
     setSearchParams((prev) => { prev.set('season', String(s)); return prev }, { replace: true })
 
+  const { data: settings } = useQuery({
+    queryKey: keys.leagueSettings(leagueId),
+    queryFn: () => getLeagueSettings(leagueId),
+    enabled: active,
+  })
+
   const { data: roster } = useQuery({
     queryKey: keys.leagueRostersNBA(leagueId, season),
     queryFn: () => getLeagueRostersNBA(leagueId, 'season', season),
@@ -78,6 +84,15 @@ export function NativeRosterTabNBA({ leagueId, active, teams, myTeam }: Props) {
   if (!active) return null
 
   const teamRoster = (roster ?? []).filter((r) => r.team_id === teamId)
+  // One row per configured slot: filled by that slot's players, padded with
+  // empty placeholders up to the league's slot count; overflow players still show.
+  const rows: { slot: NBASlotPosition; player?: (typeof teamRoster)[number] }[] = []
+  for (const slot of NBA_SLOT_POSITIONS) {
+    const players = teamRoster.filter((r) => r.slot === slot)
+    const configured = settings?.slots?.[slot] ?? (slot === 'IR' ? settings?.ir_slots ?? 0 : 0)
+    const count = Math.max(configured, players.length)
+    for (let i = 0; i < count; i++) rows.push({ slot, player: players[i] })
+  }
   const selectedTeam = teams.find((t) => t.id === teamId)
 
   return (
@@ -108,9 +123,14 @@ export function NativeRosterTabNBA({ leagueId, active, teams, myTeam }: Props) {
             </HeaderRow>
           </TableHeader>
           <TableBody>
-            {teamRoster.length === 0 ? (
+            {rows.length === 0 ? (
               <TableRow><TableCell colSpan={13} className="text-muted-foreground">No players rostered for this season yet.</TableCell></TableRow>
-            ) : teamRoster.map((r) => (
+            ) : rows.map(({ slot, player: r }, i) => !r ? (
+              <TableRow key={`empty-${slot}-${i}`}>
+                <TableCell className="font-mono text-xs">{NBA_SLOT_LABELS[slot]}</TableCell>
+                <TableCell colSpan={12} className="text-muted-foreground">Empty</TableCell>
+              </TableRow>
+            ) : (
               <TableRow key={r.espn_id}>
                 <TableCell>
                   <select
