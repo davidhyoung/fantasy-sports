@@ -10,6 +10,7 @@
 //	go run ./cmd/project-nba -project -season 2026
 //	go run ./cmd/project-nba -import-consensus f.json -season 2026
 //	go run ./cmd/project-nba -consensus-diff -season 2026
+//	go run ./cmd/project-nba -import-nba-salaries f.json -league-id 58 -season 2025
 //	go run ./cmd/project-nba -backtest -from 2015 -to 2025
 //	go run ./cmd/project-nba -autotune -from 2015 -to 2025 -train-to 2021
 package main
@@ -59,6 +60,8 @@ func main() {
 	doProject := flag.Bool("project", false, "batch-project every eligible player for -season")
 	importConsensus := flag.String("import-consensus", "", "path to a consensus rankings JSON file to import")
 	doConsensusDiff := flag.Bool("consensus-diff", false, "diff our projections' rank against imported consensus")
+	importSalaries := flag.String("import-nba-salaries", "", "path to a league-scoped historical salary JSON file to import (requires -league-id)")
+	leagueID := flag.Int64("league-id", 0, "league id for -import-nba-salaries (salary is league-internal, not external market data)")
 	doBacktest := flag.Bool("backtest", false, "backtest the projection engine across -from..-to")
 	doAutotune := flag.Bool("autotune", false, "coordinate-descent tune projConfig across -from..-train-to (train) / -train-to..-to (validate)")
 	season := flag.Int("season", 2026, "target season for -project / -import-consensus / -consensus-diff")
@@ -97,6 +100,17 @@ func main() {
 		log.Printf("importing NBA consensus rankings from %s…", *importConsensus)
 		if err := importConsensusRankings(ctx, pool, *importConsensus, *season); err != nil {
 			log.Fatalf("import-consensus: %v", err)
+		}
+	}
+
+	if *importSalaries != "" {
+		ranAnything = true
+		if *leagueID == 0 {
+			log.Fatal("-import-nba-salaries requires -league-id")
+		}
+		log.Printf("importing NBA salaries for league %d, season %d, from %s…", *leagueID, *season, *importSalaries)
+		if err := importNBASalaries(ctx, pool, *importSalaries, *leagueID, *season); err != nil {
+			log.Fatalf("import-nba-salaries: %v", err)
 		}
 	}
 

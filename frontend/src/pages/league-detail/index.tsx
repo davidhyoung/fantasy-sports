@@ -195,6 +195,8 @@ export default function LeagueDetail() {
               leagueId={leagueId}
               active={visibleTab === 'draft-prep'}
               season={parseInt(league.season, 10) || new Date().getFullYear()}
+              teams={teams}
+              myTeam={myTeam}
             />
           </TabsContent>
         )}

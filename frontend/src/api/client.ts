@@ -689,6 +689,47 @@ export interface NBADraftValuesResponse {
 export const getNBADraftValues = (leagueId: number, season: number) =>
   request<NBADraftValuesResponse>(`/leagues/${leagueId}/draft-values-nba?season=${season}`)
 
+/**
+ * Native-NBA keeper designation — pick up to 3 players off last season's
+ * roster to carry into the new one, at a cost derived from what they
+ * actually cost last season (+$5/year, floored at $10 for anyone not
+ * continuously held by the same team — "the Brian Rule").
+ */
+export interface NBAKeeperCandidate {
+  espn_id: string
+  name: string
+  position: string
+  team: string
+  headshot_url?: string
+  held_by_team_id: number
+  held_by_team_name: string
+  last_salary: number
+  keeper_cost: number | null
+  kept_by_team_id: number | null
+  kept_by_team_name: string | null
+}
+
+export interface NBAKeeperCandidatesResponse {
+  season: number
+  max_keepers: number
+  candidates: NBAKeeperCandidate[]
+}
+
+export const getNBAKeeperCandidates = (leagueId: number, season: number, teamId?: number) => {
+  const params = new URLSearchParams({ season: String(season) })
+  if (teamId != null) params.set('team_id', String(teamId))
+  return request<NBAKeeperCandidatesResponse>(`/leagues/${leagueId}/keepers-nba?${params.toString()}`)
+}
+
+export const designateNBAKeeper = (leagueId: number, data: { season: number; team_id: number; espn_id: string }) =>
+  request<{ espn_id: string; team_id: number; keeper_cost: number }>(`/leagues/${leagueId}/keepers-nba`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+
+export const removeNBAKeeper = (leagueId: number, espnId: string, season: number) =>
+  request<{ removed: boolean }>(`/leagues/${leagueId}/keepers-nba/${encodeURIComponent(espnId)}?season=${season}`, { method: 'DELETE' })
+
 export const generateLeagueScheduleNBA = (leagueId: number, seasonStartDate: string, season?: number, weeks?: number) =>
   request<{ status: string; season: number; weeks: number; matchups: number }>(
     `/leagues/${leagueId}/schedule-nba/generate`,
