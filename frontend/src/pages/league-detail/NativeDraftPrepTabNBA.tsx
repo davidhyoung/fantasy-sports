@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
-import { PlayerCell, ClickableRow, HeaderRow, SortableHead, useTableSort, ZScoreCell } from '@/components/ui/table-helpers'
+import { PlayerCell, ClickableRow, HeaderRow, SortableHead, useTableSort, ZScoreCell, type SortDir } from '@/components/ui/table-helpers'
 import { FilterChip, SelectControl } from '@/components/ui/filter-chip'
 import { Input } from '@/components/ui/input'
 import { INTEREST_LEVELS, interestIconClass, interestRowClass } from '@/pages/draft-prep/lib/interest'
@@ -18,6 +18,7 @@ import {
   nbaComputeCategoryStats as computeCategoryStats, nbaFantasyZScore as fantasyZScore, nbaComputeRanks as computeRanks,
   type NBAPlayerRow as PlayerRow,
 } from './lib/nbaRanking'
+import { loadPersistedFilters, savePersistedFilters } from '@/lib/persistedFilters'
 
 const POSITIONS = ['G', 'F', 'C']
 type StatMode = 'stats' | 'zscores'
@@ -57,16 +58,34 @@ function rowSearchText(row: PlayerRow, note: string) {
  * color-coding/period-picker/detail-panel all reuse exactly what the
  * Players tab already built (see lib/nbaRanking).
  */
+interface SavedFilters {
+  period: NBAStatPeriod
+  statMode: StatMode
+  positions: string[]
+  search: string
+  sortCol: string
+  sortDir: SortDir
+}
+
+const filtersStorageKey = (leagueId: number) => `fs.draft-prep-nba.${leagueId}.filters`
+
 export function NativeDraftPrepTabNBA({ leagueId, active, season }: Props) {
   const qc = useQueryClient()
-  const [period, setPeriod] = useState<NBAStatPeriod>('season')
-  const [statMode, setStatMode] = useState<StatMode>('stats')
-  const [positions, setPositions] = useState<Set<string>>(new Set())
-  const [search, setSearch] = useState('')
+  const saved = useMemo(() => loadPersistedFilters<SavedFilters>(filtersStorageKey(leagueId)), [leagueId])
+  const [period, setPeriod] = useState<NBAStatPeriod>(saved.period ?? 'season')
+  const [statMode, setStatMode] = useState<StatMode>(saved.statMode ?? 'stats')
+  const [positions, setPositions] = useState<Set<string>>(new Set(saved.positions ?? []))
+  const [search, setSearch] = useState(saved.search ?? '')
   const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
   const [detailPeriod, setDetailPeriod] = useState<NBAStatPeriod>('season')
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({})
-  const { sortCol, sortDir, handleSort } = useTableSort('rank', 'asc', ['rank', 'player', 'team', 'pos'])
+  const { sortCol, sortDir, handleSort } = useTableSort(
+    saved.sortCol ?? 'rank', saved.sortDir ?? 'asc', ['rank', 'player', 'team', 'pos']
+  )
+
+  useEffect(() => {
+    savePersistedFilters<SavedFilters>(filtersStorageKey(leagueId), { period, statMode, positions: [...positions], search, sortCol, sortDir })
+  }, [leagueId, period, statMode, positions, search, sortCol, sortDir])
 
   const { data: freeAgents, isFetching: loadingFA } = useQuery({
     queryKey: keys.freeAgentsNBAView(leagueId, '', '', period),

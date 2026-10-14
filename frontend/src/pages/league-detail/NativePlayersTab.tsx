@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
 import { PlayerCell, ClickableRow, HeaderRow, PlayerAvatar } from '@/components/ui/table-helpers'
@@ -12,6 +12,7 @@ import { DISPLAY_STATS, DISPLAY_LABELS, type DisplayStat } from './lib/statColum
 import { L4Sparkline } from './components/L4Sparkline'
 import { StatViewToggle } from './components/StatViewToggle'
 import { useStatView } from './hooks/useStatView'
+import { loadPersistedFilters, savePersistedFilters } from '@/lib/persistedFilters'
 
 const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF']
 
@@ -49,11 +50,23 @@ function statValue(stats: PlayerStat[] | undefined, stat: DisplayStat): number |
  * for the same reason it stayed chips: several positions can be active at
  * once without changing which dataset is showing.
  */
+interface SavedFilters {
+  view: 'free-agents' | 'rostered'
+  positions: string[]
+}
+
+const filtersStorageKey = (leagueId: number) => `fs.players-nfl.${leagueId}.filters`
+
 export function NativePlayersTab({ leagueId, active, teams }: Props) {
-  const [view, setView] = useState<'free-agents' | 'rostered'>('free-agents')
-  const [positions, setPositions] = useState<Set<string>>(new Set())
+  const saved = useMemo(() => loadPersistedFilters<SavedFilters>(filtersStorageKey(leagueId)), [leagueId])
+  const [view, setView] = useState<'free-agents' | 'rostered'>(saved.view ?? 'free-agents')
+  const [positions, setPositions] = useState<Set<string>>(new Set(saved.positions ?? []))
   const [viewingPlayer, setViewingPlayer] = useState<string | null>(null)
   const { view: statView, week: statWeek, setView: setStatView, setWeek: setStatWeek } = useStatView()
+
+  useEffect(() => {
+    savePersistedFilters<SavedFilters>(filtersStorageKey(leagueId), { view, positions: [...positions] })
+  }, [leagueId, view, positions])
 
   const togglePosition = (p: string) => {
     setPositions((prev) => {

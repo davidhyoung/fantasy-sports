@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useProjections } from '../projections/hooks/useProjections'
 import { useRankings } from '../rankings/hooks/useRankings'
@@ -9,6 +9,7 @@ import { FilterChip, SelectControl } from '@/components/ui/filter-chip'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CURRENT_SEASON, PROJECTION_SEASON } from '@/lib/constants'
 import type { RankingsFormat } from '@/api/client'
+import { loadPersistedFilters, savePersistedFilters } from '@/lib/persistedFilters'
 
 const POSITIONS = ['All', 'QB', 'RB', 'WR', 'TE', 'K']
 const FORMATS: { label: string; value: RankingsFormat }[] = [
@@ -26,6 +27,14 @@ function isView(v: string | null): v is View {
   return v === 'projections' || v === 'grades'
 }
 
+interface SavedFilters {
+  position: string
+  format: RankingsFormat
+  gradeSeason: number
+}
+
+const FILTERS_KEY = 'fs.statistics.filters'
+
 /**
  * Statistics — the single player-data surface, merging comp-based projections
  * with real-life player grades. Which season is meaningful depends on the view:
@@ -38,9 +47,14 @@ export default function Statistics() {
   const viewParam = searchParams.get('view')
   const view: View = isView(viewParam) ? viewParam : 'projections'
 
-  const [position, setPosition] = useState('')
-  const [format, setFormat] = useState<RankingsFormat>('ppr')
-  const [gradeSeason, setGradeSeason] = useState(CURRENT_SEASON)
+  const saved = useMemo(() => loadPersistedFilters<SavedFilters>(FILTERS_KEY), [])
+  const [position, setPosition] = useState(saved.position ?? '')
+  const [format, setFormat] = useState<RankingsFormat>(saved.format ?? 'ppr')
+  const [gradeSeason, setGradeSeason] = useState(saved.gradeSeason ?? CURRENT_SEASON)
+
+  useEffect(() => {
+    savePersistedFilters<SavedFilters>(FILTERS_KEY, { position, format, gradeSeason })
+  }, [position, format, gradeSeason])
 
   const setView = (v: View) => {
     searchParams.set('view', v)

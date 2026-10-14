@@ -16,6 +16,7 @@ import {
   nbaComputeCategoryStats as computeCategoryStats, nbaFantasyZScore as fantasyZScore, nbaComputeRanks as computeRanks,
   type NBAPlayerRow as PlayerRow,
 } from './lib/nbaRanking'
+import { loadPersistedFilters, savePersistedFilters } from '@/lib/persistedFilters'
 
 const POSITIONS = ['G', 'F', 'C']
 type ViewOption = 'free-agents' | 'rostered' | 'all'
@@ -42,29 +43,6 @@ interface SavedFilters {
 
 const filtersStorageKey = (leagueId: number) => `fs.players-nba.${leagueId}.filters`
 
-/** Per-viewer convenience only (which filters/sort you left the Players tab
- *  on) — never shared, never read by the server, so localStorage is the
- *  right persistence layer rather than a URL param or a backend write.
- *  Wrapped in try/catch since a private window or blocked site data can
- *  throw on access. */
-function loadFilters(leagueId: number): Partial<SavedFilters> {
-  try {
-    const raw = localStorage.getItem(filtersStorageKey(leagueId))
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
-  }
-}
-
-function saveFilters(leagueId: number, filters: SavedFilters) {
-  try {
-    localStorage.setItem(filtersStorageKey(leagueId), JSON.stringify(filters))
-  } catch {
-    // Private window, blocked site data, quota — losing the remembered
-    // filters is a minor inconvenience, not worth surfacing an error for.
-  }
-}
-
 function rowSearchText(row: PlayerRow, rosteredByLabel: string) {
   const statText = CATEGORIES.map((cat) => {
     const v = row.stats?.find((s) => s.category === cat)?.value
@@ -87,7 +65,7 @@ function rowSearchText(row: PlayerRow, rosteredByLabel: string) {
 export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
   // Read once on mount (leagueId is stable for the component's lifetime) —
   // every filter below seeds from whatever was last saved for this league.
-  const saved = useMemo(() => loadFilters(leagueId), [leagueId])
+  const saved = useMemo(() => loadPersistedFilters<SavedFilters>(filtersStorageKey(leagueId)), [leagueId])
   const [view, setView] = useState<ViewOption>(saved.view ?? 'free-agents')
   const [period, setPeriod] = useState<NBAStatPeriod>(saved.period ?? 'season')
   const [positions, setPositions] = useState<Set<string>>(new Set(saved.positions ?? []))
@@ -98,10 +76,10 @@ export function NativePlayersTabNBA({ leagueId, active, teams }: Props) {
     saved.sortCol ?? 'rank', saved.sortDir ?? 'asc', ['rank', 'player', 'team', 'pos', 'rostered_by']
   )
 
-  // Persisted per league (see loadFilters) — not the detail panel's own
-  // period, which is a separate, per-player choice.
+  // Persisted per league — not the detail panel's own period, which is a
+  // separate, per-player choice.
   useEffect(() => {
-    saveFilters(leagueId, { view, period, positions: [...positions], search, sortCol, sortDir })
+    savePersistedFilters<SavedFilters>(filtersStorageKey(leagueId), { view, period, positions: [...positions], search, sortCol, sortDir })
   }, [leagueId, view, period, positions, search, sortCol, sortDir])
 
   // Both lists are always fetched (not gated by `view`) because the
