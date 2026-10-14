@@ -134,7 +134,8 @@ Protected (RequireAuth):
   PUT  /api/leagues/{id}/rosters/{gsisId}                 — commissioner only; move team (trade), slot, and/or contract terms
   DELETE /api/leagues/{id}/rosters/{gsisId}               — commissioner only; drop to free agency (contract cascades, writes dead money)
   GET  /api/leagues/{id}/free-agents?position=&season=&limit=&offset=&search= — unrostered players in a native league
-  GET  /api/leagues/{id}/rosters-nba                        — native NBA league roster (season-to-date category stats)
+  GET  /api/leagues/{id}/rosters-nba?season=                — native NBA league roster for a season (default: league's current; rows are per-season, so a new season starts empty until keepers are re-added)
+  GET  /api/leagues/{id}/rosters-nba/seasons                — seasons the Roster tab's year picker offers (those with rows + current)
   POST /api/leagues/{id}/rosters-nba                        — commissioner only; {espn_id, team_id, slot?, acquired_via}
   PUT  /api/leagues/{id}/rosters-nba/{espnId}                — commissioner only; {team_id?, slot?}
   DELETE /api/leagues/{id}/rosters-nba/{espnId}              — commissioner only; drop to free agency

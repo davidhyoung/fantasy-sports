@@ -137,7 +137,7 @@ func (h *Handler) nbaTeamCategoryStats(r *http.Request, leagueID, teamID int64, 
 		       COALESCE(SUM(s.ft_made),0), COALESCE(SUM(s.ft_att),0)
 		FROM league_rosters_nba lr
 		JOIN nba_player_stats s ON s.espn_id = lr.espn_id
-		WHERE lr.league_id = $1 AND lr.team_id = $2 AND lr.slot NOT IN ('BN', 'IR')
+		WHERE lr.league_id = $1 AND lr.team_id = $2 AND lr.season = $3 AND lr.slot NOT IN ('BN', 'IR')
 		  AND s.season = $3 AND s.game_date BETWEEN $4 AND $5
 	`, leagueID, teamID, season, start, end)
 	if err != nil {

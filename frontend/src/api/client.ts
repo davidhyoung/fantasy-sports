@@ -490,32 +490,46 @@ export interface NBAFreeAgent {
   stats?: NBACategoryEntry[]
 }
 
-export const getLeagueRostersNBA = (leagueId: number, period: NBAStatPeriod = 'season') =>
-  request<NBARosterEntry[]>(`/leagues/${leagueId}/rosters-nba?${nbaStatPeriodParams(period).toString()}`)
+// `season` omitted = the league's current season (server default).
+const withSeason = (params: URLSearchParams, season?: number) => {
+  if (season != null) params.set('season', String(season))
+  return params
+}
+
+export const getLeagueRostersNBA = (leagueId: number, period: NBAStatPeriod = 'season', season?: number) =>
+  request<NBARosterEntry[]>(`/leagues/${leagueId}/rosters-nba?${withSeason(nbaStatPeriodParams(period), season).toString()}`)
+
+export const getLeagueRosterSeasonsNBA = (leagueId: number) =>
+  request<{ current: number; seasons: number[] }>(`/leagues/${leagueId}/rosters-nba/seasons`)
+
+// Stats seasons are labeled by start year (2025 = 2025-26).
+export const nbaSeasonLabel = (season: number) => `${season}-${String((season + 1) % 100).padStart(2, '0')}`
 
 export const assignLeagueRosterNBA = (
   leagueId: number,
-  data: { espn_id: string; team_id: number; slot?: string; acquired_via: string }
+  data: { espn_id: string; team_id: number; slot?: string; acquired_via: string },
+  season?: number
 ) =>
-  request<{ status: string }>(`/leagues/${leagueId}/rosters-nba`, { method: 'POST', body: JSON.stringify(data) })
+  request<{ status: string }>(`/leagues/${leagueId}/rosters-nba?${withSeason(new URLSearchParams(), season)}`, { method: 'POST', body: JSON.stringify(data) })
 
 export const updateLeagueRosterNBA = (
   leagueId: number,
   espnId: string,
-  patch: { team_id?: number; slot?: string }
+  patch: { team_id?: number; slot?: string },
+  season?: number
 ) =>
-  request<{ status: string }>(`/leagues/${leagueId}/rosters-nba/${encodeURIComponent(espnId)}`, {
+  request<{ status: string }>(`/leagues/${leagueId}/rosters-nba/${encodeURIComponent(espnId)}?${withSeason(new URLSearchParams(), season)}`, {
     method: 'PUT',
     body: JSON.stringify(patch),
   })
 
-export const dropLeagueRosterNBA = (leagueId: number, espnId: string) =>
-  request<{ status: string }>(`/leagues/${leagueId}/rosters-nba/${encodeURIComponent(espnId)}`, { method: 'DELETE' })
+export const dropLeagueRosterNBA = (leagueId: number, espnId: string, season?: number) =>
+  request<{ status: string }>(`/leagues/${leagueId}/rosters-nba/${encodeURIComponent(espnId)}?${withSeason(new URLSearchParams(), season)}`, { method: 'DELETE' })
 
 export const getLeagueFreeAgentsNBA = (
-  leagueId: number, position = '', limit = 100, offset = 0, search = '', period: NBAStatPeriod = 'season'
+  leagueId: number, position = '', limit = 100, offset = 0, search = '', period: NBAStatPeriod = 'season', season?: number
 ) => {
-  const params = nbaStatPeriodParams(period)
+  const params = withSeason(nbaStatPeriodParams(period), season)
   if (position) params.set('position', position)
   params.set('limit', String(limit))
   if (offset > 0) params.set('offset', String(offset))

@@ -118,6 +118,7 @@ func main() {
 			// .claude/plans) — draft prep below is a personal board only,
 			// not a draft-room/auction mechanism.
 			r.Get("/{id}/rosters-nba", h.GetLeagueRostersNBA)
+			r.Get("/{id}/rosters-nba/seasons", h.ListLeagueRosterSeasonsNBA)
 			r.Post("/{id}/rosters-nba", h.AssignLeagueRosterNBA)
 			r.Put("/{id}/rosters-nba/{espnId}", h.UpdateLeagueRosterNBA)
 			r.Delete("/{id}/rosters-nba/{espnId}", h.DropLeagueRosterNBA)

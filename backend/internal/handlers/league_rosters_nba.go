@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -214,6 +215,15 @@ func (h *Handler) nbaCategoryStats(ctx context.Context, leagueID int64, season i
 	return out, nil
 }
 
+// nbaRosterSeason resolves which season's roster a request targets: an
+// explicit ?season= if present, otherwise the league's current season.
+func (h *Handler) nbaRosterSeason(r *http.Request, leagueID int64) int {
+	if v, err := strconv.Atoi(r.URL.Query().Get("season")); err == nil && v > 0 {
+		return v
+	}
+	return h.leagueSeasonInt(r, leagueID)
+}
+
 // GetLeagueRostersNBA returns every rostered player in a native NBA league.
 //
 // GET /api/leagues/{id}/rosters-nba?period=
@@ -223,7 +233,7 @@ func (h *Handler) GetLeagueRostersNBA(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid league id")
 		return
 	}
-	season := h.leagueSeasonInt(r, leagueID)
+	season := h.nbaRosterSeason(r, leagueID)
 	period := parseNBAStatPeriod(r)
 
 	rows, err := h.db.Query(r.Context(), `
@@ -231,9 +241,9 @@ func (h *Handler) GetLeagueRostersNBA(w http.ResponseWriter, r *http.Request) {
 		       lr.team_id, lr.slot, lr.acquired_via, lr.acquired_at
 		FROM league_rosters_nba lr
 		JOIN nba_players p ON p.espn_id = lr.espn_id
-		WHERE lr.league_id = $1
+		WHERE lr.league_id = $1 AND lr.season = $2
 		ORDER BY lr.team_id, lr.slot, p.name
-	`, leagueID)
+	`, leagueID, season)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -276,7 +286,7 @@ func (h *Handler) GetLeagueFreeAgentsNBA(w http.ResponseWriter, r *http.Request)
 		respondError(w, http.StatusBadRequest, "invalid league id")
 		return
 	}
-	season := h.leagueSeasonInt(r, leagueID)
+	season := h.nbaRosterSeason(r, leagueID)
 	period := parseNBAStatPeriod(r)
 
 	q := r.URL.Query()
@@ -298,7 +308,7 @@ func (h *Handler) GetLeagueFreeAgentsNBA(w http.ResponseWriter, r *http.Request)
 	rows, err := h.db.Query(r.Context(), `
 		SELECT p.espn_id, p.name, COALESCE(p.position, ''), COALESCE(p.team, ''), COALESCE(p.headshot_url, '')
 		FROM nba_players p
-		LEFT JOIN league_rosters_nba lr ON lr.league_id = $1 AND lr.espn_id = p.espn_id
+		LEFT JOIN league_rosters_nba lr ON lr.league_id = $1 AND lr.season = $2 AND lr.espn_id = p.espn_id
 		WHERE lr.espn_id IS NULL
 		  -- Excludes historical stat-stub rows (cmd/import-nba inserts a
 		  -- position-less stub for any box-score player not on a currently
@@ -306,11 +316,11 @@ func (h *Handler) GetLeagueFreeAgentsNBA(w http.ResponseWriter, r *http.Request)
 		  -- eligible to roster today, not a decades-old player ESPN's
 		  -- scoreboard happened to mention.
 		  AND p.position IS NOT NULL AND p.position != ''
-		  AND ($2 = '' OR p.position = $2)
-		  AND ($3 = '' OR p.name ILIKE '%' || $3 || '%')
+		  AND ($3 = '' OR p.position = $3)
+		  AND ($4 = '' OR p.name ILIKE '%' || $4 || '%')
 		ORDER BY p.name
-		LIMIT $4 OFFSET $5
-	`, leagueID, position, search, limit, offset)
+		LIMIT $5 OFFSET $6
+	`, leagueID, season, position, search, limit, offset)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -412,9 +422,9 @@ func (h *Handler) AssignLeagueRosterNBA(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if _, err := h.db.Exec(r.Context(), `
-		INSERT INTO league_rosters_nba (league_id, team_id, espn_id, slot, acquired_via)
-		VALUES ($1, $2, $3, $4, $5)
-	`, leagueID, req.TeamID, req.ESPNID, req.Slot, req.AcquiredVia); err != nil {
+		INSERT INTO league_rosters_nba (league_id, season, team_id, espn_id, slot, acquired_via)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, leagueID, h.nbaRosterSeason(r, leagueID), req.TeamID, req.ESPNID, req.Slot, req.AcquiredVia); err != nil {
 		respondError(w, http.StatusConflict, "player is already rostered in this league")
 		return
 	}
@@ -482,8 +492,8 @@ func (h *Handler) UpdateLeagueRosterNBA(w http.ResponseWriter, r *http.Request) 
 	res, err := h.db.Exec(r.Context(), `
 		UPDATE league_rosters_nba
 		SET team_id = COALESCE($3, team_id), slot = COALESCE($4, slot)
-		WHERE league_id = $1 AND espn_id = $2
-	`, leagueID, espnID, req.TeamID, req.Slot)
+		WHERE league_id = $1 AND espn_id = $2 AND season = $5
+	`, leagueID, espnID, req.TeamID, req.Slot, h.nbaRosterSeason(r, leagueID))
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -512,7 +522,8 @@ func (h *Handler) DropLeagueRosterNBA(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res, err := h.db.Exec(r.Context(),
-		"DELETE FROM league_rosters_nba WHERE league_id = $1 AND espn_id = $2", leagueID, espnID)
+		"DELETE FROM league_rosters_nba WHERE league_id = $1 AND espn_id = $2 AND season = $3",
+		leagueID, espnID, h.nbaRosterSeason(r, leagueID))
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -522,4 +533,37 @@ func (h *Handler) DropLeagueRosterNBA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "dropped"})
+}
+
+// ListLeagueRosterSeasonsNBA returns the seasons a league's roster picker
+// should offer: every season with roster rows, plus the league's current one
+// (which may be empty — e.g. preseason before keepers are set), newest first.
+//
+// GET /api/leagues/{id}/rosters-nba/seasons
+func (h *Handler) ListLeagueRosterSeasonsNBA(w http.ResponseWriter, r *http.Request) {
+	leagueID, err := parseID(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid league id")
+		return
+	}
+	current := h.leagueSeasonInt(r, leagueID)
+	rows, err := h.db.Query(r.Context(), `
+		SELECT DISTINCT season FROM league_rosters_nba WHERE league_id = $1 AND season <> $2
+	`, leagueID, current)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer rows.Close()
+	seasons := []int{current}
+	for rows.Next() {
+		var s int
+		if err := rows.Scan(&s); err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		seasons = append(seasons, s)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(seasons)))
+	respondJSON(w, http.StatusOK, map[string]any{"current": current, "seasons": seasons})
 }

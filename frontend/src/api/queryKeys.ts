@@ -26,12 +26,13 @@ export const keys = {
     ['league', id, 'free-agents', position, search, view, week] as const,
   leagueSettings: (id: number) => ['league', id, 'settings'] as const,
   // Native NBA leagues — parallel key set, not merged with the NFL ones above.
-  leagueRostersNBA: (id: number) => ['league', id, 'rosters-nba'] as const,
+  leagueRostersNBA: (id: number, season?: number) => ['league', id, 'rosters-nba', 'season', season ?? 'current'] as const,
+  leagueRosterSeasonsNBA: (id: number) => ['league', id, 'rosters-nba', 'seasons'] as const,
   // Same prefix relationship as leagueRostersView above, for the same reason.
   leagueRostersNBAView: (id: number, period: NBAStatPeriod) =>
     ['league', id, 'rosters-nba', period] as const,
-  freeAgentsNBA: (id: number, position: string, search = '') =>
-    ['league', id, 'free-agents-nba', position, search] as const,
+  freeAgentsNBA: (id: number, position: string, search = '', season?: number) =>
+    ['league', id, 'free-agents-nba', position, search, 'season', season ?? 'current'] as const,
   freeAgentsNBAView: (id: number, position: string, search: string, period: NBAStatPeriod) =>
     ['league', id, 'free-agents-nba', position, search, period] as const,
   scoreboardNBA: (id: number, week?: number) =>

@@ -7,7 +7,7 @@ import { SelectControl } from '@/components/ui/filter-chip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  getLeagueRostersNBA, getLeagueFreeAgentsNBA, assignLeagueRosterNBA, updateLeagueRosterNBA, dropLeagueRosterNBA,
+  getLeagueRostersNBA, getLeagueRosterSeasonsNBA, nbaSeasonLabel, getLeagueFreeAgentsNBA, assignLeagueRosterNBA, updateLeagueRosterNBA, dropLeagueRosterNBA,
   NBA_SLOT_POSITIONS, NBA_SLOT_LABELS, NBA_CATEGORY_LABELS, type NBASlotPosition, type Team,
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
@@ -34,15 +34,27 @@ export function NativeRosterTabNBA({ leagueId, active, teams, myTeam }: Props) {
     setSearchParams((prev) => { prev.set('team', String(id)); return prev }, { replace: true })
   const [search, setSearch] = useState('')
 
-  const { data: roster } = useQuery({
-    queryKey: keys.leagueRostersNBA(leagueId),
-    queryFn: () => getLeagueRostersNBA(leagueId),
+  const { data: seasonInfo } = useQuery({
+    queryKey: keys.leagueRosterSeasonsNBA(leagueId),
+    queryFn: () => getLeagueRosterSeasonsNBA(leagueId),
     enabled: active,
   })
+  const seasonParam = Number(searchParams.get('season'))
+  const season = seasonInfo
+    ? (seasonInfo.seasons.includes(seasonParam) ? seasonParam : seasonInfo.current)
+    : undefined
+  const selectSeason = (s: number) =>
+    setSearchParams((prev) => { prev.set('season', String(s)); return prev }, { replace: true })
+
+  const { data: roster } = useQuery({
+    queryKey: keys.leagueRostersNBA(leagueId, season),
+    queryFn: () => getLeagueRostersNBA(leagueId, 'season', season),
+    enabled: active && season != null,
+  })
   const { data: freeAgents } = useQuery({
-    queryKey: keys.freeAgentsNBA(leagueId, '', search),
-    queryFn: () => getLeagueFreeAgentsNBA(leagueId, '', 50, 0, search),
-    enabled: active,
+    queryKey: keys.freeAgentsNBA(leagueId, '', search, season),
+    queryFn: () => getLeagueFreeAgentsNBA(leagueId, '', 50, 0, search, 'season', season),
+    enabled: active && season != null,
   })
 
   const invalidate = () => {
@@ -51,15 +63,15 @@ export function NativeRosterTabNBA({ leagueId, active, teams, myTeam }: Props) {
   }
 
   const assignMutation = useMutation({
-    mutationFn: (espnId: string) => assignLeagueRosterNBA(leagueId, { espn_id: espnId, team_id: teamId, slot: 'BN', acquired_via: 'fa' }),
+    mutationFn: (espnId: string) => assignLeagueRosterNBA(leagueId, { espn_id: espnId, team_id: teamId, slot: 'BN', acquired_via: 'fa' }, season),
     onSuccess: invalidate,
   })
   const slotMutation = useMutation({
-    mutationFn: ({ espnId, slot }: { espnId: string; slot: NBASlotPosition }) => updateLeagueRosterNBA(leagueId, espnId, { slot }),
+    mutationFn: ({ espnId, slot }: { espnId: string; slot: NBASlotPosition }) => updateLeagueRosterNBA(leagueId, espnId, { slot }, season),
     onSuccess: invalidate,
   })
   const dropMutation = useMutation({
-    mutationFn: (espnId: string) => dropLeagueRosterNBA(leagueId, espnId),
+    mutationFn: (espnId: string) => dropLeagueRosterNBA(leagueId, espnId, season),
     onSuccess: invalidate,
   })
 
@@ -75,6 +87,11 @@ export function NativeRosterTabNBA({ leagueId, active, teams, myTeam }: Props) {
         <SelectControl value={teamId} onChange={(e) => selectTeam(Number(e.target.value))}>
           {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </SelectControl>
+        {seasonInfo && season != null && (
+          <SelectControl value={season} onChange={(e) => selectSeason(Number(e.target.value))} aria-label="Season">
+            {seasonInfo.seasons.map((s) => <option key={s} value={s}>{nbaSeasonLabel(s)}</option>)}
+          </SelectControl>
+        )}
       </div>
 
       <div className="rounded-lg bg-card overflow-x-auto max-w-[calc(100vw-3rem)]">
@@ -92,7 +109,7 @@ export function NativeRosterTabNBA({ leagueId, active, teams, myTeam }: Props) {
           </TableHeader>
           <TableBody>
             {teamRoster.length === 0 ? (
-              <TableRow><TableCell colSpan={13} className="text-muted-foreground">No players rostered yet.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={13} className="text-muted-foreground">No players rostered for this season yet.</TableCell></TableRow>
             ) : teamRoster.map((r) => (
               <TableRow key={r.espn_id}>
                 <TableCell>
