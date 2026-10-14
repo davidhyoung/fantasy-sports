@@ -635,6 +635,60 @@ export const getNBARankings = (season: number, position?: string) => {
   return request<NBARankingsResponse>(`/nba/rankings?${params.toString()}`)
 }
 
+/**
+ * Native-NBA auction-value board — our own dollar value (a z-score sum over
+ * only the categories this league scores, priced by position-scarcity
+ * replacement level off this league's own roster slots) alongside a
+ * consensus dollar value derived from external rankings. See
+ * docs/stats/nba-auction-values.md.
+ */
+export interface NBADraftPlayer {
+  espn_id: string
+  name: string
+  position: string
+  team: string
+  headshot_url?: string
+  stats: NBACategoryEntry[]
+  z_scores: NBACategoryEntry[]
+  fantasy_value: number
+  comp_count: number
+  vor: number
+  auction_value: number
+  overall_rank: number
+  position_rank: number
+  tier: number
+  consensus_auction_value: number | null
+  consensus_position_rank: number | null
+  consensus_sources: number
+  consensus_derived: boolean
+}
+
+export interface NBADraftSettings {
+  num_teams: number
+  budget: number
+  slots: Record<string, number>
+  scoring: Record<string, number>
+  overridden: boolean
+}
+
+export interface NBAReplacementLevel {
+  position: string
+  threshold: number
+  value: number
+}
+
+export interface NBADraftValuesResponse {
+  season: number
+  budget_per_team: number
+  num_teams: number
+  settings: NBADraftSettings
+  replacement_levels: NBAReplacementLevel[]
+  players: NBADraftPlayer[]
+}
+
+export const getNBADraftValues = (leagueId: number, season: number) =>
+  request<NBADraftValuesResponse>(`/leagues/${leagueId}/draft-values-nba?season=${season}`)
+
 export const generateLeagueScheduleNBA = (leagueId: number, seasonStartDate: string, season?: number, weeks?: number) =>
   request<{ status: string; season: number; weeks: number; matchups: number }>(
     `/leagues/${leagueId}/schedule-nba/generate`,

@@ -18,6 +18,7 @@ This library is **not** a one-shot rewrite of the algorithms. It is a catalog we
 | A ranked list implies precision the projections don't have — "is RB6 really different from RB7?" | [tiering.md](tiering.md) | ✅ implemented (August 2026) |
 | "What sources feed consensus, and what's the exact formula?" | [consensus-sources.md](consensus-sources.md) | 📋 reference catalog (August 2026); kept current as sources are added |
 | NBA: comparing our projection rank to the external market, source by source | [nba-consensus-rankings.md](nba-consensus-rankings.md) | ✅ implemented (October 2026) — unlike NFL's divergence layer, this one is live/user-facing and shows every source's rank, not just the median |
+| NBA: turning a category-league projection into auction dollars (native NBA had no auction economics at all) | [nba-auction-values.md](nba-auction-values.md) | ✅ implemented (October 2026) — prices off a league-category-weighted z-score sum, not points; consensus side is rank-derived, same as NFL's |
 
 ## Adding a new entry
 

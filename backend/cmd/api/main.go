@@ -114,9 +114,9 @@ func main() {
 			r.Get("/{id}/free-agents", h.GetLeagueFreeAgents)
 			// Native NBA leagues — parallel to the NFL routes above, not
 			// unified with them (different player identity/stat source).
-			// No contracts/cap/draft(auction)/FA routes yet (deferred, see
-			// .claude/plans) — draft prep below is a personal board only,
-			// not a draft-room/auction mechanism.
+			// draft-values-nba below is a valuation tool, not a draft-room/
+			// auction mechanism; still no contracts/cap/FA routes (deferred,
+			// see .claude/plans).
 			r.Get("/{id}/rosters-nba", h.GetLeagueRostersNBA)
 			r.Get("/{id}/rosters-nba/seasons", h.ListLeagueRosterSeasonsNBA)
 			r.Post("/{id}/rosters-nba", h.AssignLeagueRosterNBA)
@@ -129,6 +129,7 @@ func main() {
 			r.Post("/{id}/scoreboard-nba/score", h.ScoreLeagueWeekNBA)
 			r.Get("/{id}/scoreboard-nba", h.GetLeagueScoreboardNBA)
 			r.Get("/{id}/standings-nba", h.GetLeagueStandingsNBA)
+			r.Get("/{id}/draft-values-nba", h.GetNBADraftValues)
 			r.Get("/{id}/teams/{teamId}/cap", h.GetTeamCap)
 			r.Get("/{id}/picks", h.ListLeagueDraftPicks)
 			r.Post("/{id}/picks/generate", h.GenerateLeagueDraftPicks)

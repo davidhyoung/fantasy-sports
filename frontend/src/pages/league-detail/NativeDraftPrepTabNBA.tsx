@@ -14,6 +14,7 @@ import {
 import { keys } from '@/api/queryKeys'
 import { NBAPlayerDetailPanel } from './components/NBAPlayerDetailPanel'
 import { NBAConsensusRankings } from './components/NBAConsensusRankings'
+import { NBAAuctionValues } from './components/NBAAuctionValues'
 import {
   NBA_RANK_CATEGORIES as CATEGORIES, nbaStatValue as statValue, nbaRosteredPlayerPool as rosteredPlayerPool,
   nbaComputeCategoryStats as computeCategoryStats, nbaFantasyZScore as fantasyZScore, nbaComputeRanks as computeRanks,
@@ -28,10 +29,11 @@ const STAT_MODES: { value: StatMode; label: string }[] = [
   { value: 'zscores', label: 'Z-Scores' },
 ]
 
-type BoardMode = 'board' | 'consensus'
+type BoardMode = 'board' | 'consensus' | 'auction'
 const BOARD_MODES: { value: BoardMode; label: string }[] = [
   { value: 'board', label: 'My Board' },
   { value: 'consensus', label: 'Consensus' },
+  { value: 'auction', label: 'Auction $' },
 ]
 
 interface Props {
@@ -59,11 +61,13 @@ function rowSearchText(row: PlayerRow, note: string) {
  * league_rosters_nba, same universe the Players tab's Free Agents view
  * shows), ranked by the same z-score system, with a target/avoid flag and a
  * note persisted per (user, league, season). Deliberately smaller than the
- * NFL draft-prep page: no drag-reorder, tiers view, team/plan panel, or
- * dollar values — native NBA leagues have no auction economics yet, so
- * there's nothing for a planned-cost column to mean. Sort/search/filter/
- * color-coding/period-picker/detail-panel all reuse exactly what the
- * Players tab already built (see lib/nbaRanking).
+ * NFL draft-prep page: no drag-reorder, team/plan panel, or planned-cost
+ * column — there's still no roster-budget mechanism to plan against (see
+ * .claude/plans). The Auction $ view (NBAAuctionValues) adds a read-only
+ * valuation board instead: our own league-category-weighted dollar price
+ * plus a derived consensus price, see docs/stats/nba-auction-values.md.
+ * Sort/search/filter/color-coding/period-picker/detail-panel all reuse
+ * exactly what the Players tab already built (see lib/nbaRanking).
  */
 interface SavedFilters {
   boardMode: BoardMode
@@ -219,6 +223,12 @@ export function NativeDraftPrepTabNBA({ leagueId, active, season }: Props) {
 
       {boardMode === 'consensus' ? (
         <NBAConsensusRankings
+          season={season}
+          onSelectPlayer={(espnId) => { setDetailPeriod(period); setViewingPlayer(espnId) }}
+        />
+      ) : boardMode === 'auction' ? (
+        <NBAAuctionValues
+          leagueId={leagueId}
           season={season}
           onSelectPlayer={(espnId) => { setDetailPeriod(period); setViewingPlayer(espnId) }}
         />

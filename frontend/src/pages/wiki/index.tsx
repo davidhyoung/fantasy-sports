@@ -42,6 +42,7 @@ const NBA_TOC: TocItem[] = [
   { href: '#nba-growth', label: 'Growth & fallback', sub: true },
   { href: '#nba-limitations', label: 'Limitations', sub: true },
   { href: '#nba-consensus', label: '06 · Consensus Rankings', stage: true },
+  { href: '#nba-auction', label: '07 · Auction Pricing', stage: true },
   { href: '#nba-glossary', label: 'Glossary' },
 ]
 
@@ -1323,6 +1324,58 @@ function NBAWikiBody() {
         </p>
       </section>
 
+      {/* ── 07 Auction Pricing ── */}
+      <section id="nba-auction" className="scroll-mt-24">
+        <StageHead
+          num="07"
+          title="Auction Pricing"
+          kicker="A league-category-weighted dollar value, plus a consensus price derived from the external market."
+        />
+        <p className="text-sm leading-relaxed text-foreground">
+          Native NBA leagues had no auction economics at all until this — NFL prices
+          off a single, universally-agreed fantasy-points total, but a category league's
+          value depends on <em>which</em> of the 9 roto categories a given league
+          actually scores (<span className="font-mono text-[13px]">league_settings.scoring</span>{' '}
+          is a per-league on/off map). So the Draft Prep tab's{' '}
+          <strong>Auction $</strong> view recomputes a z-score sum restricted to only
+          this league's scored categories, prices it by position-scarcity (G/F/C
+          dedicated slots, UTIL pooling whichever position's next-best player is
+          actually worth more), and reads the external market's rank through the same
+          dollar curve for comparison.
+        </p>
+        <Formula>
+          fantasyValue(p) = Σ z(p, cat) over categories this league scores{'\n'}
+          VOR(p)           = max(0, fantasyValue(p) − replacement[position(p)]){'\n'}
+          auction(p)       = max(1, round( 1 + VOR(p)^0.75 / Σ VOR^0.75 × surplus ))
+        </Formula>
+        <p className="text-sm leading-relaxed text-muted-foreground mt-3">
+          Turning categories off actually reorders the board, not just the displayed
+          totals — in one all-9-categories league the top player by $ was Victor
+          Wembanyama ($101); switching to a points/rebounds/assists-only league moved
+          Nikola Jokic to #1 instead, since his all-around scoring/passing profile
+          outranks Wembanyama's blocks-heavy one once steals, blocks, turnovers,
+          threes, and both shooting percentages stop counting.
+        </p>
+        <Note kind="caveat" title="Consensus price is doubly derived for NBA">
+          <p>
+            NFL's consensus price reads an external source's own published position
+            rank. NBA sources publish category-league rankings <em>overall</em>, not by
+            position, so the "position rank" used here is itself inferred — players of
+            the same position are sorted by their overall consensus number, and{' '}
+            <em>that</em> ordinal is what reads our dollar curve. One derivation
+            further from the source than NFL's version, worth knowing when a gap looks
+            surprising.
+          </p>
+        </Note>
+        <p className="text-sm leading-relaxed text-muted-foreground mt-3">
+          No age multiplier (NFL's aging-curve adjustment has no NBA equivalent yet),
+          and the 0.75 compression exponent is reused from NFL's auction-room-tuned
+          constant, unvalidated against real NBA draft-room behavior. See{' '}
+          <span className="font-mono text-[13px]">docs/stats/nba-auction-values.md</span>{' '}
+          for the full formula, the UTIL-pooling mechanics, and a worked example.
+        </p>
+      </section>
+
       {/* ── Glossary ── */}
       <section id="nba-glossary" className="scroll-mt-24 pb-8">
         <h2 className="font-display text-xl font-bold text-foreground mb-4">Glossary</h2>
@@ -1347,7 +1400,8 @@ function NBAWikiBody() {
           <span className="font-mono">nba_projections.go</span>,{' '}
           <span className="font-mono">cmd/project-nba/</span>,{' '}
           <span className="font-mono">docs/nba-projection-algorithm.md</span>,{' '}
-          <span className="font-mono">docs/stats/nba-consensus-rankings.md</span>. This
+          <span className="font-mono">docs/stats/nba-consensus-rankings.md</span>,{' '}
+          <span className="font-mono">docs/stats/nba-auction-values.md</span>. This
           page summarizes the current build — it's a younger, actively-growing system,
           and will keep changing shape as the historical backfill completes and gaps
           above get closed.
