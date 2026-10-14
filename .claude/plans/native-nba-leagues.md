@@ -205,6 +205,19 @@ importer in this codebase). A `Makefile` target `import-nba` matching
   engine is actually wanted.
 - Playoffs/bracket seeding — same scope cut the NFL side already carries.
 
+> **Status addendum (October 2026): most of the above "deferred" list is no
+> longer deferred.** Draft prep (`NativeDraftPrepTabNBA.tsx`), comp-based
+> projections (`internal/handlers/nba_projections.go`, live/on-demand) and
+> historical comparisons (`nbaPlayerComps`) shipped in a later pass, using the
+> ESPN-only backfill after all (now 31 seasons, 1996-2026, confirmed complete
+> locally) rather than waiting on `nba_api`. A further pass (also October
+> 2026) added a *second*, batch/backtestable projection pipeline
+> (`cmd/project-nba`), a backtest/autotune harness, and external consensus
+> rankings (`nba_consensus_rankings`, the Draft Prep "Consensus" view) — see
+> `docs/nba-projection-algorithm.md`, `docs/nba-algorithm-review.md`, and
+> `docs/stats/nba-consensus-rankings.md` for what actually shipped. Message
+> board and playoffs/bracket seeding remain genuinely deferred.
+
 ## Files touched (this pass)
 
 - New migration(s): `nba_players`, `nba_player_stats`,

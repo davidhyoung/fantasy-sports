@@ -604,6 +604,37 @@ export const getNBAPlayer = (espnId: string, period: NBAStatPeriod = 'season', l
   return request<NBAPlayerDetail>(`/nba/players/${encodeURIComponent(espnId)}?${params.toString()}`)
 }
 
+/** One external outlet's rank for a player — see docs/stats/nba-consensus-rankings.md. */
+export interface NBARankingSource {
+  source: string
+  rank: number
+}
+
+export interface NBARankingItem {
+  espn_id: string
+  name: string
+  position: string
+  team: string
+  headshot_url?: string
+  our_rank: number
+  consensus_rank_median: number
+  source_count: number
+  sources: NBARankingSource[]
+  stats: NBACategoryEntry[]
+}
+
+export interface NBARankingsResponse {
+  season: number
+  players: NBARankingItem[]
+  total: number
+}
+
+export const getNBARankings = (season: number, position?: string) => {
+  const params = new URLSearchParams({ season: String(season) })
+  if (position) params.set('position', position)
+  return request<NBARankingsResponse>(`/nba/rankings?${params.toString()}`)
+}
+
 export const generateLeagueScheduleNBA = (leagueId: number, seasonStartDate: string, season?: number, weeks?: number) =>
   request<{ status: string; season: number; weeks: number; matchups: number }>(
     `/leagues/${leagueId}/schedule-nba/generate`,

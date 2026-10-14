@@ -41,6 +41,7 @@ const NBA_TOC: TocItem[] = [
   { href: '#nba-dimensions', label: 'Dimension groups', sub: true },
   { href: '#nba-growth', label: 'Growth & fallback', sub: true },
   { href: '#nba-limitations', label: 'Limitations', sub: true },
+  { href: '#nba-consensus', label: '06 · Consensus Rankings', stage: true },
   { href: '#nba-glossary', label: 'Glossary' },
 ]
 
@@ -1190,11 +1191,12 @@ function NBAWikiBody() {
         <p className="text-sm leading-relaxed text-foreground">
           Same core idea as the NFL engine (see the Football tab): find historical
           players whose situation resembles the target's, then grow the target's own
-          rate forward by what those comps actually did the following season. Computed
-          live per request rather than as a persisted{' '}
-          <code className="font-mono text-[13px]">nba_projections</code> table — there's
-          no NBA grades system or backtest harness yet to justify the batch-pipeline
-          machinery the NFL side has.
+          rate forward by what those comps actually did the following season. This
+          panel's version is computed live per request, not read from a persisted
+          table — deliberately left alone when a second, batch/backtestable version was
+          added for Draft Prep's Consensus view and the backtest harness (Section 06,
+          <span className="font-mono text-[13px]"> cmd/project-nba</span>), so this
+          live path's behavior never silently changes underneath an open player panel.
         </p>
 
         <Sub id="nba-dimensions">Dimension groups</Sub>
@@ -1264,14 +1266,55 @@ function NBAWikiBody() {
         </Note>
         <Note kind="open" title="Not built yet">
           <p>
-            No Bayesian shrinkage on rate stats, no grade dimension (no NBA player-grade
-            system exists), no separate rookie/draft-slot path (a rookie with zero prior
-            NBA seasons currently gets no projection at all), no backtest or autotune
-            harness, no P10/P50/P90 outcome distribution, no level calibration. All five
-            are real gaps the NFL system closes — see its own section for what each one
-            buys.
+            No grade dimension (no NBA player-grade system exists), no separate
+            rookie/draft-slot path (a rookie with zero prior NBA seasons currently gets
+            no projection at all), no P10/P50/P90 outcome distribution, no level
+            calibration. These remain real gaps the NFL system closes — see its own
+            section for what each one buys.
+          </p>
+          <p className="mt-2">
+            Bayesian shrinkage and a backtest/autotune harness <em>do</em> now exist
+            (October 2026) — but only in a second, batch/backtestable projection path
+            (<span className="font-mono text-[13px]">cmd/project-nba</span>), not in the
+            on-demand projection this player panel shows. See
+            Section 06 and <span className="font-mono text-[13px]">docs/nba-projection-algorithm.md</span>{' '}
+            for the batch path and why the two coexist.
           </p>
         </Note>
+      </section>
+
+      {/* ── 06 Consensus Rankings ── */}
+      <section id="nba-consensus" className="scroll-mt-24">
+        <StageHead
+          num="06"
+          title="Consensus Rankings"
+          kicker="Our own projection rank, the external market's median, and every individual outlet's rank, side by side."
+        />
+        <p className="text-sm leading-relaxed text-foreground">
+          A second, offline projection pass (<span className="font-mono text-[13px]">cmd/project-nba</span>)
+          batch-computes the same comp-based projection above for every eligible player
+          at once, then z-score-ranks the results overall — no position split, since
+          category-league rankings are published overall and the metric is already
+          standardized across positions. That rank, alongside external rankings
+          hand-imported from ESPN, CBS, HashtagBasketball, NBA.com, and RotoWire, is
+          what the Draft Prep tab's <strong>Consensus</strong> view shows.
+        </p>
+        <p className="text-sm leading-relaxed text-muted-foreground mt-3">
+          Unlike a typical "consensus" display, this one doesn't collapse the market
+          into a single number — every source's own rank is shown as its own column,
+          alongside the median. A tight cluster across sources is a confidence signal;
+          a lone outlier is noise, not evidence.
+        </p>
+        <Formula>
+          source_rank(p, s) = RANK() OVER (PARTITION BY source ORDER BY value ASC){'\n'}
+          consensus_rank(p) = median( source_rank(p, s) for every source that ranked p )
+        </Formula>
+        <p className="text-sm leading-relaxed text-muted-foreground mt-3">
+          See <span className="font-mono text-[13px]">docs/stats/nba-consensus-rankings.md</span>{' '}
+          for the full source catalog, player-identity resolution, and a worked example
+          (a season-ending-injury case the model has no way to see coming, caught and
+          explained rather than silently wrong).
+        </p>
       </section>
 
       {/* ── Glossary ── */}
@@ -1295,9 +1338,13 @@ function NBAWikiBody() {
         <p className="mt-10 pt-6 border-t border-border text-xs text-muted-foreground">
           Sources: <span className="font-mono">backend/internal/handlers/league_rosters_nba.go</span>,{' '}
           <span className="font-mono">nba_players.go</span>,{' '}
-          <span className="font-mono">nba_projections.go</span>. This page summarizes
-          the current build — it's a younger, actively-growing system, and will keep
-          changing shape as the historical backfill completes and gaps above get closed.
+          <span className="font-mono">nba_projections.go</span>,{' '}
+          <span className="font-mono">cmd/project-nba/</span>,{' '}
+          <span className="font-mono">docs/nba-projection-algorithm.md</span>,{' '}
+          <span className="font-mono">docs/stats/nba-consensus-rankings.md</span>. This
+          page summarizes the current build — it's a younger, actively-growing system,
+          and will keep changing shape as the historical backfill completes and gaps
+          above get closed.
         </p>
       </section>
     </div>

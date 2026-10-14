@@ -1,0 +1,5330 @@
+[
+  {
+    "player_name": "Nikola Jokic",
+    "team": "DEN",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 1.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Victor Wembanyama",
+    "team": "SA",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 2.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Shai Gilgeous-Alexander",
+    "team": "OKC",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 3.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Luka Doncic",
+    "team": "LAL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 4.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Anthony Edwards",
+    "team": "MIN",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 5.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Donovan Mitchell",
+    "team": "CLE",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 6.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jayson Tatum",
+    "team": "BOS",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 7.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tyrese Maxey",
+    "team": "PHI",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 8.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Johnson",
+    "team": "ATL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 9.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cooper Flagg",
+    "team": "DAL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 10.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cade Cunningham",
+    "team": "DET",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 11.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "LaMelo Ball",
+    "team": "MIN",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 12.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Scottie Barnes",
+    "team": "TOR",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 13.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tyrese Haliburton",
+    "team": "IND",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 14.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Anthony Davis",
+    "team": "WSH",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 15.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Amen Thompson",
+    "team": "HOU",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 16.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Bam Adebayo",
+    "team": "MIA",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 17.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Derrick White",
+    "team": "BOS",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 18.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Giannis Antetokounmpo",
+    "team": "MIA",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 19.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kawhi Leonard",
+    "team": "TOR",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 20.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Karl-Anthony Towns",
+    "team": "NY",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 21.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jamal Murray",
+    "team": "DEN",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 22.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Duren",
+    "team": "DET",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 23.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Naz Reid",
+    "team": "CHA",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 24.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Pascal Siakam",
+    "team": "IND",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 25.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "James Harden",
+    "team": "CLE",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 26.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Evan Mobley",
+    "team": "CLE",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 27.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kevin Durant",
+    "team": "HOU",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 28.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Mikal Bridges",
+    "team": "NY",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 29.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Alperen Sengun",
+    "team": "HOU",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 30.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Brunson",
+    "team": "NY",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 31.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Domantas Sabonis",
+    "team": "SAC",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 32.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Nickeil Alexander-Walker",
+    "team": "ATL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 33.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Stephen Curry",
+    "team": "GS",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 34.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Williams",
+    "team": "OKC",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 35.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Lauri Markkanen",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 36.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Josh Giddey",
+    "team": "CHI",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 37.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Dyson Daniels",
+    "team": "ATL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 38.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Devin Booker",
+    "team": "PHX",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 39.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kon Knueppel",
+    "team": "CHA",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 40.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Desmond Bane",
+    "team": "ORL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 41.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Austin Reaves",
+    "team": "LAL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 42.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Michael Porter Jr.",
+    "team": "BKN",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 43.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Onyeka Okongwu",
+    "team": "ATL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 44.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Donovan Clingan",
+    "team": "POR",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 45.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kel'el Ware",
+    "team": "MIL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 46.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Trey Murphy III",
+    "team": "NO",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 47.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Walker Kessler",
+    "team": "LAL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 48.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Trae Young",
+    "team": "WSH",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 49.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kyrie Irving",
+    "team": "DAL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 50.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jarrett Allen",
+    "team": "CLE",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 51.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Chet Holmgren",
+    "team": "OKC",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 52.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "De'Aaron Fox",
+    "team": "SA",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 53.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Darius Garland",
+    "team": "LAC",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 54.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Brandon Miller",
+    "team": "CHA",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 55.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Rudy Gobert",
+    "team": "MIN",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 56.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Caleb Wilson",
+    "team": "CHI",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 57.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ty Jerome",
+    "team": "MEM",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 58.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "VJ Edgecombe",
+    "team": "PHI",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 59.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Deni Avdija",
+    "team": "POR",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 60.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Dejounte Murray",
+    "team": "NO",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 61.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Reed Sheppard",
+    "team": "HOU",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 62.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jaylen Brown",
+    "team": "PHI",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 63.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Matas Buzelis",
+    "team": "CHI",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 64.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tyler Herro",
+    "team": "MIL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 65.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Alex Sarr",
+    "team": "WSH",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 66.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Norman Powell",
+    "team": "CHI",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 67.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Franz Wagner",
+    "team": "ORL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 68.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Brandin Podziemski",
+    "team": "GS",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 69.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Damian Lillard",
+    "team": "POR",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 70.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "OG Anunoby",
+    "team": "NY",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 71.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jaren Jackson Jr.",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 72.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "LeBron James",
+    "team": "PHI",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 73.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Fred VanVleet",
+    "team": "HOU",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 74.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ivica Zubac",
+    "team": "IND",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 75.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Paolo Banchero",
+    "team": "ORL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 76.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cameron Boozer",
+    "team": "MEM",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 77.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Miles Bridges",
+    "team": "PHX",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 78.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ausar Thompson",
+    "team": "DET",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 79.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kristaps Porzingis",
+    "team": "GS",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 80.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jaden McDaniels",
+    "team": "MIN",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 81.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "CJ McCollum",
+    "team": "ATL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 82.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Keegan Murray",
+    "team": "SAC",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 83.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Julius Randle",
+    "team": "BKN",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 84.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Andrew Wiggins",
+    "team": "MIA",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 85.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "AJ Dybantsa",
+    "team": "WSH",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 86.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Joel Embiid",
+    "team": "PHI",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 87.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Keyonte George",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 88.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Derik Queen",
+    "team": "NO",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 89.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Immanuel Quickley",
+    "team": "TOR",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 90.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Paul George",
+    "team": "BOS",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 91.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Stephon Castle",
+    "team": "SA",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 92.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tobias Harris",
+    "team": "SA",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 93.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Zion Williamson",
+    "team": "NO",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 94.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Myles Turner",
+    "team": "MIL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 95.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "John Collins",
+    "team": "DET",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 96.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Josh Hart",
+    "team": "NY",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 97.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Payton Pritchard",
+    "team": "BOS",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 98.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Dylan Harper",
+    "team": "SA",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 99.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Collin Gillespie",
+    "team": "PHX",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 100.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "DeMar DeRozan",
+    "team": "DEN",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 101.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Nikola Vucevic",
+    "team": "ORL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 102.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Green",
+    "team": "PHX",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 103.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ryan Rollins",
+    "team": "MIL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 104.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Peyton Watson",
+    "team": "CLE",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 105.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Coby White",
+    "team": "CHA",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 106.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Egor Demin",
+    "team": "BKN",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 107.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ayo Dosunmu",
+    "team": "MIN",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 108.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kevin Porter Jr.",
+    "team": "MIL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 109.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cason Wallace",
+    "team": "OKC",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 110.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jabari Smith Jr.",
+    "team": "HOU",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 111.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Julian Champagnie",
+    "team": "SA",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 112.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Brook Lopez",
+    "team": "LAC",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 113.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Zach Edey",
+    "team": "MEM",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 114.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Daniel Gafford",
+    "team": "DAL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 115.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Mitchell Robinson",
+    "team": "BOS",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 116.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jakob Poeltl",
+    "team": "TOR",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 117.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Neemias Queta",
+    "team": "BOS",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 118.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Quentin Grimes",
+    "team": "LAL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 119.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jeremiah Fears",
+    "team": "NO",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 120.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Nic Claxton",
+    "team": "CHI",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 121.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ja Morant",
+    "team": "POR",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 122.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jake LaRavia",
+    "team": "LAL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 123.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ace Bailey",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 124.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Oso Ighodaro",
+    "team": "PHX",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 125.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Darryn Peterson",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 126.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cedric Coward",
+    "team": "MEM",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 127.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Anthony Black",
+    "team": "ORL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 128.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kyshawn George",
+    "team": "WSH",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 129.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Devin Vassell",
+    "team": "SA",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 130.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Toumani Camara",
+    "team": "POR",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 131.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Isaiah Hartenstein",
+    "team": "OKC",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 132.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Saddiq Bey",
+    "team": "NO",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 133.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Scotty Pippen Jr.",
+    "team": "MEM",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 134.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Day'Ron Sharpe",
+    "team": "BKN",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 135.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Alex Caruso",
+    "team": "OKC",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 136.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Dillon Brooks",
+    "team": "PHX",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 137.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Darius Acuff Jr.",
+    "team": "SAC",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 138.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "RJ Barrett",
+    "team": "TOR",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 139.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cameron Johnson",
+    "team": "DEN",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 140.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jrue Holiday",
+    "team": "POR",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 141.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Brandon Ingram",
+    "team": "LAC",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 142.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Suggs",
+    "team": "ORL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 143.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Dereck Lively II",
+    "team": "DAL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 144.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kyle Filipowski",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 145.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jerami Grant",
+    "team": "MEM",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 146.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Isaiah Stewart",
+    "team": "MEM",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 147.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jaime Jaquez Jr.",
+    "team": "MIL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 148.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "P.J. Washington",
+    "team": "DAL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 149.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Collin Sexton",
+    "team": "LAL",
+    "season": 2026,
+    "source": "espn",
+    "metric_type": "rank",
+    "value": 150.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Nikola Jokic",
+    "team": "DEN",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 1.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Victor Wembanyama",
+    "team": "SA",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 2.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Shai Gilgeous-Alexander",
+    "team": "OKC",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 3.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Luka Doncic",
+    "team": "LAL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 4.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cade Cunningham",
+    "team": "DET",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 5.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jayson Tatum",
+    "team": "BOS",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 6.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Johnson",
+    "team": "ATL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 7.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cooper Flagg",
+    "team": "DAL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 8.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Anthony Edwards",
+    "team": "MIN",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 9.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Giannis Antetokounmpo",
+    "team": "MIA",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 10.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Scottie Barnes",
+    "team": "TOR",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 11.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tyrese Maxey",
+    "team": "PHI",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 12.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Donovan Mitchell",
+    "team": "CLE",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 13.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kevin Durant",
+    "team": "HOU",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 14.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Karl-Anthony Towns",
+    "team": "NY",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 15.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Stephen Curry",
+    "team": "GS",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 16.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tyrese Haliburton",
+    "team": "IND",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 17.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Austin Reaves",
+    "team": "LAL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 18.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Amen Thompson",
+    "team": "HOU",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 19.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jamal Murray",
+    "team": "DEN",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 20.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "LaMelo Ball",
+    "team": "MIN",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 21.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Alperen Sengun",
+    "team": "HOU",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 22.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Anthony Davis",
+    "team": "WSH",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 23.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Trae Young",
+    "team": "WSH",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 24.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Trey Murphy III",
+    "team": "NO",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 25.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Josh Giddey",
+    "team": "CHI",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 26.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Lauri Markkanen",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 27.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Brandon Miller",
+    "team": "CHA",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 28.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Evan Mobley",
+    "team": "CLE",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 29.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Chet Holmgren",
+    "team": "OKC",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 30.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "James Harden",
+    "team": "CLE",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 31.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Williams",
+    "team": "OKC",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 32.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Devin Booker",
+    "team": "PHX",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 33.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Domantas Sabonis",
+    "team": "SAC",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 34.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Bam Adebayo",
+    "team": "MIA",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 35.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jaren Jackson Jr.",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 36.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kawhi Leonard",
+    "team": "TOR",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 37.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Deni Avdija",
+    "team": "POR",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 38.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Walker Kessler",
+    "team": "LAL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 39.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Derrick White",
+    "team": "BOS",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 40.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Brunson",
+    "team": "NY",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 41.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kyrie Irving",
+    "team": "DAL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 42.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Matas Buzelis",
+    "team": "CHI",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 43.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jaylen Brown",
+    "team": "PHI",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 44.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Franz Wagner",
+    "team": "ORL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 45.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Duren",
+    "team": "DET",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 46.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Darius Garland",
+    "team": "LAC",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 47.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Onyeka Okongwu",
+    "team": "ATL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 48.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Paolo Banchero",
+    "team": "ORL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 49.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Dejounte Murray",
+    "team": "NO",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 50.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kon Knueppel",
+    "team": "CHA",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 51.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Donovan Clingan",
+    "team": "POR",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 52.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Michael Porter Jr.",
+    "team": "BKN",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 53.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "LeBron James",
+    "team": "PHI",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 54.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Nickeil Alexander-Walker",
+    "team": "ATL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 55.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "OG Anunoby",
+    "team": "NY",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 56.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Desmond Bane",
+    "team": "ORL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 57.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Keyonte George",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 58.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ryan Rollins",
+    "team": "MIL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 59.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tyler Herro",
+    "team": "MIL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 60.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cameron Boozer",
+    "team": "MEM",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 61.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Pascal Siakam",
+    "team": "IND",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 62.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Stephon Castle",
+    "team": "SA",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 63.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Zach Edey",
+    "team": "MEM",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 64.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ivica Zubac",
+    "team": "IND",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 65.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Joel Embiid",
+    "team": "PHI",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 66.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Julius Randle",
+    "team": "BKN",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 67.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Coby White",
+    "team": "CHA",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 68.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Dyson Daniels",
+    "team": "ATL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 69.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jaden McDaniels",
+    "team": "MIN",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 70.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ausar Thompson",
+    "team": "DET",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 71.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Naz Reid",
+    "team": "CHA",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 72.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kel'el Ware",
+    "team": "MIL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 73.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "De'Aaron Fox",
+    "team": "SA",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 74.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Damian Lillard",
+    "team": "POR",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 75.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Caleb Wilson",
+    "team": "CHI",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 76.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Dylan Harper",
+    "team": "SA",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 77.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Alex Sarr",
+    "team": "WSH",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 78.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Paul George",
+    "team": "BOS",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 79.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Mikal Bridges",
+    "team": "NY",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 80.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ja Morant",
+    "team": "POR",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 81.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Zion Williamson",
+    "team": "NO",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 82.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ty Jerome",
+    "team": "MEM",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 83.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Payton Pritchard",
+    "team": "BOS",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 84.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "VJ Edgecombe",
+    "team": "PHI",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 85.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Suggs",
+    "team": "ORL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 86.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Derik Queen",
+    "team": "NO",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 87.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Josh Hart",
+    "team": "NY",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 88.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Immanuel Quickley",
+    "team": "TOR",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 89.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cedric Coward",
+    "team": "MEM",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 90.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jarrett Allen",
+    "team": "CLE",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 91.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Day'Ron Sharpe",
+    "team": "BKN",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 92.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Rudy Gobert",
+    "team": "MIN",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 93.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "John Collins",
+    "team": "DET",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 94.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "CJ McCollum",
+    "team": "ATL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 95.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Darryn Peterson",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 96.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Darius Acuff Jr.",
+    "team": "SAC",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 97.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ayo Dosunmu",
+    "team": "MIN",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 98.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ajay Mitchell",
+    "team": "OKC",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 99.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Andrew Wiggins",
+    "team": "MIA",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 100.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "AJ Dybantsa",
+    "team": "WSH",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 101.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Keegan Murray",
+    "team": "SAC",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 102.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Myles Turner",
+    "team": "MIL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 103.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Miles Bridges",
+    "team": "PHX",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 104.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jakob Poeltl",
+    "team": "TOR",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 105.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jabari Smith Jr.",
+    "team": "HOU",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 106.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Toumani Camara",
+    "team": "POR",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 107.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Nic Claxton",
+    "team": "CHI",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 108.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Collin Murray-Boyles",
+    "team": "TOR",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 109.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kevin Porter Jr.",
+    "team": "MIL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 110.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jaime Jaquez Jr.",
+    "team": "MIL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 111.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Norman Powell",
+    "team": "CHI",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 112.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Green",
+    "team": "PHX",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 113.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "RJ Barrett",
+    "team": "TOR",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 114.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "DeMar DeRozan",
+    "team": "DEN",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 115.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Peyton Watson",
+    "team": "CLE",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 116.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Isaiah Hartenstein",
+    "team": "OKC",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 117.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Khaman Maluach",
+    "team": "PHX",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 118.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kyshawn George",
+    "team": "WSH",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 119.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Brandon Ingram",
+    "team": "LAC",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 120.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tari Eason",
+    "team": "HOU",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 121.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Zach LaVine",
+    "team": "SAC",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 122.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cason Wallace",
+    "team": "OKC",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 123.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Neemias Queta",
+    "team": "BOS",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 124.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Fred VanVleet",
+    "team": "HOU",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 125.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Anthony Black",
+    "team": "ORL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 126.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Brandin Podziemski",
+    "team": "GS",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 127.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kristaps Porzingis",
+    "team": "GS",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 128.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "P.J. Washington",
+    "team": "DAL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 129.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Devin Vassell",
+    "team": "SA",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 130.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Saddiq Bey",
+    "team": "NO",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 131.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Egor Demin",
+    "team": "BKN",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 132.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jeremiah Fears",
+    "team": "NO",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 133.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Yaxel Lendeborg",
+    "team": "GS",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 134.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Collin Gillespie",
+    "team": "PHX",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 135.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Reed Sheppard",
+    "team": "HOU",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 136.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Aaron Gordon",
+    "team": "DEN",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 137.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Rui Hachimura",
+    "team": "LAC",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 138.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Quentin Grimes",
+    "team": "LAL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 139.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Davion Mitchell",
+    "team": "MIA",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 140.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Sandro Mamukelashvili",
+    "team": "LAL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 141.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Andrew Nembhard",
+    "team": "IND",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 142.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Christian Braun",
+    "team": "DEN",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 143.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Daniel Gafford",
+    "team": "DAL",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 144.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cameron Johnson",
+    "team": "DEN",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 145.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Isaiah Jackson",
+    "team": "LAC",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 146.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Paul Reed",
+    "team": "DET",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 147.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jrue Holiday",
+    "team": "POR",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 148.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Mikel Brown Jr.",
+    "team": "BKN",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 149.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Gui Santos",
+    "team": "GS",
+    "season": 2026,
+    "source": "rotowire",
+    "metric_type": "rank",
+    "value": 150.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Nikola Jokic",
+    "team": "DEN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 1.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Victor Wembanyama",
+    "team": "SA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 2.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Luka Doncic",
+    "team": "LAL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 3.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Shai Gilgeous-Alexander",
+    "team": "OKC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 4.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cade Cunningham",
+    "team": "DET",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 5.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tyrese Maxey",
+    "team": "PHI",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 6.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Anthony Edwards",
+    "team": "MIN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 7.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jayson Tatum",
+    "team": "BOS",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 8.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tyrese Haliburton",
+    "team": "IND",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 9.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Giannis Antetokounmpo",
+    "team": "MIA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 10.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Donovan Mitchell",
+    "team": "CLE",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 11.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cooper Flagg",
+    "team": "DAL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 12.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Johnson",
+    "team": "ATL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 13.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kevin Durant",
+    "team": "HOU",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 14.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jamal Murray",
+    "team": "DEN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 15.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Karl-Anthony Towns",
+    "team": "NY",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 16.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Scottie Barnes",
+    "team": "TOR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 17.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Austin Reaves",
+    "team": "LAL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 18.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Josh Giddey",
+    "team": "CHI",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 19.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "LaMelo Ball",
+    "team": "MIN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 20.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Trae Young",
+    "team": "WSH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 21.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Stephen Curry",
+    "team": "GS",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 22.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "James Harden",
+    "team": "CLE",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 23.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Trey Murphy III",
+    "team": "NO",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 24.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Duren",
+    "team": "DET",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 25.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Devin Booker",
+    "team": "PHX",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 26.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Alperen Sengun",
+    "team": "HOU",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 27.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Amen Thompson",
+    "team": "HOU",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 28.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Evan Mobley",
+    "team": "CLE",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 29.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Brunson",
+    "team": "NY",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 30.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Chet Holmgren",
+    "team": "OKC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 31.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Brandon Miller",
+    "team": "CHA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 32.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Lauri Markkanen",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 33.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Desmond Bane",
+    "team": "ORL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 34.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kawhi Leonard",
+    "team": "TOR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 35.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kyrie Irving",
+    "team": "DAL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 36.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Williams",
+    "team": "OKC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 37.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Keyonte George",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 38.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Derrick White",
+    "team": "BOS",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 39.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Walker Kessler",
+    "team": "LAL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 40.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Domantas Sabonis",
+    "team": "SAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 41.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Bam Adebayo",
+    "team": "MIA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 42.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Anthony Davis",
+    "team": "WSH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 43.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "LeBron James",
+    "team": "PHI",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 44.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jaylen Brown",
+    "team": "PHI",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 45.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Joel Embiid",
+    "team": "PHI",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 46.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jaren Jackson Jr.",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 47.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Deni Avdija",
+    "team": "POR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 48.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Michael Porter Jr.",
+    "team": "BKN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 49.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Nickeil Alexander-Walker",
+    "team": "ATL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 50.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Onyeka Okongwu",
+    "team": "ATL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 51.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "OG Anunoby",
+    "team": "NY",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 52.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Franz Wagner",
+    "team": "ORL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 53.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Donovan Clingan",
+    "team": "POR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 54.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Pascal Siakam",
+    "team": "IND",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 55.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Darius Garland",
+    "team": "LAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 56.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Damian Lillard",
+    "team": "POR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 57.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tyler Herro",
+    "team": "MIL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 58.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Dejounte Murray",
+    "team": "NO",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 59.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ryan Rollins",
+    "team": "MIL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 60.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Paolo Banchero",
+    "team": "ORL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 61.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kon Knueppel",
+    "team": "CHA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 62.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Mikal Bridges",
+    "team": "NY",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 63.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Zach Edey",
+    "team": "MEM",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 64.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cameron Boozer",
+    "team": "MEM",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 65.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ivica Zubac",
+    "team": "IND",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 66.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Brandon Ingram",
+    "team": "LAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 67.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Paul George",
+    "team": "BOS",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 68.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Dyson Daniels",
+    "team": "ATL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 69.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Coby White",
+    "team": "CHA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 70.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "De'Aaron Fox",
+    "team": "SA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 71.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Alex Sarr",
+    "team": "WSH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 72.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Payton Pritchard",
+    "team": "BOS",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 73.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Julius Randle",
+    "team": "BKN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 74.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "VJ Edgecombe",
+    "team": "PHI",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 75.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Stephon Castle",
+    "team": "SA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 76.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kel'el Ware",
+    "team": "MIL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 77.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ausar Thompson",
+    "team": "DET",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 78.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Zion Williamson",
+    "team": "NO",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 79.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jaden McDaniels",
+    "team": "MIN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 80.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Naz Reid",
+    "team": "CHA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 81.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Matas Buzelis",
+    "team": "CHI",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 82.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jarrett Allen",
+    "team": "CLE",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 83.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Josh Hart",
+    "team": "NY",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 84.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Immanuel Quickley",
+    "team": "TOR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 85.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Norman Powell",
+    "team": "CHI",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 86.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Rudy Gobert",
+    "team": "MIN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 87.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cedric Coward",
+    "team": "MEM",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 88.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ty Jerome",
+    "team": "MEM",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 89.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Day'Ron Sharpe",
+    "team": "BKN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 90.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Nic Claxton",
+    "team": "CHI",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 91.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Suggs",
+    "team": "ORL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 92.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Andrew Wiggins",
+    "team": "MIA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 93.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Caleb Wilson",
+    "team": "CHI",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 94.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Miles Bridges",
+    "team": "PHX",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 95.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "AJ Dybantsa",
+    "team": "WSH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 96.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Dylan Harper",
+    "team": "SA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 97.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "John Collins",
+    "team": "DET",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 98.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Peyton Watson",
+    "team": "CLE",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 99.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jabari Smith Jr.",
+    "team": "HOU",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 100.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Keegan Murray",
+    "team": "SAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 101.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Davion Mitchell",
+    "team": "MIA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 102.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Neemias Queta",
+    "team": "BOS",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 103.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Zach LaVine",
+    "team": "SAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 104.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Khaman Maluach",
+    "team": "PHX",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 105.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ja Morant",
+    "team": "POR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 106.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "CJ McCollum",
+    "team": "ATL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 107.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Myles Turner",
+    "team": "MIL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 108.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ajay Mitchell",
+    "team": "OKC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 109.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ayo Dosunmu",
+    "team": "MIN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 110.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Quentin Grimes",
+    "team": "LAL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 111.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Collin Gillespie",
+    "team": "PHX",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 112.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Andrew Nembhard",
+    "team": "IND",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 113.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jusuf Nurkic",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 114.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Isaiah Hartenstein",
+    "team": "OKC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 115.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Daniel Gafford",
+    "team": "DAL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 116.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Collin Murray-Boyles",
+    "team": "TOR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 117.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Brandin Podziemski",
+    "team": "GS",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 118.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Derik Queen",
+    "team": "NO",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 119.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tre Jones",
+    "team": "CHI",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 120.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Rui Hachimura",
+    "team": "LAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 121.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Herbert Jones",
+    "team": "NO",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 122.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jakob Poeltl",
+    "team": "TOR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 123.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cason Wallace",
+    "team": "OKC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 124.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Wendell Carter Jr.",
+    "team": "ORL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 125.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Anthony Black",
+    "team": "ORL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 126.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "DeMar DeRozan",
+    "team": "DEN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 127.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "RJ Barrett",
+    "team": "TOR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 128.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Yaxel Lendeborg",
+    "team": "GS",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 129.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Darryn Peterson",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 130.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kevin Porter Jr.",
+    "team": "MIL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 131.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Saddiq Bey",
+    "team": "NO",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 132.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Gui Santos",
+    "team": "GS",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 133.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kyshawn George",
+    "team": "WSH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 134.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jaime Jaquez Jr.",
+    "team": "MIL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 135.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Sandro Mamukelashvili",
+    "team": "LAL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 136.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kristaps Porzingis",
+    "team": "GS",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 137.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jimmy Butler III",
+    "team": "GS",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 138.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Fred VanVleet",
+    "team": "HOU",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 139.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tobias Harris",
+    "team": "SA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 140.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Reed Sheppard",
+    "team": "HOU",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 141.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jerami Grant",
+    "team": "MEM",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 142.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Devin Vassell",
+    "team": "SA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 143.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Green",
+    "team": "PHX",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 144.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Pelle Larsson",
+    "team": "MIA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 145.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jrue Holiday",
+    "team": "POR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 146.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kelly Oubre Jr.",
+    "team": "IND",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 147.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Toumani Camara",
+    "team": "POR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 148.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Max Strus",
+    "team": "LAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 149.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tari Eason",
+    "team": "HOU",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 150.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Bennedict Mathurin",
+    "team": "NO",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 151.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Aaron Gordon",
+    "team": "DEN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 152.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Moussa Diabate",
+    "team": "CHA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 153.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Bobby Portis Jr.",
+    "team": "MIA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 154.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jonathan Kuminga",
+    "team": "MIN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 155.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Brook Lopez",
+    "team": "LAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 156.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Draymond Green",
+    "team": "GS",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 157.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cameron Johnson",
+    "team": "DEN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 158.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Darius Acuff Jr.",
+    "team": "SAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 159.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ace Bailey",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 160.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Paul Reed",
+    "team": "DET",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 161.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Egor Demin",
+    "team": "BKN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 162.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Dillon Brooks",
+    "team": "PHX",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 163.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "P.J. Washington Jr.",
+    "team": "DAL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 164.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Oso Ighodaro",
+    "team": "PHX",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 165.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Mitchell Robinson",
+    "team": "BOS",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 166.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Aaron Nesmith",
+    "team": "IND",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 167.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Klay Thompson",
+    "team": "MIA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 168.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Scotty Pippen Jr.",
+    "team": "MEM",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 169.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Deandre Ayton",
+    "team": "WSH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 170.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Nikola Vucevic",
+    "team": "ORL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 171.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Maxime Raynaud",
+    "team": "SAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 172.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Christian Braun",
+    "team": "DEN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 173.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kyle Kuzma",
+    "team": "MIL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 174.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Robert Williams III",
+    "team": "POR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 175.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Al Horford",
+    "team": "GS",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 176.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Bradley Beal",
+    "team": "LAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 177.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Grayson Allen",
+    "team": "CHA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 178.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Daniss Jenkins",
+    "team": "DET",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 179.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Joan Beringer",
+    "team": "MIN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 180.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Julian Champagnie",
+    "team": "SA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 181.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Mark Williams",
+    "team": "PHX",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 182.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Santi Aldama",
+    "team": "DAL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 183.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "GG Jackson II",
+    "team": "MEM",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 184.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jake LaRavia",
+    "team": "LAL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 185.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Scoot Henderson",
+    "team": "POR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 186.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "De'Andre Hunter",
+    "team": "SAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 187.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jay Huff",
+    "team": "IND",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 188.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Dereck Lively II",
+    "team": "DAL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 189.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Collin Sexton",
+    "team": "LAL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 190.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Naji Marshall",
+    "team": "DAL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 191.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Mikel Brown Jr.",
+    "team": "BKN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 192.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kris Dunn",
+    "team": "LAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 193.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Dennis Schroder",
+    "team": "CHA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 194.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Yves Missi",
+    "team": "NO",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 195.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jeremiah Fears",
+    "team": "NO",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 196.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Anfernee Simons",
+    "team": "PHI",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 197.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Isaiah Stewart",
+    "team": "MEM",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 198.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Sam Hauser",
+    "team": "BOS",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 199.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Dylan Cardwell",
+    "team": "SAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 200.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Precious Achiuwa",
+    "team": "SAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 201.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Alex Caruso",
+    "team": "OKC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 202.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Shaedon Sharpe",
+    "team": "POR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 203.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Morez Johnson Jr.",
+    "team": "DAL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 204.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "T.J. McConnell",
+    "team": "IND",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 205.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Duncan Robinson",
+    "team": "DET",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 206.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Derrick Jones Jr.",
+    "team": "LAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 207.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jaylon Tyson",
+    "team": "CLE",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 208.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Miles McBride",
+    "team": "NY",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 209.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Bilal Coulibaly",
+    "team": "WSH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 210.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jordan Poole",
+    "team": "NO",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 211.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Luguentz Dort",
+    "team": "ATL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 212.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Andre Drummond",
+    "team": "NY",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 213.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Smith",
+    "team": "CHI",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 214.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kevin Huerter",
+    "team": "DET",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 215.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kyle Filipowski",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 216.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Nique Clifford",
+    "team": "SAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 217.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jaylen Wells",
+    "team": "MEM",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 218.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Royce O'Neale",
+    "team": "CHA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 219.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jaylin Williams",
+    "team": "OKC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 220.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Keldon Johnson",
+    "team": "SA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 221.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jared McCain",
+    "team": "OKC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 222.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Malik Monk",
+    "team": "SAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 223.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Isaiah Collier",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 224.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cam Spencer",
+    "team": "MEM",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 225.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tristan da Silva",
+    "team": "ORL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 226.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tre Johnson",
+    "team": "WSH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 227.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Noah Clowney",
+    "team": "BKN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 228.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Marcus Smart",
+    "team": "HOU",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 229.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ben Simmons",
+    "team": "SAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 230.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Marvin Bagley III",
+    "team": "DEN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 231.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Terrence Shannon Jr.",
+    "team": "MIN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 232.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Brice Sensabaugh",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 233.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Will Riley",
+    "team": "WSH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 234.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Nikola Jovic",
+    "team": "MIA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 235.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jamal Shead",
+    "team": "TOR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 236.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Bones Hyland",
+    "team": "MIN",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 237.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Keaton Wagler",
+    "team": "LAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 238.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Ryan Kalkbrenner",
+    "team": "CHA",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 239.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Bub Carrington",
+    "team": "WSH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 240.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "De'Anthony Melton",
+    "team": "GS",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 241.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Khris Middleton",
+    "team": "WSH",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 242.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kentavious Caldwell-Pope",
+    "team": "PHI",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 243.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Brayden Burries",
+    "team": "MIL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 244.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Rob Dillingham",
+    "team": "",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 245.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Gradey Dick",
+    "team": "LAC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 246.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kingston Flemings",
+    "team": "ATL",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 247.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Allen Graves",
+    "team": "TOR",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 248.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Aday Mara",
+    "team": "OKC",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 249.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Zach Collins",
+    "team": "CHI",
+    "season": 2026,
+    "source": "nba_com",
+    "metric_type": "rank",
+    "value": 250.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Nikola Jokic",
+    "team": "DEN",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 1.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Victor Wembanyama",
+    "team": "SA",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 2.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Shai Gilgeous-Alexander",
+    "team": "OKC",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 3.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Luka Doncic",
+    "team": "LAL",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 4.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Giannis Antetokounmpo",
+    "team": "MIA",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 5.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cade Cunningham",
+    "team": "DET",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 6.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jayson Tatum",
+    "team": "BOS",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 7.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Anthony Edwards",
+    "team": "MIN",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 8.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tyrese Maxey",
+    "team": "PHI",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 9.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Stephen Curry",
+    "team": "GS",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 10.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kevin Durant",
+    "team": "HOU",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 11.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Donovan Mitchell",
+    "team": "CLE",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 12.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Karl-Anthony Towns",
+    "team": "NY",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 13.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jamal Murray",
+    "team": "DEN",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 14.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Johnson",
+    "team": "ATL",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 15.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cooper Flagg",
+    "team": "DAL",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 16.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tyrese Haliburton",
+    "team": "IND",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 17.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Austin Reaves",
+    "team": "LAL",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 18.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Trae Young",
+    "team": "WSH",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 19.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Trey Murphy III",
+    "team": "NO",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 20.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Scottie Barnes",
+    "team": "TOR",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 21.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Chet Holmgren",
+    "team": "OKC",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 22.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "James Harden",
+    "team": "CLE",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 23.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kawhi Leonard",
+    "team": "TOR",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 24.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Evan Mobley",
+    "team": "CLE",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 25.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Anthony Davis",
+    "team": "WSH",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 26.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Kyrie Irving",
+    "team": "DAL",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 27.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jaren Jackson Jr.",
+    "team": "UTAH",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 28.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Amen Thompson",
+    "team": "HOU",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 29.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Devin Booker",
+    "team": "PHX",
+    "season": 2026,
+    "source": "hashtag_basketball",
+    "metric_type": "rank",
+    "value": 30.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Nikola Jokic",
+    "team": "DEN",
+    "season": 2026,
+    "source": "cbs",
+    "metric_type": "adp",
+    "value": 1.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Luka Doncic",
+    "team": "LAL",
+    "season": 2026,
+    "source": "cbs",
+    "metric_type": "adp",
+    "value": 2.76,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Victor Wembanyama",
+    "team": "SA",
+    "season": 2026,
+    "source": "cbs",
+    "metric_type": "adp",
+    "value": 2.76,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Shai Gilgeous-Alexander",
+    "team": "OKC",
+    "season": 2026,
+    "source": "cbs",
+    "metric_type": "adp",
+    "value": 4.12,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Giannis Antetokounmpo",
+    "team": "MIA",
+    "season": 2026,
+    "source": "cbs",
+    "metric_type": "adp",
+    "value": 4.29,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cade Cunningham",
+    "team": "DET",
+    "season": 2026,
+    "source": "cbs",
+    "metric_type": "adp",
+    "value": 6.41,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jayson Tatum",
+    "team": "BOS",
+    "season": 2026,
+    "source": "cbs",
+    "metric_type": "adp",
+    "value": 7.35,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Jalen Johnson",
+    "team": "ATL",
+    "season": 2026,
+    "source": "cbs",
+    "metric_type": "adp",
+    "value": 9.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Anthony Edwards",
+    "team": "MIN",
+    "season": 2026,
+    "source": "cbs",
+    "metric_type": "adp",
+    "value": 9.41,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Tyrese Maxey",
+    "team": "PHI",
+    "season": 2026,
+    "source": "cbs",
+    "metric_type": "adp",
+    "value": 11.0,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Cooper Flagg",
+    "team": "DAL",
+    "season": 2026,
+    "source": "cbs",
+    "metric_type": "adp",
+    "value": 11.41,
+    "captured_date": "2026-10-14"
+  },
+  {
+    "player_name": "Alperen Sengun",
+    "team": "HOU",
+    "season": 2026,
+    "source": "cbs",
+    "metric_type": "adp",
+    "value": 13.94,
+    "captured_date": "2026-10-14"
+  }
+]

@@ -222,6 +222,10 @@ func main() {
 		r.Get("/{espnId}", h.GetNBAPlayer)
 	})
 
+	// Public — comp-based projection rank vs. external consensus (no auth,
+	// no league, mirrors /api/divergences' NFL equivalent)
+	r.Get("/api/nba/rankings", h.ListNBARankings)
+
 	// Protected API routes not nested under a resource prefix
 	r.Group(func(r chi.Router) {
 		r.Use(appmiddleware.RequireAuth(pool, store))

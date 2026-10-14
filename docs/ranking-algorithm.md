@@ -58,6 +58,37 @@ rank-based among rostered players.
 | FA fetch fails | scarcity = 1.0 (logged, rankings still served) |
 | < 2 players at a position | position_score = 0, rank 1 |
 
+### Native NBA leagues use a different, simpler formula — not this one
+
+Everything above this point is `analysis.go`'s **Yahoo**-sourced engine
+(`RankByCategories`) — it only ever runs for a Yahoo-synced NBA league, reading stats
+from Yahoo's own period-stat API. **Native NBA leagues** (non-Yahoo, ESPN-box-score-
+backed — see `CLAUDE.md`'s "Native NBA leagues" section) use a completely separate,
+simpler ranking path that this file previously didn't distinguish from the one above —
+worth being explicit about, since the two differ in real ways, not just data source:
+
+- **Equal-weight z-sum, no CV×scarcity.** `frontend/src/pages/league-detail/lib/nbaRanking.ts`
+  (`nbaFantasyZScore`/`nbaComputeRanks`) just sums each category's z-score — no
+  CV/scarcity weighting at all. It's a client-side convenience rank over whichever
+  pool/period is on screen, not a persisted league-wide ranking the way `analysis.go`'s
+  output is.
+- **Baseline pool is "the rostered-equivalent top N," not every rostered player.**
+  `nbaRosteredPlayerPool` takes the top `num_teams × total roster slots` players by a
+  rough value index from the *full* league-wide pool (free agents included) —
+  independent of which view tab (Free Agents/Rostered/All) happens to be open, so
+  switching tabs doesn't change what "average" means.
+- **A second, server-side instance of the same formula now exists for batch/backtest
+  use** (`cmd/project-nba/projection.go`'s `fantasyZScoreSums`/`ranksFromScores`,
+  October 2026) — it ranks *projected* stats instead of a live period's actual stats,
+  feeding `nba_projections.our_rank` and the Consensus view. Same equal-weight z-sum
+  formula, ported to Go so it can run over a whole season's projected population at
+  once rather than one browser's currently-loaded table. See
+  [nba-projection-algorithm.md](nba-projection-algorithm.md)'s "Ranking the
+  projections" section.
+
+None of this touches `analysis.go` or `RankByCategories` — native NBA leagues never call
+into the Yahoo-sourced engine at all.
+
 ## Points mode (NFL)
 
 ### 1. Total points
@@ -103,7 +134,10 @@ replacement-level legend.
   the projection pipeline shrinks, the live ranking path does not yet).
 - **No schedule adjustment** — live rankings use raw stats, unlike the projection
   profiles which are SOS-adjusted.
-- **NBA leagues depend on Yahoo period stats** — no local NBA stats feed yet.
+- **Yahoo-synced NBA leagues still depend on Yahoo period stats for this engine** —
+  stale as of October 2026 for *native* NBA leagues specifically, which have had their
+  own local ESPN-backed stats feed since the native-NBA build and don't touch this
+  engine at all (see "Native NBA leagues use a different, simpler formula" above).
 
 ## Future enhancements
 

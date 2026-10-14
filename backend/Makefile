@@ -1,4 +1,4 @@
-.PHONY: run build test migrate-up migrate-down generate import-nfl project-nfl backtest-nfl autotune-nfl import-nba
+.PHONY: run build test migrate-up migrate-down generate import-nfl project-nfl backtest-nfl autotune-nfl import-nba project-nba
 
 run:
 	go run ./cmd/api
@@ -34,3 +34,6 @@ backtest-nfl:
 
 autotune-nfl:
 	go run ./cmd/projections -autotune $(ARGS)
+
+project-nba:
+	go run ./cmd/project-nba $(ARGS)

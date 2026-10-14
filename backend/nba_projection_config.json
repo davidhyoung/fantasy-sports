@@ -1,0 +1,7 @@
+{
+  "weight_statline": 0.5,
+  "weight_trajectory": 1,
+  "weight_age": 1,
+  "growth_shrinkage_k": 20,
+  "rate_stat_shrinkage_k": 50
+}
