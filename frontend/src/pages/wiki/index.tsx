@@ -583,7 +583,7 @@ function NFLWikiBody() {
                 </TableRow>
                 <TableRow>
                   <TableCell>Validation (2022–2024)</TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">0.75</TableCell>
+                  <TableCell className="text-right font-mono tabular-nums">0.76</TableCell>
                   <TableCell className="text-right font-mono tabular-nums">68–81 pts</TableCell>
                 </TableRow>
               </TableBody>
@@ -858,23 +858,28 @@ function NFLWikiBody() {
 
           <Note kind="open" title="Worked example — why the model missed Justin Jefferson">
             <p>
-              Our rank: 32 (WR). Consensus: 6 — a 26-spot gap. Jefferson's per-game PPR
-              fell 19.0 → 11.6 even though his own role held (target share 0.307 vs
-              0.301). What collapsed was Minnesota's entire passing offense — team pass
+              Our rank: 16 (WR). Consensus: 6 — a 10-spot gap (live PPR divergence,
+              8 sources; narrower than the 26-spot gap an earlier August snapshot
+              showed, as more sources came online). Jefferson's per-game PPR fell
+              19.0 → 11.6 even though his own role held (target share 0.307 vs 0.301).
+              What collapsed was Minnesota's entire passing offense — team pass
               yards/game down 27% behind a struggling rookie QB. The comp engine
               correctly matched him to "elite target-share receiver stuck with bad QB
-              play" and those comps' growth is genuinely mixed. Consensus ranks him
-              top-11 because the market already knows what the model structurally
-              can't: Minnesota's 2026 starting job is expected to go to a proven
-              veteran. Not a bug — a real blind spot, now visible instead of silent.
+              play" and those comps' growth is genuinely mixed. Consensus still ranks
+              him ahead of us because the market already knows what the model
+              structurally can't: Minnesota's 2026 starting job is expected to go to a
+              proven veteran. Not a bug — a real blind spot, now visible instead of
+              silent.
             </p>
           </Note>
 
           <Sub id="sources">Sources</Sub>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Nine sources imported live today — expert ranks, live-draft ADP, and one
-            dynasty trade-value feed — plus a second snapshot closing the standard-
-            format and superflex gaps the first left open. Coverage is intentionally
+            14 source keys imported live today (up from the original 9 — Dynasty Nerds'
+            rookie board, previously HTTP-403-blocked, opened up; FantasyFootballCalculator's
+            live ADP API added rows in three more formats; a couple of research passes closed
+            the standard-format and superflex gaps the first snapshot left open) — expert
+            ranks, live-draft ADP, and dynasty/rookie value feeds. Coverage is intentionally
             shallow — every source publishes roughly its own top 60; "not ranked" means
             the source didn't go that deep, not that they'd rank a player last.
           </p>
@@ -893,8 +898,9 @@ function NFLWikiBody() {
                   ['FantasyPros · Sleeper · ESPN ADP', 'Aggregated / live-draft ADP', 'PPR'],
                   ['Underdog', 'Live-draft ADP', 'Half-PPR'],
                   ['KeepTradeCut', 'Crowdsourced dynasty value', 'Dynasty'],
-                  ['CBS Sports', 'Expert overall rank, top 200', 'Standard / PPR'],
-                  ['FantasyFootballCalculator', 'Crowd mock-draft ADP', 'Standard'],
+                  ['Dynasty Nerds', 'Rookie-specific expert rank', 'Dynasty'],
+                  ['CBS Sports (×2)', 'Expert overall rank, top 200', 'Standard · PPR'],
+                  ['FantasyFootballCalculator', 'Crowd mock-draft ADP', 'Standard · PPR · Half-PPR · Superflex'],
                   ['4for4', 'Pick-format ADP', 'Superflex'],
                 ].map((row, i) => (
                   <TableRow key={i}>
