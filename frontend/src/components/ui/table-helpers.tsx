@@ -122,8 +122,10 @@ function useTableSort(
   defaultDir: SortDir = 'desc',
   ascCols: string[] | ((col: string) => boolean) = []
 ) {
-  const [sortCol, setSortCol] = React.useState(defaultCol)
-  const [sortDir, setSortDir] = React.useState<SortDir>(defaultDir)
+  // Column and direction live in one state object so a click is a single pure
+  // update. (Calling setSortDir from inside a setSortCol updater runs the
+  // toggle twice under StrictMode, so a repeat click appeared to do nothing.)
+  const [sort, setSort] = React.useState<{ col: string; dir: SortDir }>({ col: defaultCol, dir: defaultDir })
 
   const isAscFirst = React.useCallback(
     (col: string) => (typeof ascCols === 'function' ? ascCols(col) : ascCols.includes(col)),
@@ -131,15 +133,14 @@ function useTableSort(
   )
 
   const handleSort = React.useCallback((col: string) => {
-    setSortCol((prev) => {
-      if (prev === col) {
-        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-        return prev
-      }
-      setSortDir(isAscFirst(col) ? 'asc' : 'desc')
-      return col
-    })
+    setSort((prev) =>
+      prev.col === col
+        ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { col, dir: isAscFirst(col) ? 'asc' : 'desc' }
+    )
   }, [isAscFirst])
+
+  const { col: sortCol, dir: sortDir } = sort
 
   return { sortCol, sortDir, handleSort } as const
 }
