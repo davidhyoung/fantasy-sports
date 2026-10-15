@@ -1,6 +1,6 @@
 # Handoff — Fantasy Sports
 
-_Last updated: 2026-08-20_
+_Last updated: 2026-10-14_
 
 > **STATUS:** Current focus is the **native leagues** initiative (dynasty-first,
 > keeper/redraft to follow) — Phases 0–4 done for dynasty & redraft, keeper stubbed
@@ -40,3 +40,16 @@ for native leagues yet).
 Update the STATUS line and the initiatives table when a plan file's own status
 changes, rather than duplicating its detail here — this file should stay short
 enough to read in under a minute.
+
+
+## 2026-10-14 — NBA auction values moved to DARKO
+
+- New `nba_darko_projections` table (migration 000040), `-import-darko` importer
+  (`cmd/project-nba/darko.go`), and `GetNBADraftValues` rewritten to read it. 301 players
+  imported for season 2026, all matched to `espn_id`. Details: `docs/stats/nba-auction-values.md`.
+- Snapshot is stale (DARKO dataset as of 2026-06-03) and was cut to players projected ≥10 mpg;
+  re-pull before the draft. The minutes blend/caps and pace clamp are untested judgment calls.
+- Not touched: the old comp-based `nba_projections` pipeline (player detail, `/api/nba/rankings`,
+  consensus diff still use it), the frontend (new `minutes` field on draft-value players is unused).
+- Next: backtest the minutes/pace guards, decide whether to retire `nba_projections`, wire the
+  snapshot pull into a repeatable script.

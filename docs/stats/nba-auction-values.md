@@ -203,3 +203,28 @@ unvalidated for this sport specifically. Additionally:
   and why NBA rankings come overall, not position-split.
 - [nba-projection-algorithm.md](nba-projection-algorithm.md) — where `nba_projections`'
   per-category values (the input to this doc's z-score sum) come from.
+
+
+## Projection source: DARKO (October 2026)
+
+Auction values no longer price off the homegrown comp-based `nba_projections`; they use
+[DARKO](https://darko.app) per-player forward projections (`nba_darko_projections`).
+`fantasyValue` and everything downstream (replacement levels, VOR, compression, tiers,
+consensus) is unchanged — only the per-game stat line feeding the z-scores differs.
+
+- **Per-game conversion:** `possessions = pace × minutes / 48`; each per-100 rate × possessions / 100.
+  3PM = `fg3a_100 × fg3_pct`; rebounds = `orb_100 + drb_100`.
+- **Percentage categories:** valued as makes above a league-average shooter on the same
+  attempts (`fgm − leagueFG% × fga`), not the raw percentage — a 60% shooter on 2 attempts
+  must not outrank a 52% shooter on 15. The league rate is pooled over the draftable pool.
+- **Z-score population:** the draftable pool (top `teams × (G+F+C+UTIL+BN)` by projected
+  minutes), not every projected player, so deep-bench bodies don't inflate each stdev.
+- **Playing-time guards:** DARKO's snapshot can carry end-of-season rest/tanking minutes
+  (a deep-bench player projected at 35 mpg). `x_minutes` is averaged with last season's actual
+  mpg when the player has ≥20 games, capped at 34 (28 without a sample); pace is clamped to
+  [92, 98]. These are judgment calls — not backtested.
+- **Known gaps:** no games-played/injury projection (rates only); the snapshot predates the
+  2026-27 season (dataset as of 2026-06-03) so offseason moves aren't reflected; rookies and
+  call-ups have no blend partner.
+- **Refresh:** re-pull the snapshot via the DARKO tools, write the `{columns, rows}` JSON,
+  `make project-nba ARGS="-import-darko f.json -season 2026"`.

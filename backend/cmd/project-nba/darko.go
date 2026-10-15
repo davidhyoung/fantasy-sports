@@ -29,6 +29,16 @@ var darkoNumeric = []string{
 	"stl_100", "blk_100", "tov_100", "fga_100", "fg3a_100", "fta_100", "fg_pct", "fg3_pct", "ft_pct",
 }
 
+// darkoNameAliases maps DARKO's (NBA.com) legal names onto the names ESPN
+// uses, keyed by normalizePlayerName output. Add to it when an import logs an
+// "unmatched" player whose ESPN spelling differs.
+var darkoNameAliases = map[string]string{
+	"nicolas claxton":    "nic claxton",
+	"david jones":        "david jones garcia",
+	"alexandre sarr":     "alex sarr",
+	"carlton carrington": "bub carrington",
+}
+
 // loadRecentNameIndex maps normalized name -> espn_ids of players with real
 // stats in the last two seasons, so a retired namesake can't shadow an active
 // player. A name that is still ambiguous among active players is left
@@ -89,7 +99,11 @@ func importDarko(ctx context.Context, pool *pgxpool.Pool, path string, season in
 
 		name := str("name")
 		var espnArg any
-		if ids := idx[normalizePlayerName(name)]; len(ids) == 1 {
+		key := normalizePlayerName(name)
+		if alias, ok := darkoNameAliases[key]; ok {
+			key = alias
+		}
+		if ids := idx[key]; len(ids) == 1 {
 			espnArg = ids[0]
 			matched++
 		} else {

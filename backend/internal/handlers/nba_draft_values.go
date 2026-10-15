@@ -281,18 +281,32 @@ func (h *Handler) GetNBADraftValues(w http.ResponseWriter, r *http.Request) {
 		included[cat] = scoring[cat] != 0
 	}
 
+	// Minutes: DARKO's snapshot can carry end-of-season rest/tanking minutes
+	// (e.g. a deep-bench player projected at 35 mpg off April garbage time),
+	// so x_minutes is averaged 50/50 with the player's actual minutes per game
+	// last season when they played enough games for that to mean something.
+	// Rates stay DARKO's; only the playing-time input is blended.
 	// Load DARKO's projected pool (cmd/project-nba -import-darko), restricted
 	// to rows matched to an espn_id and to the three real roster positions —
 	// a player with no position on file can never actually be rostered, so
 	// including them would just distort the replacement-level math.
 	rows, err := h.db.Query(ctx, `
 		SELECT d.espn_id, p.name, p.position, COALESCE(p.team, ''), COALESCE(p.headshot_url, ''),
-		       d.x_minutes, d.x_pace, d.pts_100, d.ast_100, d.orb_100, d.drb_100, d.stl_100, d.blk_100,
+		       GREATEST(0, LEAST(
+		           CASE WHEN a.gp >= $3 THEN (d.x_minutes + a.mpg) / 2 ELSE d.x_minutes END,
+		           CASE WHEN a.gp >= $3 THEN $4::numeric ELSE $5::numeric END)),
+		       LEAST(GREATEST(d.x_pace, $6::numeric), $7::numeric), d.pts_100, d.ast_100, d.orb_100, d.drb_100, d.stl_100, d.blk_100,
 		       d.tov_100, d.fga_100, d.fg3a_100, d.fta_100, d.fg_pct, d.fg3_pct, d.ft_pct
 		FROM nba_darko_projections d
 		JOIN nba_players p ON p.espn_id = d.espn_id
+		LEFT JOIN (
+			SELECT espn_id, AVG(minutes) AS mpg, COUNT(*) AS gp
+			FROM nba_player_stats WHERE season = $1 - 1 AND minutes > 0
+			GROUP BY espn_id
+		) a ON a.espn_id = d.espn_id
 		WHERE d.season = $1 AND p.position = ANY($2)
-	`, season, nbaPositions)
+	`, season, nbaPositions, nbaDarkoMinutesBlendMinGames,
+		nbaDarkoMaxMinutes, nbaDarkoMaxMinutesUnblended, nbaDarkoPaceMin, nbaDarkoPaceMax)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -638,6 +652,23 @@ func (h *Handler) attachNBAConsensusValues(ctx context.Context, season int, play
 		players[i].ConsensusDerived = true
 	}
 }
+
+// nbaDarkoMinutesBlendMinGames is the games last season a player needs for
+// their actual minutes per game to be blended into DARKO's x_minutes.
+const nbaDarkoMinutesBlendMinGames = 20
+
+// Sanity bounds on DARKO's playing-time and pace inputs. A player with no
+// real sample last season (call-ups, rookies) can carry an April
+// rest-your-starters minutes figure with nothing to blend it against, so they
+// get a tighter ceiling; pace is a team trait with little real player-level
+// variance, and DARKO's outliers (100-105) are thin-sample priors, so it's
+// clamped. These are judgment calls, not fitted — revisit with a backtest.
+const (
+	nbaDarkoMaxMinutes          = 34.0
+	nbaDarkoMaxMinutesUnblended = 28.0
+	nbaDarkoPaceMin             = 92.0
+	nbaDarkoPaceMax             = 98.0
+)
 
 // nbaDarkoRates is one row of nba_darko_projections: DARKO's per-100-possession
 // rates plus the minutes and pace that convert them to per-game.
