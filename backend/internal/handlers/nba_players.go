@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"net/http"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -26,6 +28,16 @@ type nbaPlayerDetailResp struct {
 	Seasons      []nbaPlayerSeasonResp `json:"seasons"`
 	Comps        []nbaPlayerCompResp   `json:"comps"`
 	Projection   *nbaProjectionResp    `json:"projection"`
+	// Darko is nil unless the player has an imported DARKO projection for the
+	// default season (cmd/project-nba -import-darko / -import-darko-extras).
+	Darko *nbaDarkoDetailResp `json:"darko"`
+}
+
+type nbaDarkoDetailResp struct {
+	Minutes      float64         `json:"minutes"` // DARKO's projected minutes per game
+	SnapshotDate string          `json:"snapshot_date"`
+	Comps        json.RawMessage `json:"comps"` // nearest historical player-seasons at the same age
+	Trend        json.RawMessage `json:"trend"` // season-end DPM (DARKO ending-year seasons)
 }
 
 type nbaPlayerSeasonResp struct {
@@ -407,5 +419,32 @@ func (h *Handler) GetNBAPlayer(w http.ResponseWriter, r *http.Request) {
 	}
 	p.Projection = projection
 
+	p.Darko = h.nbaDarkoDetail(r.Context(), espnID)
+
 	respondJSON(w, http.StatusOK, p)
+}
+
+// nbaDarkoDetail loads the DARKO comps/trend for a player, or nil when the
+// player has no DARKO row for the default season. Errors degrade to nil —
+// DARKO is supplementary to the rest of the detail response.
+func (h *Handler) nbaDarkoDetail(ctx context.Context, espnID string) *nbaDarkoDetailResp {
+	var d nbaDarkoDetailResp
+	var snap time.Time
+	var comps, trend []byte
+	err := h.db.QueryRow(ctx, `
+		SELECT x_minutes, snapshot_date, comps, trend FROM nba_darko_projections
+		WHERE espn_id = $1 AND season = $2
+	`, espnID, h.config.DefaultSeason).Scan(&d.Minutes, &snap, &comps, &trend)
+	if err != nil {
+		return nil
+	}
+	d.SnapshotDate = snap.Format("2006-01-02")
+	if len(comps) == 0 {
+		comps = []byte("[]")
+	}
+	if len(trend) == 0 {
+		trend = []byte("[]")
+	}
+	d.Comps, d.Trend = comps, trend
+	return &d
 }

@@ -54,3 +54,12 @@ enough to read in under a minute.
   consensus diff still use it), the frontend (new `minutes` field on draft-value players is unused).
 - Next: backtest the minutes/pace guards, decide whether to retire `nba_projections`, wire the
   snapshot pull into a repeatable script.
+
+### Addendum — DARKO comps + DPM trend in NBA player detail panel
+- Migration 000041 adds `comps`/`trend` JSONB to `nba_darko_projections`; `-import-darko-extras`
+  loads them (all 301 players; trend = season-end DPM, last ≤8 seasons; comps = DARKO's 5 nearest
+  historical player-seasons). `GET /api/nba/players/{espnId}` now returns `darko`; `DarkoSection`
+  in `NBAPlayerDetailPanel.tsx` renders it above Historical Comparisons.
+- Also this session: `useTableSort` fixed (one click = one direction, second click toggles), and
+  the NBA auction board's expanded rows show DARKO per-game stats + z-scores.
+- **Not yet deployed.** Prod needs migration 000041 + the extras import BEFORE pushing. Local only so far.

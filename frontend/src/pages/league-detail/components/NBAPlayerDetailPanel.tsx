@@ -7,7 +7,7 @@ import { PlayerAvatar, HeaderRow, ClickableRow } from '@/components/ui/table-hel
 import { SelectControl } from '@/components/ui/filter-chip'
 import {
   getNBAPlayer, NBA_CATEGORY_LABELS, NBA_STAT_PERIODS, NBA_STAT_PERIOD_LABELS,
-  type NBAStatPeriod, type NBACategory,
+  type NBAStatPeriod, type NBACategory, type NBADarkoDetail, type NBADarkoTrendPoint,
 } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 
@@ -157,6 +157,10 @@ export function NBAPlayerDetailPanel({ espnId, leagueId, period, onPeriodChange,
         </div>
       )}
 
+      {data.darko && (data.darko.trend.length > 0 || data.darko.comps.length > 0) && (
+        <DarkoSection darko={data.darko} />
+      )}
+
       {data.comps.length > 0 && (
         <div>
           <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -216,5 +220,123 @@ export function NBAPlayerDetailPanel({ espnId, leagueId, period, onPeriodChange,
         <MobileSheet open={open} onClose={onClose}>{body}</MobileSheet>
       </div>
     </>
+  )
+}
+
+const seasonLabel = (endYear: number) => `${endYear - 1}-${String(endYear).slice(2)}`
+const fmtDpm = (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)}`
+
+/** Season-end DPM as a small line chart; the zero line is the league-average player. */
+function DpmSparkline({ trend }: { trend: NBADarkoTrendPoint[] }) {
+  if (trend.length < 2) return null
+  const W = 240, H = 56, P = 4
+  const vals = trend.map((t) => t.dpm)
+  const lo = Math.min(0, ...vals), hi = Math.max(0, ...vals)
+  const span = hi - lo || 1
+  const x = (i: number) => P + (i * (W - 2 * P)) / (trend.length - 1)
+  const y = (v: number) => H - P - ((v - lo) / span) * (H - 2 * P)
+  const pts = trend.map((t, i) => `${x(i).toFixed(1)},${y(t.dpm).toFixed(1)}`).join(' ')
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-14 w-60 text-foreground" role="img" aria-label="DPM at the end of each season">
+      <line x1={P} x2={W - P} y1={y(0)} y2={y(0)} className="stroke-border" strokeWidth={1} strokeDasharray="2 3" />
+      <polyline points={pts} fill="none" stroke="currentColor" strokeWidth={1.5} />
+      <circle cx={x(trend.length - 1)} cy={y(trend[trend.length - 1].dpm)} r={2.5} fill="currentColor" />
+    </svg>
+  )
+}
+
+/** DARKO's DPM trajectory and nearest historical comps for one player. */
+function DarkoSection({ darko }: { darko: NBADarkoDetail }) {
+  const trend = darko.trend
+  const last = trend[trend.length - 1]
+  const prev = trend.length > 1 ? trend[trend.length - 2] : null
+  const dpms = trend.map((t) => t.dpm)
+  return (
+    <div>
+      <span className="font-display text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        DARKO
+      </span>
+      {trend.length > 0 && (
+        <div className="mt-2 mb-4">
+          <p className="text-xs text-muted-foreground mb-2">
+            Daily Plus-Minus (impact per 100 possessions vs. an average player) at the end of each season.
+            {prev && (
+              <> Last season{' '}
+                <span className={`font-mono ${last.dpm - prev.dpm >= 0 ? 'text-positive' : 'text-secondary'}`}>
+                  {last.dpm - prev.dpm >= 0 ? '▲' : '▼'} {Math.abs(last.dpm - prev.dpm).toFixed(1)}
+                </span>
+                {' '}({fmtDpm(prev.dpm)} → {fmtDpm(last.dpm)}).
+              </>
+            )}
+            {trend.length > 2 && <> Range: <span className="font-mono">{fmtDpm(Math.min(...dpms))}</span> to <span className="font-mono">{fmtDpm(Math.max(...dpms))}</span>.</>}
+          </p>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+            <DpmSparkline trend={trend} />
+            <div className="rounded-lg bg-card overflow-x-auto">
+              <Table>
+                <TableHeader style={{ top: 0 }}>
+                  <HeaderRow>
+                    <TableHead>Season</TableHead>
+                    <TableHead className="text-right">DPM</TableHead>
+                    <TableHead className="text-right">Change</TableHead>
+                  </HeaderRow>
+                </TableHeader>
+                <TableBody>
+                  {[...trend].reverse().slice(0, 6).map((t, i, arr) => {
+                    const older = arr[i + 1]
+                    const d = older ? t.dpm - older.dpm : null
+                    return (
+                      <TableRow key={t.season}>
+                        <TableCell className="font-mono tabular-nums text-foreground">{seasonLabel(t.season)}</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums">{fmtDpm(t.dpm)}</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums">
+                          {d == null ? (
+                            <span className="text-muted-foreground/40">—</span>
+                          ) : (
+                            <span className={Math.abs(d) < 0.5 ? 'text-muted-foreground' : d > 0 ? 'text-positive' : 'text-secondary'}>
+                              {d > 0 ? '+' : ''}{d.toFixed(1)}
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </div>
+      )}
+      {darko.comps.length > 0 && (
+        <div>
+          <p className="text-xs text-muted-foreground mb-2">
+            DARKO's nearest historical player-seasons at this player's age (similarity out of 100) — a different
+            method from the statline comps below.
+          </p>
+          <div className="rounded-lg bg-card overflow-x-auto">
+            <Table>
+              <TableHeader style={{ top: 0 }}>
+                <HeaderRow>
+                  <TableHead>Player</TableHead>
+                  <TableHead>Season</TableHead>
+                  <TableHead className="text-right">Age</TableHead>
+                  <TableHead className="text-right">Similarity</TableHead>
+                </HeaderRow>
+              </TableHeader>
+              <TableBody>
+                {darko.comps.map((c) => (
+                  <TableRow key={`${c.name}-${c.season}`}>
+                    <TableCell className="font-medium text-foreground">{c.name}</TableCell>
+                    <TableCell className="font-mono tabular-nums text-muted-foreground">{seasonLabel(c.season)}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{c.age.toFixed(1)}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{c.similarity.toFixed(0)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

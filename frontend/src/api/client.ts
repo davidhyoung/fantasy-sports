@@ -555,6 +555,30 @@ export interface NBAPlayerComp {
   stats: NBACategoryEntry[]
 }
 
+export interface NBADarkoComp {
+  name: string
+  /** DARKO ending-year season of the matched player-season. */
+  season: number
+  age: number
+  /** 0-100, higher = closer. */
+  similarity: number
+}
+
+export interface NBADarkoTrendPoint {
+  /** DARKO ending-year season (2026 = 2025-26). */
+  season: number
+  /** Daily Plus-Minus at the end of that season. */
+  dpm: number
+}
+
+/** DARKO supplement on the player detail; null when the player has no DARKO projection. */
+export interface NBADarkoDetail {
+  minutes: number
+  snapshot_date: string
+  comps: NBADarkoComp[]
+  trend: NBADarkoTrendPoint[]
+}
+
 export interface NBAPlayerDetail {
   espn_id: string
   name: string
@@ -578,6 +602,7 @@ export interface NBAPlayerDetail {
    *  to build one at all (no position, no seasons). See backend
    *  nbaPlayerProjection for the method. */
   projection: NBAProjection | null
+  darko: NBADarkoDetail | null
 }
 
 export interface NBAProjectionComp {

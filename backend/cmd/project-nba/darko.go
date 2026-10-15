@@ -144,3 +144,60 @@ func importDarko(ctx context.Context, pool *pgxpool.Pool, path string, season in
 		len(f.Rows), matched, unmatched, failed)
 	return nil
 }
+
+// darkoExtrasEntry is one player's comps and trend in the -import-darko-extras
+// file: {"<darko_id>": {"c": [["Name",season,age,sim],...], "t": [[season,dpm],...]}}
+// — comps are DARKO's nearest historical player-seasons, t is season-end DPM.
+type darkoExtrasEntry struct {
+	C [][]any `json:"c"`
+	T [][]any `json:"t"`
+}
+
+// importDarkoExtras attaches comps and trend to already-imported
+// nba_darko_projections rows (matched on darko_id + season).
+func importDarkoExtras(ctx context.Context, pool *pgxpool.Pool, path string, season int) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	var in map[string]darkoExtrasEntry
+	if err := json.Unmarshal(data, &in); err != nil {
+		return fmt.Errorf("parse %s: %w", path, err)
+	}
+	f := func(v any) float64 { x, _ := v.(float64); return x }
+	var updated, missing int
+	for idStr, e := range in {
+		var id int64
+		if _, err := fmt.Sscan(idStr, &id); err != nil {
+			continue
+		}
+		comps := make([]map[string]any, 0, len(e.C))
+		for _, c := range e.C {
+			if len(c) < 4 {
+				continue
+			}
+			name, _ := c[0].(string)
+			comps = append(comps, map[string]any{"name": name, "season": int(f(c[1])), "age": f(c[2]), "similarity": f(c[3])})
+		}
+		trend := make([]map[string]any, 0, len(e.T))
+		for _, t := range e.T {
+			if len(t) < 2 {
+				continue
+			}
+			trend = append(trend, map[string]any{"season": int(f(t[0])), "dpm": f(t[1])})
+		}
+		cj, _ := json.Marshal(comps)
+		tj, _ := json.Marshal(trend)
+		tag, err := pool.Exec(ctx, `UPDATE nba_darko_projections SET comps = $3, trend = $4 WHERE darko_id = $1 AND season = $2`, id, season, cj, tj)
+		if err != nil {
+			return fmt.Errorf("update %d: %w", id, err)
+		}
+		if tag.RowsAffected() == 0 {
+			missing++
+		} else {
+			updated++
+		}
+	}
+	log.Printf("  attached comps/trend to %d players (%d ids had no projection row)", updated, missing)
+	return nil
+}

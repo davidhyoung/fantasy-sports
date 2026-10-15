@@ -62,6 +62,7 @@ func main() {
 	importConsensus := flag.String("import-consensus", "", "path to a consensus rankings JSON file to import")
 	doConsensusDiff := flag.Bool("consensus-diff", false, "diff our projections' rank against imported consensus")
 	importDarkoPath := flag.String("import-darko", "", "path to a DARKO projections JSON snapshot to import for -season (see darko.go)")
+	importDarkoExtrasPath := flag.String("import-darko-extras", "", "path to a DARKO comps/trend JSON file to attach to -season's imported projections")
 	importSalaries := flag.String("import-nba-salaries", "", "path to a league-scoped historical salary JSON file to import (requires -league-id)")
 	leagueID := flag.Int64("league-id", 0, "league id for -import-nba-salaries (salary is league-internal, not external market data)")
 	doBacktest := flag.Bool("backtest", false, "backtest the projection engine across -from..-to")
@@ -113,6 +114,14 @@ func main() {
 		}
 	}
 
+	if *importDarkoExtrasPath != "" {
+		ranAnything = true
+		log.Printf("attaching DARKO comps/trend for season %d from %s…", *season, *importDarkoExtrasPath)
+		if err := importDarkoExtras(ctx, pool, *importDarkoExtrasPath, *season); err != nil {
+			log.Fatalf("import-darko-extras: %v", err)
+		}
+	}
+
 	if *importSalaries != "" {
 		ranAnything = true
 		if *leagueID == 0 {
@@ -149,7 +158,7 @@ func main() {
 	}
 
 	if !ranAnything {
-		log.Fatal("nothing to do — pass -project, -import-consensus, -import-darko, -consensus-diff, -backtest, and/or -autotune")
+		log.Fatal("nothing to do — pass -project, -import-consensus, -import-darko, -import-darko-extras, -consensus-diff, -backtest, and/or -autotune")
 	}
 	log.Println("done")
 }
