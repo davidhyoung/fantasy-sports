@@ -49,6 +49,7 @@ enough to read in under a minute.
   imported for season 2026, all matched to `espn_id`. Details: `docs/stats/nba-auction-values.md`.
 - Snapshot is stale (DARKO dataset as of 2026-06-03) and was cut to players projected ≥10 mpg;
   re-pull before the draft. The minutes blend/caps and pace clamp are untested judgment calls.
+- Both sources kept: `?source=comps` on `draft-values-nba` prices from the old pipeline.
 - Not touched: the old comp-based `nba_projections` pipeline (player detail, `/api/nba/rankings`,
   consensus diff still use it), the frontend (new `minutes` field on draft-value players is unused).
 - Next: backtest the minutes/pace guards, decide whether to retire `nba_projections`, wire the

@@ -207,6 +207,10 @@ unvalidated for this sport specifically. Additionally:
 
 ## Projection source: DARKO (October 2026)
 
+`GET .../draft-values-nba?source=darko|comps` — DARKO is the default; `comps` runs the original
+comp-based `nba_projections` path (raw-percentage FG%/FT%, whole projected pool for z-scores).
+Both stay supported so they can be compared.
+
 Auction values no longer price off the homegrown comp-based `nba_projections`; they use
 [DARKO](https://darko.app) per-player forward projections (`nba_darko_projections`).
 `fantasyValue` and everything downstream (replacement levels, VOR, compression, tiers,

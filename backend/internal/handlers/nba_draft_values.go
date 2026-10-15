@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/davidyoung/fantasy-sports/backend/internal/services/tiers"
 )
 
@@ -79,6 +81,7 @@ type nbaReplacementLevel struct {
 
 type nbaDraftValuesResp struct {
 	Season            int                   `json:"season"`
+	Source            string                `json:"source"` // darko | comps
 	BudgetPerTeam     int                   `json:"budget_per_team"`
 	NumTeams          int                   `json:"num_teams"`
 	Settings          nbaDraftSettings      `json:"settings"`
@@ -230,6 +233,11 @@ func (h *Handler) GetNBADraftValues(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	source := nbaSourceDarko
+	if q.Get("source") == nbaSourceComps {
+		source = nbaSourceComps
+	}
+
 	var numTeams, budget int
 	var slotsRaw, scoringRaw []byte
 	err = h.db.QueryRow(ctx, `
@@ -290,7 +298,11 @@ func (h *Handler) GetNBADraftValues(w http.ResponseWriter, r *http.Request) {
 	// to rows matched to an espn_id and to the three real roster positions —
 	// a player with no position on file can never actually be rostered, so
 	// including them would just distort the replacement-level math.
-	rows, err := h.db.Query(ctx, `
+	var rows pgx.Rows
+	if source == nbaSourceComps {
+		rows, err = h.db.Query(ctx, nbaCompsPoolSQL, season, nbaPositions)
+	} else {
+		rows, err = h.db.Query(ctx, `
 		SELECT d.espn_id, p.name, p.position, COALESCE(p.team, ''), COALESCE(p.headshot_url, ''),
 		       GREATEST(0, LEAST(
 		           CASE WHEN a.gp >= $3 THEN (d.x_minutes + a.mpg) / 2 ELSE d.x_minutes END,
@@ -306,7 +318,8 @@ func (h *Handler) GetNBADraftValues(w http.ResponseWriter, r *http.Request) {
 		) a ON a.espn_id = d.espn_id
 		WHERE d.season = $1 AND p.position = ANY($2)
 	`, season, nbaPositions, nbaDarkoMinutesBlendMinGames,
-		nbaDarkoMaxMinutes, nbaDarkoMaxMinutesUnblended, nbaDarkoPaceMin, nbaDarkoPaceMax)
+			nbaDarkoMaxMinutes, nbaDarkoMaxMinutesUnblended, nbaDarkoPaceMin, nbaDarkoPaceMax)
+	}
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -316,18 +329,35 @@ func (h *Handler) GetNBADraftValues(w http.ResponseWriter, r *http.Request) {
 	rawByPlayer := make(map[string]nbaDarkoStats)
 	for rows.Next() {
 		var dp nbaDraftPlayer
-		var d nbaDarkoRates
-		if err := rows.Scan(
-			&dp.ESPNID, &dp.Name, &dp.Position, &dp.Team, &dp.HeadshotURL,
-			&d.minutes, &d.pace, &d.pts100, &d.ast100, &d.orb100, &d.drb100, &d.stl100, &d.blk100,
-			&d.tov100, &d.fga100, &d.fg3a100, &d.fta100, &d.fgPct, &d.fg3Pct, &d.ftPct,
-		); err != nil {
-			rows.Close()
-			respondError(w, http.StatusInternalServerError, err.Error())
-			return
+		if source == nbaSourceComps {
+			var c nbaDarkoStats
+			var fgPct, ftPct float64
+			if err := rows.Scan(&dp.ESPNID, &dp.Name, &dp.Position, &dp.Team, &dp.HeadshotURL,
+				&c.points, &c.rebounds, &c.assists, &c.steals, &c.blocks, &c.turnovers, &c.threePM,
+				&fgPct, &ftPct, &dp.CompCount); err != nil {
+				rows.Close()
+				respondError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			// Comp projections carry no attempt volume, so a single unit
+			// attempt makes the volume-weighted percentage z-input collapse
+			// to the raw percentage — the pre-DARKO behavior.
+			c.fga, c.fgm, c.fta, c.ftm = 1, fgPct, 1, ftPct
+			rawByPlayer[dp.ESPNID] = c
+		} else {
+			var d nbaDarkoRates
+			if err := rows.Scan(
+				&dp.ESPNID, &dp.Name, &dp.Position, &dp.Team, &dp.HeadshotURL,
+				&d.minutes, &d.pace, &d.pts100, &d.ast100, &d.orb100, &d.drb100, &d.stl100, &d.blk100,
+				&d.tov100, &d.fga100, &d.fg3a100, &d.fta100, &d.fgPct, &d.fg3Pct, &d.ftPct,
+			); err != nil {
+				rows.Close()
+				respondError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			dp.Minutes = d.minutes
+			rawByPlayer[dp.ESPNID] = d.perGame()
 		}
-		dp.Minutes = d.minutes
-		rawByPlayer[dp.ESPNID] = d.perGame()
 		players = append(players, dp)
 	}
 	rows.Close()
@@ -344,7 +374,7 @@ func (h *Handler) GetNBADraftValues(w http.ResponseWriter, r *http.Request) {
 	byMinutes := make([]nbaDraftPlayer, len(players))
 	copy(byMinutes, players)
 	sort.Slice(byMinutes, func(i, j int) bool { return byMinutes[i].Minutes > byMinutes[j].Minutes })
-	if draftableN < 1 || draftableN > len(byMinutes) {
+	if source == nbaSourceComps || draftableN < 1 || draftableN > len(byMinutes) {
 		draftableN = len(byMinutes)
 	}
 	pool := byMinutes[:draftableN]
@@ -516,6 +546,7 @@ func (h *Handler) GetNBADraftValues(w http.ResponseWriter, r *http.Request) {
 
 	respondJSON(w, http.StatusOK, nbaDraftValuesResp{
 		Season:        season,
+		Source:        source,
 		BudgetPerTeam: budget,
 		NumTeams:      numTeams,
 		Settings: nbaDraftSettings{
@@ -652,6 +683,22 @@ func (h *Handler) attachNBAConsensusValues(ctx context.Context, season int, play
 		players[i].ConsensusDerived = true
 	}
 }
+
+// Projection sources GetNBADraftValues can price from (?source=).
+const (
+	nbaSourceDarko = "darko" // default
+	nbaSourceComps = "comps" // homegrown comp-based nba_projections
+)
+
+// nbaCompsPoolSQL loads the comp-based batch projections (cmd/project-nba
+// -project), restricted like the DARKO pool to real roster positions.
+const nbaCompsPoolSQL = `
+	SELECT pr.espn_id, p.name, p.position, COALESCE(p.team, ''), COALESCE(p.headshot_url, ''),
+	       pr.points, pr.rebounds, pr.assists, pr.steals, pr.blocks, pr.turnovers, pr.three_pm, pr.fg_pct, pr.ft_pct,
+	       pr.comp_count
+	FROM nba_projections pr
+	JOIN nba_players p ON p.espn_id = pr.espn_id
+	WHERE pr.target_season = $1 AND p.position = ANY($2)`
 
 // nbaDarkoMinutesBlendMinGames is the games last season a player needs for
 // their actual minutes per game to be blended into DARKO's x_minutes.
