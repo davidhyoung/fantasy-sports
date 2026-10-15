@@ -652,6 +652,8 @@ export interface NBADraftPlayer {
   z_scores: NBACategoryEntry[]
   fantasy_value: number
   comp_count: number
+  /** Projected minutes per game (DARKO source only; 0 for comps). */
+  minutes: number
   vor: number
   auction_value: number
   overall_rank: number

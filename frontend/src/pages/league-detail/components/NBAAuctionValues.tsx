@@ -5,7 +5,7 @@ import { Table, TableHeader, TableBody, TableHead, TableCell, TableRow } from '@
 import { PlayerCell, ClickableRow, HeaderRow, SortableHead, useTableSort, type SortDir } from '@/components/ui/table-helpers'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { Input } from '@/components/ui/input'
-import { getNBADraftValues, type NBADraftPlayer } from '@/api/client'
+import { getNBADraftValues, NBA_CATEGORY_LABELS, type NBADraftPlayer } from '@/api/client'
 import { keys } from '@/api/queryKeys'
 import { loadPersistedFilters, savePersistedFilters } from '@/lib/persistedFilters'
 
@@ -29,6 +29,10 @@ const filtersStorageKey = (leagueId: number, season: number) => `fs.nba-auction.
 function edgeOf(p: NBADraftPlayer) {
   return p.consensus_auction_value == null ? null : p.auction_value - p.consensus_auction_value
 }
+
+const isPct = (cat: string) => cat === 'fg_pct' || cat === 'ft_pct'
+const fmtStat = (cat: string, v: number) => (isPct(cat) ? v.toFixed(3).replace(/^0/, '') : v.toFixed(1))
+const fmtZ = (z: number) => `${z > 0 ? '+' : ''}${z.toFixed(1)}`
 
 function sourceLabel(source: string) {
   return source
@@ -172,21 +176,20 @@ export function NBAAuctionValues({ leagueId, season, onSelectPlayer }: Props) {
                 const comps = compsPrice.get(p.espn_id)
                 const dComps = vsComps(p)
                 const hasSources = (p.source_ranks?.length ?? 0) > 0
+                const zByCat = new Map(p.z_scores.map((z) => [z.category, z.value]))
                 const isOpen = expanded.has(p.espn_id)
                 return (
                   <Fragment key={p.espn_id}>
                     <ClickableRow>
                       <TableCell>
-                        {hasSources && (
-                          <button
+                        <button
                             onClick={() => toggleExpanded(p.espn_id)}
-                            aria-label={isOpen ? 'Collapse external ranks' : 'Expand external ranks'}
+                            aria-label={isOpen ? 'Collapse player detail' : 'Expand player detail'}
                             aria-expanded={isOpen}
                             className="flex h-5 w-5 items-center justify-center text-muted-foreground hover:text-foreground"
                           >
                             {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                           </button>
-                        )}
                       </TableCell>
                       <TableCell className="font-mono tabular-nums text-muted-foreground">{p.overall_rank}</TableCell>
                       <PlayerCell name={p.name} imageUrl={p.headshot_url} onClick={() => onSelectPlayer(p.espn_id)} />
@@ -221,9 +224,34 @@ export function NBAAuctionValues({ leagueId, season, onSelectPlayer }: Props) {
                       </TableCell>
                       <TableCell className="text-right font-mono tabular-nums text-muted-foreground">{p.tier || '—'}</TableCell>
                     </ClickableRow>
-                    {isOpen && hasSources && (
+                    {isOpen && (
                       <TableRow className="bg-muted/30">
                         <TableCell colSpan={11} className="py-3">
+                          <div className="pl-7 mb-3">
+                            <div className="text-xs text-muted-foreground mb-1.5">
+                              DARKO projection, per game
+                              {p.minutes > 0 && <> · <span className="font-mono text-foreground">{p.minutes.toFixed(1)}</span> min</>}
+                              {' '}· z-score vs. the draftable pool
+                              <span className="ml-2">
+                                value <span className="font-mono text-foreground">{fmtZ(p.fantasy_value)}</span>
+                                {' '}· VOR <span className="font-mono text-foreground">{p.vor.toFixed(1)}</span>
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-x-5 gap-y-2">
+                              {p.stats.map((s) => {
+                                const z = zByCat.get(s.category) ?? 0
+                                const counts = (data?.settings.scoring[s.category] ?? 0) !== 0
+                                return (
+                                  <div key={s.category} className={`min-w-[3.25rem] ${counts ? '' : 'opacity-40'}`} title={counts ? undefined : 'Not a scoring category in this league'}>
+                                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{NBA_CATEGORY_LABELS[s.category]}</div>
+                                    <div className="font-mono tabular-nums text-sm text-foreground">{fmtStat(s.category, s.value)}</div>
+                                    <div className={`font-mono tabular-nums text-xs ${Math.abs(z) < 0.5 ? 'text-muted-foreground' : z > 0 ? 'text-positive' : 'text-secondary'}`}>{fmtZ(z)}</div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                          {hasSources && (<>
                           <div className="flex flex-wrap items-center gap-x-6 gap-y-1 pl-7 text-xs">
                             <span className="text-muted-foreground">
                               Each outlet's own <strong className="text-foreground">{p.position}</strong> position rank
@@ -239,6 +267,7 @@ export function NBAAuctionValues({ leagueId, season, onSelectPlayer }: Props) {
                               </span>
                             ))}
                           </div>
+                          </>)}
                         </TableCell>
                       </TableRow>
                     )}
