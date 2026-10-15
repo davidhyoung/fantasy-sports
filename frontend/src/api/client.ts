@@ -688,10 +688,14 @@ export interface NBADraftValuesResponse {
   settings: NBADraftSettings
   replacement_levels: NBAReplacementLevel[]
   players: NBADraftPlayer[]
+  source: NBADraftSource
 }
 
-export const getNBADraftValues = (leagueId: number, season: number) =>
-  request<NBADraftValuesResponse>(`/leagues/${leagueId}/draft-values-nba?season=${season}`)
+/** Projection engine behind the price: DARKO (default) or the homegrown comp-based projection. */
+export type NBADraftSource = 'darko' | 'comps'
+
+export const getNBADraftValues = (leagueId: number, season: number, source: NBADraftSource = 'darko') =>
+  request<NBADraftValuesResponse>(`/leagues/${leagueId}/draft-values-nba?season=${season}&source=${source}`)
 
 /**
  * Native-NBA keeper designation — pick up to 3 players off last season's

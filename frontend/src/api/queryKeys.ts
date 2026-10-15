@@ -71,7 +71,7 @@ export const keys = {
   nbaPlayer: (espnId: string, period: NBAStatPeriod, leagueId?: number) =>
     ['nba-player', espnId, period, leagueId] as const,
   nbaRankings: (season: number, position?: string) => ['nba-rankings', season, position] as const,
-  nbaDraftValues: (leagueId: number, season: number) => ['nba-draft-values', leagueId, season] as const,
+  nbaDraftValues: (leagueId: number, season: number, source: string = 'darko') => ['nba-draft-values', leagueId, season, source] as const,
   nbaKeepers: (leagueId: number, season: number, teamId?: number) => ['nba-keepers', leagueId, season, teamId] as const,
   grades: (season: number, position: string) =>
     ['grades', season, position] as const,

@@ -51,16 +51,30 @@ export function NBAAuctionValues({ leagueId, season, onSelectPlayer }: Props) {
   const [positions, setPositions] = useState<Set<string>>(new Set(saved.positions ?? []))
   const [search, setSearch] = useState(saved.search ?? '')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const { sortCol, sortDir, handleSort } = useTableSort(saved.sortCol ?? 'auction', saved.sortDir ?? 'desc', ['auction', 'rank', 'player', 'team', 'pos', 'consensus', 'edge'])
+  const { sortCol, sortDir, handleSort } = useTableSort(saved.sortCol ?? 'auction', saved.sortDir ?? 'desc', ['auction', 'rank', 'player', 'team', 'pos', 'consensus', 'edge', 'comps', 'vscomps'])
 
   useEffect(() => {
     savePersistedFilters<SavedFilters>(filtersStorageKey(leagueId, season), { positions: [...positions], search, sortCol, sortDir })
   }, [leagueId, season, positions, search, sortCol, sortDir])
 
-  const { data, isFetching } = useQuery({
-    queryKey: keys.nbaDraftValues(leagueId, season),
-    queryFn: () => getNBADraftValues(leagueId, season),
+  const { data, isFetching: darkoFetching } = useQuery({
+    queryKey: keys.nbaDraftValues(leagueId, season, 'darko'),
+    queryFn: () => getNBADraftValues(leagueId, season, 'darko'),
   })
+  const { data: compsData, isFetching: compsFetching } = useQuery({
+    queryKey: keys.nbaDraftValues(leagueId, season, 'comps'),
+    queryFn: () => getNBADraftValues(leagueId, season, 'comps'),
+  })
+  const isFetching = darkoFetching || compsFetching
+  const compsPrice = useMemo(
+    () => new Map((compsData?.players ?? []).map((p) => [p.espn_id, p.auction_value])),
+    [compsData],
+  )
+  // DARKO minus comps: positive = DARKO likes the player more than our comp model.
+  const vsComps = (p: NBADraftPlayer) => {
+    const c = compsPrice.get(p.espn_id)
+    return c == null ? null : p.auction_value - c
+  }
 
   const togglePosition = (p: string) => {
     setPositions((prev) => {
@@ -97,11 +111,13 @@ export function NBAAuctionValues({ leagueId, season, onSelectPlayer }: Props) {
         case 'pos': cmp = (a.position || '').localeCompare(b.position || ''); break
         case 'consensus': cmp = (a.consensus_auction_value ?? -1) - (b.consensus_auction_value ?? -1); break
         case 'edge': cmp = (edgeOf(a) ?? -Infinity) - (edgeOf(b) ?? -Infinity); break
+        case 'comps': cmp = (compsPrice.get(a.espn_id) ?? -1) - (compsPrice.get(b.espn_id) ?? -1); break
+        case 'vscomps': cmp = (vsComps(a) ?? -Infinity) - (vsComps(b) ?? -Infinity); break
         default: cmp = 0
       }
       return cmp * dirMul
     })
-  }, [filtered, sortCol, sortDir])
+  }, [filtered, sortCol, sortDir, compsPrice])
 
   return (
     <>
@@ -142,7 +158,9 @@ export function NBAAuctionValues({ leagueId, season, onSelectPlayer }: Props) {
                 <SortableHead col="player" current={sortCol} dir={sortDir} onSort={handleSort}>Player</SortableHead>
                 <SortableHead col="team" current={sortCol} dir={sortDir} onSort={handleSort}>Team</SortableHead>
                 <SortableHead col="pos" current={sortCol} dir={sortDir} onSort={handleSort}>Pos</SortableHead>
-                <SortableHead col="auction" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Our $</SortableHead>
+                <SortableHead col="auction" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">DARKO $</SortableHead>
+                <SortableHead col="comps" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Comps $</SortableHead>
+                <SortableHead col="vscomps" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Δ Comps</SortableHead>
                 <SortableHead col="consensus" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Cons $</SortableHead>
                 <SortableHead col="edge" current={sortCol} dir={sortDir} onSort={handleSort} className="text-right">Edge</SortableHead>
                 <TableHead className="text-right">Tier</TableHead>
@@ -151,6 +169,8 @@ export function NBAAuctionValues({ leagueId, season, onSelectPlayer }: Props) {
             <TableBody>
               {rows.map((p) => {
                 const edge = edgeOf(p)
+                const comps = compsPrice.get(p.espn_id)
+                const dComps = vsComps(p)
                 const hasSources = (p.source_ranks?.length ?? 0) > 0
                 const isOpen = expanded.has(p.espn_id)
                 return (
@@ -174,6 +194,18 @@ export function NBAAuctionValues({ leagueId, season, onSelectPlayer }: Props) {
                       <TableCell className="text-muted-foreground">{p.position}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums text-foreground">${p.auction_value}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums text-muted-foreground">
+                        {comps != null ? `$${comps}` : '—'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">
+                        {dComps == null ? (
+                          <span className="text-muted-foreground/40">—</span>
+                        ) : (
+                          <span className={Math.abs(dComps) < 5 ? 'text-muted-foreground' : dComps > 0 ? 'text-positive' : 'text-secondary'}>
+                            {dComps > 0 ? `+$${dComps}` : dComps < 0 ? `-$${Math.abs(dComps)}` : '$0'}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-mono tabular-nums text-muted-foreground">
                         {p.consensus_auction_value != null
                           ? `$${p.consensus_auction_value}${p.consensus_sources === 1 ? '*' : ''}`
                           : '—'}
@@ -191,7 +223,7 @@ export function NBAAuctionValues({ leagueId, season, onSelectPlayer }: Props) {
                     </ClickableRow>
                     {isOpen && hasSources && (
                       <TableRow className="bg-muted/30">
-                        <TableCell colSpan={9} className="py-3">
+                        <TableCell colSpan={11} className="py-3">
                           <div className="flex flex-wrap items-center gap-x-6 gap-y-1 pl-7 text-xs">
                             <span className="text-muted-foreground">
                               Each outlet's own <strong className="text-foreground">{p.position}</strong> position rank
