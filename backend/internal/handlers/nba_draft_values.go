@@ -31,6 +31,9 @@ type nbaDraftPlayer struct {
 	// FantasyValue is the z-score sum over only the categories this league
 	// scores — the "points" analog that VOR/auction pricing is computed from.
 	FantasyValue float64 `json:"fantasy_value"`
+	// Minutes is DARKO's projected minutes per game.
+	Minutes float64 `json:"minutes"`
+	// CompCount is retained for API compatibility; DARKO is not comp-based.
 	CompCount    int     `json:"comp_count"`
 	VOR          float64 `json:"vor"`
 	AuctionValue int     `json:"auction_value"`
@@ -278,42 +281,39 @@ func (h *Handler) GetNBADraftValues(w http.ResponseWriter, r *http.Request) {
 		included[cat] = scoring[cat] != 0
 	}
 
-	// Load the batch-projected pool (cmd/project-nba -project), restricted to
-	// the three real roster positions — a player with no position on file
-	// can never actually be rostered, so including them would just distort
-	// the replacement-level math with unplaceable players.
+	// Load DARKO's projected pool (cmd/project-nba -import-darko), restricted
+	// to rows matched to an espn_id and to the three real roster positions —
+	// a player with no position on file can never actually be rostered, so
+	// including them would just distort the replacement-level math.
 	rows, err := h.db.Query(ctx, `
-		SELECT pr.espn_id, p.name, p.position, COALESCE(p.team, ''), COALESCE(p.headshot_url, ''),
-		       pr.points, pr.rebounds, pr.assists, pr.steals, pr.blocks, pr.turnovers, pr.three_pm, pr.fg_pct, pr.ft_pct,
-		       pr.comp_count
-		FROM nba_projections pr
-		JOIN nba_players p ON p.espn_id = pr.espn_id
-		WHERE pr.target_season = $1 AND p.position = ANY($2)
+		SELECT d.espn_id, p.name, p.position, COALESCE(p.team, ''), COALESCE(p.headshot_url, ''),
+		       d.x_minutes, d.x_pace, d.pts_100, d.ast_100, d.orb_100, d.drb_100, d.stl_100, d.blk_100,
+		       d.tov_100, d.fga_100, d.fg3a_100, d.fta_100, d.fg_pct, d.fg3_pct, d.ft_pct
+		FROM nba_darko_projections d
+		JOIN nba_players p ON p.espn_id = d.espn_id
+		WHERE d.season = $1 AND p.position = ANY($2)
 	`, season, nbaPositions)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	type rawStats struct {
-		points, rebounds, assists, steals, blocks, turnovers, threePM, fgPct, ftPct float64
-	}
 	var players []nbaDraftPlayer
-	rawByPlayer := make(map[string]rawStats)
+	rawByPlayer := make(map[string]nbaDarkoStats)
 	for rows.Next() {
 		var dp nbaDraftPlayer
-		var rs rawStats
+		var d nbaDarkoRates
 		if err := rows.Scan(
 			&dp.ESPNID, &dp.Name, &dp.Position, &dp.Team, &dp.HeadshotURL,
-			&rs.points, &rs.rebounds, &rs.assists, &rs.steals, &rs.blocks,
-			&rs.turnovers, &rs.threePM, &rs.fgPct, &rs.ftPct,
-			&dp.CompCount,
+			&d.minutes, &d.pace, &d.pts100, &d.ast100, &d.orb100, &d.drb100, &d.stl100, &d.blk100,
+			&d.tov100, &d.fga100, &d.fg3a100, &d.fta100, &d.fgPct, &d.fg3Pct, &d.ftPct,
 		); err != nil {
 			rows.Close()
 			respondError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		rawByPlayer[dp.ESPNID] = rs
+		dp.Minutes = d.minutes
+		rawByPlayer[dp.ESPNID] = d.perGame()
 		players = append(players, dp)
 	}
 	rows.Close()
@@ -322,69 +322,80 @@ func (h *Handler) GetNBADraftValues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	statValue := func(rs rawStats, cat string) float64 {
+	// Mean/stdev come from the draftable pool — the top
+	// teams × (G+F+C+UTIL+BN) players by projected minutes — not every
+	// projected body. Including deep-bench players would inflate each
+	// category's stdev and compress the value of everyone who matters.
+	draftableN := numTeams * (slots["G"] + slots["F"] + slots["C"] + slots["UTIL"] + slots["BN"])
+	byMinutes := make([]nbaDraftPlayer, len(players))
+	copy(byMinutes, players)
+	sort.Slice(byMinutes, func(i, j int) bool { return byMinutes[i].Minutes > byMinutes[j].Minutes })
+	if draftableN < 1 || draftableN > len(byMinutes) {
+		draftableN = len(byMinutes)
+	}
+	pool := byMinutes[:draftableN]
+
+	// FG%/FT% are volume-weighted: a player's value is the makes they add
+	// over what a league-average shooter would make on the same attempts
+	// (the roto-correct "impact"), not the raw percentage — a 60% shooter on
+	// 2 attempts must not outrank a 52% shooter on 15. DARKO supplies
+	// attempts, which is what makes this possible.
+	var poolFGM, poolFGA, poolFTM, poolFTA float64
+	for _, p := range pool {
+		s := rawByPlayer[p.ESPNID]
+		poolFGM += s.fgm
+		poolFGA += s.fga
+		poolFTM += s.ftm
+		poolFTA += s.fta
+	}
+	var leagueFG, leagueFT float64
+	if poolFGA > 0 {
+		leagueFG = poolFGM / poolFGA
+	}
+	if poolFTA > 0 {
+		leagueFT = poolFTM / poolFTA
+	}
+	zInput := func(s nbaDarkoStats, cat string) float64 {
 		switch cat {
-		case "points":
-			return rs.points
-		case "rebounds":
-			return rs.rebounds
-		case "assists":
-			return rs.assists
-		case "steals":
-			return rs.steals
-		case "blocks":
-			return rs.blocks
-		case "turnovers":
-			return rs.turnovers
-		case "three_pm":
-			return rs.threePM
 		case "fg_pct":
-			return rs.fgPct
+			return s.fgm - leagueFG*s.fga
 		case "ft_pct":
-			return rs.ftPct
+			return s.ftm - leagueFT*s.fta
 		}
-		return 0
+		return s.value(cat)
 	}
 
-	// Per-category population mean/stdev over the whole projected pool —
-	// nbaComputeCategoryStats/nbaFantasyZScore's formula
-	// (frontend/.../lib/nbaRanking.ts), ported to Go since this needs to run
-	// server-side over the full season's projected population.
 	type catAgg struct{ mean, stdev float64 }
 	catStats := make(map[string]catAgg, len(nbaCategories))
-	for _, cat := range nbaCategories {
-		var sum float64
-		for _, p := range players {
-			sum += statValue(rawByPlayer[p.ESPNID], cat)
+	if n := float64(len(pool)); n > 0 {
+		for _, cat := range nbaCategories {
+			var sum float64
+			for _, p := range pool {
+				sum += zInput(rawByPlayer[p.ESPNID], cat)
+			}
+			mean := sum / n
+			var sqDiff float64
+			for _, p := range pool {
+				d := zInput(rawByPlayer[p.ESPNID], cat) - mean
+				sqDiff += d * d
+			}
+			catStats[cat] = catAgg{mean: mean, stdev: math.Sqrt(sqDiff / n)}
 		}
-		n := float64(len(players))
-		if n == 0 {
-			continue
-		}
-		mean := sum / n
-		var sqDiff float64
-		for _, p := range players {
-			d := statValue(rawByPlayer[p.ESPNID], cat) - mean
-			sqDiff += d * d
-		}
-		catStats[cat] = catAgg{mean: mean, stdev: math.Sqrt(sqDiff / n)}
 	}
 
 	// Fantasy value = z-score sum over only the categories this league
-	// scores — the "league categories" requirement; it's why this can't
-	// just read the stored nba_projections.our_rank (always all 9 cats).
+	// scores (league_settings.scoring).
 	for i := range players {
 		rs := rawByPlayer[players[i].ESPNID]
 		players[i].Stats = make([]nbaCategoryEntry, 0, len(nbaCategories))
 		players[i].ZScores = make([]nbaCategoryEntry, 0, len(nbaCategories))
 		var total float64
 		for _, cat := range nbaCategories {
-			v := statValue(rs, cat)
-			players[i].Stats = append(players[i].Stats, nbaCategoryEntry{Category: cat, Value: v})
+			players[i].Stats = append(players[i].Stats, nbaCategoryEntry{Category: cat, Value: rs.value(cat)})
 			agg := catStats[cat]
 			var z float64
 			if agg.stdev > 0 {
-				z = (v - agg.mean) / agg.stdev
+				z = (zInput(rs, cat) - agg.mean) / agg.stdev
 				if cat == "turnovers" {
 					z = -z
 				}
@@ -626,4 +637,70 @@ func (h *Handler) attachNBAConsensusValues(ctx context.Context, season int, play
 		players[i].ConsensusSources = len(vals)
 		players[i].ConsensusDerived = true
 	}
+}
+
+// nbaDarkoRates is one row of nba_darko_projections: DARKO's per-100-possession
+// rates plus the minutes and pace that convert them to per-game.
+type nbaDarkoRates struct {
+	minutes, pace                                          float64
+	pts100, ast100, orb100, drb100, stl100, blk100, tov100 float64
+	fga100, fg3a100, fta100, fgPct, fg3Pct, ftPct          float64
+}
+
+// nbaDarkoStats is a projected per-game line, including the raw makes and
+// attempts the percentage categories need.
+type nbaDarkoStats struct {
+	points, rebounds, assists, steals, blocks, turnovers, threePM float64
+	fgm, fga, ftm, fta                                            float64
+}
+
+// perGame converts per-100 rates to per-game: a player's possessions are the
+// team's pace (per 48) scaled by the share of the game they play.
+func (d nbaDarkoRates) perGame() nbaDarkoStats {
+	poss := d.pace * d.minutes / 48 / 100
+	fga := d.fga100 * poss
+	fta := d.fta100 * poss
+	return nbaDarkoStats{
+		points:    d.pts100 * poss,
+		rebounds:  (d.orb100 + d.drb100) * poss,
+		assists:   d.ast100 * poss,
+		steals:    d.stl100 * poss,
+		blocks:    d.blk100 * poss,
+		turnovers: d.tov100 * poss,
+		threePM:   d.fg3a100 * d.fg3Pct * poss,
+		fgm:       fga * d.fgPct,
+		fga:       fga,
+		ftm:       fta * d.ftPct,
+		fta:       fta,
+	}
+}
+
+// value is the displayed per-game number for a category (the percentage
+// categories show the raw percentage, not the z-score input).
+func (s nbaDarkoStats) value(cat string) float64 {
+	switch cat {
+	case "points":
+		return s.points
+	case "rebounds":
+		return s.rebounds
+	case "assists":
+		return s.assists
+	case "steals":
+		return s.steals
+	case "blocks":
+		return s.blocks
+	case "turnovers":
+		return s.turnovers
+	case "three_pm":
+		return s.threePM
+	case "fg_pct":
+		if s.fga > 0 {
+			return s.fgm / s.fga
+		}
+	case "ft_pct":
+		if s.fta > 0 {
+			return s.ftm / s.fta
+		}
+	}
+	return 0
 }
