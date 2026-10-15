@@ -661,6 +661,10 @@ export interface NBADraftPlayer {
   consensus_position_rank: number | null
   consensus_sources: number
   consensus_derived: boolean
+  // Each outlet's own position rank (G/F/C) — the inputs consensus_position_rank's
+  // median is computed from. No outlet publishes real auction prices we've
+  // imported, so this is rank only, not a second column of dollar opinions.
+  source_ranks?: { source: string; rank: number }[]
 }
 
 export interface NBADraftSettings {

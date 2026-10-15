@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Loader2 } from 'lucide-react'
-import { Table, TableHeader, TableBody, TableHead, TableCell } from '@/components/ui/table'
+import { Loader2, ChevronRight, ChevronDown } from 'lucide-react'
+import { Table, TableHeader, TableBody, TableHead, TableCell, TableRow } from '@/components/ui/table'
 import { PlayerCell, ClickableRow, HeaderRow, SortableHead, useTableSort, type SortDir } from '@/components/ui/table-helpers'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { Input } from '@/components/ui/input'
@@ -30,6 +30,13 @@ function edgeOf(p: NBADraftPlayer) {
   return p.consensus_auction_value == null ? null : p.auction_value - p.consensus_auction_value
 }
 
+function sourceLabel(source: string) {
+  return source
+    .split('_')
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(' ')
+}
+
 /**
  * League-specific NBA auction dollar values: our own price (a z-score sum
  * over only the categories this league scores, priced by position-scarcity
@@ -43,6 +50,7 @@ export function NBAAuctionValues({ leagueId, season, onSelectPlayer }: Props) {
   const saved = useMemo(() => loadPersistedFilters<SavedFilters>(filtersStorageKey(leagueId, season)), [leagueId, season])
   const [positions, setPositions] = useState<Set<string>>(new Set(saved.positions ?? []))
   const [search, setSearch] = useState(saved.search ?? '')
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const { sortCol, sortDir, handleSort } = useTableSort(saved.sortCol ?? 'auction', saved.sortDir ?? 'desc', ['auction', 'rank', 'player', 'team', 'pos', 'consensus', 'edge'])
 
   useEffect(() => {
@@ -58,6 +66,13 @@ export function NBAAuctionValues({ leagueId, season, onSelectPlayer }: Props) {
     setPositions((prev) => {
       const next = new Set(prev)
       if (next.has(p)) next.delete(p); else next.add(p)
+      return next
+    })
+  }
+  const toggleExpanded = (espnId: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(espnId)) next.delete(espnId); else next.add(espnId)
       return next
     })
   }
@@ -122,6 +137,7 @@ export function NBAAuctionValues({ leagueId, season, onSelectPlayer }: Props) {
           <Table>
             <TableHeader style={{ top: 0 }}>
               <HeaderRow>
+                <TableHead className="w-6" />
                 <SortableHead col="rank" current={sortCol} dir={sortDir} onSort={handleSort}>Rank</SortableHead>
                 <SortableHead col="player" current={sortCol} dir={sortDir} onSort={handleSort}>Player</SortableHead>
                 <SortableHead col="team" current={sortCol} dir={sortDir} onSort={handleSort}>Team</SortableHead>
@@ -135,29 +151,66 @@ export function NBAAuctionValues({ leagueId, season, onSelectPlayer }: Props) {
             <TableBody>
               {rows.map((p) => {
                 const edge = edgeOf(p)
+                const hasSources = (p.source_ranks?.length ?? 0) > 0
+                const isOpen = expanded.has(p.espn_id)
                 return (
-                  <ClickableRow key={p.espn_id}>
-                    <TableCell className="font-mono tabular-nums text-muted-foreground">{p.overall_rank}</TableCell>
-                    <PlayerCell name={p.name} imageUrl={p.headshot_url} onClick={() => onSelectPlayer(p.espn_id)} />
-                    <TableCell className="text-muted-foreground">{p.team || '—'}</TableCell>
-                    <TableCell className="text-muted-foreground">{p.position}</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums text-foreground">${p.auction_value}</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums text-muted-foreground">
-                      {p.consensus_auction_value != null
-                        ? `$${p.consensus_auction_value}${p.consensus_sources === 1 ? '*' : ''}`
-                        : '—'}
-                    </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">
-                      {edge == null ? (
-                        <span className="text-muted-foreground/40">—</span>
-                      ) : (
-                        <span className={Math.abs(edge) < 5 ? 'text-muted-foreground' : edge > 0 ? 'text-positive' : 'text-secondary'}>
-                          {edge > 0 ? `+$${edge}` : edge < 0 ? `-$${Math.abs(edge)}` : '$0'}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums text-muted-foreground">{p.tier || '—'}</TableCell>
-                  </ClickableRow>
+                  <Fragment key={p.espn_id}>
+                    <ClickableRow>
+                      <TableCell>
+                        {hasSources && (
+                          <button
+                            onClick={() => toggleExpanded(p.espn_id)}
+                            aria-label={isOpen ? 'Collapse external ranks' : 'Expand external ranks'}
+                            aria-expanded={isOpen}
+                            className="flex h-5 w-5 items-center justify-center text-muted-foreground hover:text-foreground"
+                          >
+                            {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                          </button>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono tabular-nums text-muted-foreground">{p.overall_rank}</TableCell>
+                      <PlayerCell name={p.name} imageUrl={p.headshot_url} onClick={() => onSelectPlayer(p.espn_id)} />
+                      <TableCell className="text-muted-foreground">{p.team || '—'}</TableCell>
+                      <TableCell className="text-muted-foreground">{p.position}</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums text-foreground">${p.auction_value}</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums text-muted-foreground">
+                        {p.consensus_auction_value != null
+                          ? `$${p.consensus_auction_value}${p.consensus_sources === 1 ? '*' : ''}`
+                          : '—'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">
+                        {edge == null ? (
+                          <span className="text-muted-foreground/40">—</span>
+                        ) : (
+                          <span className={Math.abs(edge) < 5 ? 'text-muted-foreground' : edge > 0 ? 'text-positive' : 'text-secondary'}>
+                            {edge > 0 ? `+$${edge}` : edge < 0 ? `-$${Math.abs(edge)}` : '$0'}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-mono tabular-nums text-muted-foreground">{p.tier || '—'}</TableCell>
+                    </ClickableRow>
+                    {isOpen && hasSources && (
+                      <TableRow className="bg-muted/30">
+                        <TableCell colSpan={9} className="py-3">
+                          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 pl-7 text-xs">
+                            <span className="text-muted-foreground">
+                              Each outlet's own <strong className="text-foreground">{p.position}</strong> position rank
+                              (median → <span className="font-mono">${p.consensus_auction_value ?? '—'}</span> on our
+                              curve). No outlet publishes real auction prices, so this is rank, not a second column of
+                              dollar figures.
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-x-6 gap-y-1 pl-7 mt-1.5">
+                            {p.source_ranks!.map((s) => (
+                              <span key={s.source} className="text-xs font-mono tabular-nums text-foreground">
+                                {sourceLabel(s.source)} <span className="text-muted-foreground">#{s.rank}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
                 )
               })}
             </TableBody>

@@ -43,6 +43,19 @@ type nbaDraftPlayer struct {
 	ConsensusPositionRank *float64 `json:"consensus_position_rank"`
 	ConsensusSources      int      `json:"consensus_sources"`
 	ConsensusDerived      bool     `json:"consensus_derived"`
+	// SourceRanks is each individual outlet's position rank for this player
+	// (G/F/C, per nba_players.position — see attachNBAConsensusValues' doc
+	// comment) — the raw inputs ConsensusPositionRank's median is computed
+	// from. There is no per-source dollar figure to show here: no outlet
+	// publishes real auction prices we've imported (metric_type='auction' is
+	// a generic, not-yet-populated path, same as NFL's), so this is rank
+	// only, not a second column of dollar opinions.
+	SourceRanks []nbaConsensusSourceRank `json:"source_ranks,omitempty"`
+}
+
+type nbaConsensusSourceRank struct {
+	Source string `json:"source"`
+	Rank   int    `json:"rank"`
 }
 
 type nbaDraftSettings struct {
@@ -540,7 +553,7 @@ func (h *Handler) attachNBAConsensusValues(ctx context.Context, season int, play
 	// RANK() partitions on our own resolved position (joined from
 	// nba_players), not the raw stored text — see the handler doc comment.
 	rankRows, err := h.db.Query(ctx, `
-		SELECT ncr.espn_id,
+		SELECT ncr.espn_id, ncr.source,
 		       RANK() OVER (PARTITION BY ncr.source, np.position ORDER BY ncr.value ASC) AS pos_rank
 		FROM nba_consensus_rankings ncr
 		JOIN nba_players np ON np.espn_id = ncr.espn_id
@@ -554,15 +567,23 @@ func (h *Handler) attachNBAConsensusValues(ctx context.Context, season int, play
 
 	ranks := map[string][]float64{}
 	for rankRows.Next() {
-		var espnID string
+		var espnID, source string
 		var posRank int
-		if err := rankRows.Scan(&espnID, &posRank); err != nil {
+		if err := rankRows.Scan(&espnID, &source, &posRank); err != nil {
 			return
 		}
 		ranks[espnID] = append(ranks[espnID], float64(posRank))
+		if i, ok := byID[espnID]; ok {
+			players[i].SourceRanks = append(players[i].SourceRanks, nbaConsensusSourceRank{Source: source, Rank: posRank})
+		}
 	}
 	if rankRows.Err() != nil || len(ranks) == 0 {
 		return
+	}
+	for i := range players {
+		sort.Slice(players[i].SourceRanks, func(a, b int) bool {
+			return players[i].SourceRanks[a].Source < players[i].SourceRanks[b].Source
+		})
 	}
 
 	// Our own dollar value at each position rank — the curve the derived
